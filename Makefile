@@ -1,0 +1,77 @@
+.PHONY: help build install clean test test-coverage lint fmt run dev build-all
+
+# Variables
+BINARY_NAME=cronic
+MAIN_PATH=./cmd/cronic
+BUILD_DIR=./bin
+DIST_DIR=./dist
+
+# Build information
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Linker flags
+LDFLAGS=-ldflags "-X github.com/hzerrad/cronic/internal/cmd.version=$(VERSION) \
+                  -X github.com/hzerrad/cronic/internal/cmd.commit=$(COMMIT) \
+                  -X github.com/hzerrad/cronic/internal/cmd.date=$(DATE)"
+
+help: ## Display this help message
+	@echo "Available targets:"
+	@awk 'BEGIN {FS = ":.*##"; printf "\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
+build: ## Build the binary
+	@echo "Building $(BINARY_NAME)..."
+	@mkdir -p $(BUILD_DIR)
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
+	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+
+install: ## Install the binary to GOPATH/bin
+	@echo "Installing $(BINARY_NAME)..."
+	go install $(LDFLAGS) $(MAIN_PATH)
+	@echo "Installation complete"
+
+clean: ## Remove build artifacts
+	@echo "Cleaning..."
+	@rm -rf $(BUILD_DIR) $(DIST_DIR)
+	@go clean
+	@echo "Clean complete"
+
+test: ## Run tests
+	@echo "Running tests..."
+	go test -v ./...
+
+test-coverage: ## Run tests with coverage report
+	@echo "Running tests with coverage..."
+	@mkdir -p $(BUILD_DIR)
+	go test -v -coverprofile=$(BUILD_DIR)/coverage.out ./...
+	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
+	@echo "Coverage report generated: $(BUILD_DIR)/coverage.html"
+
+lint: ## Run linter (requires golangci-lint)
+	@echo "Running linter..."
+	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Install: https://golangci-lint.run/usage/install/" && exit 1)
+	golangci-lint run ./...
+
+fmt: ## Format code
+	@echo "Formatting code..."
+	go fmt ./...
+	@echo "Format complete"
+
+run: build ## Build and run the application
+	@$(BUILD_DIR)/$(BINARY_NAME)
+
+dev: ## Run the application without building (go run)
+	go run $(MAIN_PATH)
+
+build-all: ## Build for multiple platforms
+	@echo "Building for multiple platforms..."
+	@mkdir -p $(DIST_DIR)
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 $(MAIN_PATH)
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 $(MAIN_PATH)
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 $(MAIN_PATH)
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 $(MAIN_PATH)
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.exe $(MAIN_PATH)
+	@echo "Build complete for all platforms in $(DIST_DIR)/"
+
+.DEFAULT_GOAL := help
