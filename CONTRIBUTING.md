@@ -74,12 +74,19 @@ Be respectful and inclusive. We welcome contributions from everyone.
    go mod download
    ```
 
-3. Build the project:
+3. Set up git hooks (recommended):
+   ```bash
+   make setup-hooks
+   ```
+
+   This installs pre-commit hooks that automatically enforce code quality standards.
+
+4. Build the project:
    ```bash
    make build
    ```
 
-4. Run tests:
+5. Run tests:
    ```bash
    make test
    ```
@@ -88,9 +95,25 @@ Be respectful and inclusive. We welcome contributions from everyone.
 
 - Follow the [Effective Go](https://golang.org/doc/effective_go) guidelines
 - Run `make fmt` before committing
+- Run `make vet` to check for common errors
 - Run `make lint` to check for issues
 - Write meaningful variable and function names
 - Add comments for exported functions and complex logic
+
+### Pre-commit Hooks
+
+The project includes pre-commit hooks that automatically enforce code quality. Install them with:
+
+```bash
+make setup-hooks
+```
+
+The hooks will automatically run on every commit:
+- **go fmt**: Ensures code is properly formatted
+- **go vet**: Checks for common Go programming errors
+- **golangci-lint**: Runs comprehensive linting (if installed)
+
+If any check fails, the commit will be blocked. This helps maintain code quality and catches issues early.
 
 ## Adding New Commands
 

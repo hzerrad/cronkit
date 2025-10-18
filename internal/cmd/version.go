@@ -11,7 +11,7 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number of cronic",
 	Long:  `All software has versions. This is cronic's.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("cronic %s\n", rootCmd.Version)
+		fmt.Fprintf(cmd.OutOrStdout(), "cronic %s\n", rootCmd.Version)
 	},
 }
 

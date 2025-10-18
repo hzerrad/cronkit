@@ -15,9 +15,9 @@ You can remove this file or modify it to create your own commands.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		if name != "" {
-			fmt.Printf("Hello, %s!\n", name)
+			fmt.Fprintf(cmd.OutOrStdout(), "Hello, %s!\n", name)
 		} else {
-			fmt.Println("Hello from cronic!")
+			fmt.Fprintln(cmd.OutOrStdout(), "Hello from cronic!")
 		}
 	},
 }

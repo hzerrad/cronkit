@@ -52,12 +52,29 @@ make build-all
 
 ### Testing
 
+This project follows **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices. See [TESTING.md](TESTING.md) for comprehensive testing guidelines.
+
 ```bash
-# Run tests
+# Run all tests (unit + BDD)
 make test
+
+# Run only unit tests
+make test-unit
+
+# Run only integration tests
+make test-integration
+
+# Run only E2E tests
+make test-e2e
+
+# Run all BDD tests
+make test-bdd
 
 # Run tests with coverage
 make test-coverage
+
+# Watch mode (auto-run on changes)
+make test-watch
 ```
 
 ### Code Quality
@@ -79,6 +96,7 @@ The project includes pre-commit hooks to enforce code quality standards. The hoo
 - `go fmt` - Ensures all code is properly formatted
 - `go vet` - Checks for common Go programming errors
 - `golangci-lint` - Runs comprehensive linting (if installed)
+- `go test` - Runs unit tests (when test files are modified)
 
 To install the pre-commit hooks:
 
@@ -87,6 +105,10 @@ make setup-hooks
 ```
 
 After installation, these checks will run automatically on every commit. If any check fails, the commit will be blocked until the issues are fixed.
+
+**Configuration:**
+- Skip tests temporarily: `SKIP_TESTS=1 git commit`
+- Always run tests: `RUN_TESTS=1 git commit`
 
 **Note:** If you don't have `golangci-lint` installed, the hook will skip it with a warning. Install it for comprehensive linting:
 
