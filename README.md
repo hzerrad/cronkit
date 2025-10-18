@@ -68,6 +68,36 @@ make lint
 
 # Format code
 make fmt
+
+# Run go vet
+make vet
+```
+
+### Git Hooks
+
+The project includes pre-commit hooks to enforce code quality standards. The hooks will automatically run:
+- `go fmt` - Ensures all code is properly formatted
+- `go vet` - Checks for common Go programming errors
+- `golangci-lint` - Runs comprehensive linting (if installed)
+
+To install the pre-commit hooks:
+
+```bash
+make setup-hooks
+```
+
+After installation, these checks will run automatically on every commit. If any check fails, the commit will be blocked until the issues are fixed.
+
+**Note:** If you don't have `golangci-lint` installed, the hook will skip it with a warning. Install it for comprehensive linting:
+
+```bash
+# macOS
+brew install golangci-lint
+
+# Linux/macOS
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+
+# Or visit: https://golangci-lint.run/usage/install/
 ```
 
 ## Project Structure

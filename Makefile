@@ -1,4 +1,4 @@
-.PHONY: help build install clean test test-coverage lint fmt run dev build-all
+.PHONY: help build install clean test test-coverage lint fmt run dev build-all setup-hooks vet
 
 # Variables
 BINARY_NAME=cronic
@@ -57,6 +57,84 @@ fmt: ## Format code
 	@echo "Formatting code..."
 	go fmt ./...
 	@echo "Format complete"
+
+vet: ## Run go vet
+	@echo "Running go vet..."
+	go vet ./...
+	@echo "go vet complete"
+
+setup-hooks: ## Install git pre-commit hooks
+	@echo "Setting up git hooks..."
+	@mkdir -p .githooks
+	@cat > .githooks/pre-commit <<'EOF'
+#!/bin/bash
+# Pre-commit hook for Go projects
+# Enforces go fmt, go vet, and golangci-lint
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Get list of staged Go files
+STAGED_GO_FILES=$$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$$' || true)
+
+if [ -z "$$STAGED_GO_FILES" ]; then
+    echo -e "$${GREEN}✓$${NC} No Go files to check"
+    exit 0
+fi
+
+echo "Checking Go files: $$STAGED_GO_FILES"
+
+# Check 1: go fmt
+echo -e "\n$${YELLOW}Running go fmt...$${NC}"
+UNFORMATTED_FILES=$$(gofmt -l $$STAGED_GO_FILES)
+if [ -n "$$UNFORMATTED_FILES" ]; then
+    echo -e "$${RED}✗$${NC} The following files are not formatted:"
+    echo "$$UNFORMATTED_FILES"
+    echo ""
+    echo "Please run: make fmt"
+    echo "Or run: gofmt -w $$UNFORMATTED_FILES"
+    exit 1
+fi
+echo -e "$${GREEN}✓$${NC} All files are properly formatted"
+
+# Check 2: go vet
+echo -e "\n$${YELLOW}Running go vet...$${NC}"
+if ! go vet ./...; then
+    echo -e "$${RED}✗$${NC} go vet found issues"
+    echo "Please fix the issues before committing"
+    exit 1
+fi
+echo -e "$${GREEN}✓$${NC} go vet passed"
+
+# Check 3: golangci-lint (if available)
+echo -e "\n$${YELLOW}Running golangci-lint...$${NC}"
+if ! command -v golangci-lint &> /dev/null; then
+    echo -e "$${YELLOW}⚠$${NC}  golangci-lint not found, skipping lint check"
+    echo "Install it from: https://golangci-lint.run/usage/install/"
+else
+    if ! golangci-lint run ./...; then
+        echo -e "$${RED}✗$${NC} golangci-lint found issues"
+        echo "Please fix the issues before committing"
+        exit 1
+    fi
+    echo -e "$${GREEN}✓$${NC} golangci-lint passed"
+fi
+
+# All checks passed
+echo -e "\n$${GREEN}✓ All pre-commit checks passed!$${NC}\n"
+exit 0
+EOF
+	@chmod +x .githooks/pre-commit
+	@cp .githooks/pre-commit .git/hooks/pre-commit
+	@echo "Git hooks installed successfully!"
+	@echo "Pre-commit hook will run: go fmt, go vet, and golangci-lint"
 
 run: build ## Build and run the application
 	@$(BUILD_DIR)/$(BINARY_NAME)
