@@ -52,7 +52,11 @@ make build-all
 
 ### Testing
 
-This project follows **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices. See [TESTING.md](TESTING.md) for comprehensive testing guidelines.
+This project follows **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices.
+
+**Documentation:**
+- [TESTING.md](TESTING.md) - Comprehensive testing guidelines
+- [BDD Tutorial](docs/BDD_TUTORIAL.md) - Hands-on BDD with Ginkgo tutorial
 
 ```bash
 # Run all tests (unit + BDD)
