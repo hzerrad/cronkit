@@ -10,21 +10,6 @@ import (
 )
 
 var _ = Describe("CLI Integration Tests", func() {
-	var (
-		pathToCLI string
-	)
-
-	BeforeSuite(func() {
-		var err error
-		// Build the CLI binary for testing
-		pathToCLI, err = gexec.Build("github.com/hzerrad/cronic/cmd/cronic")
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterSuite(func() {
-		// Clean up the built binary
-		gexec.CleanupBuildArtifacts()
-	})
 
 	Describe("Version Command", func() {
 		Context("when running 'cronic version'", func() {
@@ -93,9 +78,11 @@ var _ = Describe("CLI Integration Tests", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("Available Commands"))
-				Expect(session.Out).To(gbytes.Say("version"))
-				Expect(session.Out).To(gbytes.Say("example"))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("Available Commands"))
+				Expect(output).To(ContainSubstring("version"))
+				Expect(output).To(ContainSubstring("example"))
+				Expect(output).To(ContainSubstring("explain"))
 			})
 		})
 
