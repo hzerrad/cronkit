@@ -113,7 +113,7 @@ func TestHumanizer_Humanize_Aliases(t *testing.T) {
 		{
 			name:     "yearly alias",
 			alias:    "@yearly",
-			expected: "At midnight on the first day of every month in January",
+			expected: "At midnight on January 1st",
 		},
 	}
 

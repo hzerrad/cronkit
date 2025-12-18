@@ -43,6 +43,16 @@ func (h *humanizer) Humanize(schedule cronx.Schedule) string {
 		(minute.IsSingle() && minute.Value() == 0)) && hour.IsEvery()
 	isSimplePattern := minuteBasedPattern && dayOfWeek.IsEvery() && dayOfMonth.IsEvery()
 
+	// Special case: specific day + specific month (e.g., @yearly)
+	month := schedule.Month()
+	if dayOfMonth.IsSingle() && month.IsSingle() && dayOfWeek.IsEvery() {
+		parts = append(parts, fmt.Sprintf("on %s %d%s",
+			formatMonth(month.Value()),
+			dayOfMonth.Value(),
+			ordinalSuffix(dayOfMonth.Value())))
+		return strings.Join(parts, " ")
+	}
+
 	if dayPart != "" && !isSimplePattern {
 		parts = append(parts, dayPart)
 	}
