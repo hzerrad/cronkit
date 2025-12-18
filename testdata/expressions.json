@@ -1,0 +1,163 @@
+{
+  "valid_standard": [
+    {
+      "expression": "0 0 * * *",
+      "description": "Daily at midnight",
+      "expected_human": "At midnight every day"
+    },
+    {
+      "expression": "* * * * *",
+      "description": "Every minute",
+      "expected_human": "Every minute"
+    },
+    {
+      "expression": "*/15 * * * *",
+      "description": "Every 15 minutes",
+      "expected_human": "Every 15 minutes"
+    },
+    {
+      "expression": "0 * * * *",
+      "description": "Hourly",
+      "expected_human": "At the start of every hour"
+    },
+    {
+      "expression": "0 9 * * 1-5",
+      "description": "9am on weekdays",
+      "expected_human": "At 09:00 on weekdays (Mon-Fri)"
+    },
+    {
+      "expression": "*/5 9-17 * * 1-5",
+      "description": "Every 5 minutes, 9am-5pm, weekdays",
+      "expected_human": "Every 5 minutes between 09:00 and 17:59 on weekdays (Mon-Fri)"
+    },
+    {
+      "expression": "*/15 2-5 * * 1-5",
+      "description": "Every 15 minutes, 2am-5am, weekdays",
+      "expected_human": "Every 15 minutes between 02:00 and 05:59 on weekdays (Mon-Fri)"
+    },
+    {
+      "expression": "30 14 * * *",
+      "description": "2:30pm daily",
+      "expected_human": "At 14:30 every day"
+    },
+    {
+      "expression": "0 0,12 * * *",
+      "description": "Midnight and noon",
+      "expected_human": "At 00:00 and 12:00 every day"
+    },
+    {
+      "expression": "0 9,12,17 * * *",
+      "description": "9am, noon, and 5pm",
+      "expected_human": "At 09:00, 12:00, and 17:00 every day"
+    },
+    {
+      "expression": "0 9 * * 1,3,5",
+      "description": "9am on Mon, Wed, Fri",
+      "expected_human": "At 09:00 on Monday, Wednesday, and Friday"
+    },
+    {
+      "expression": "0 0 1 * *",
+      "description": "First of every month",
+      "expected_human": "At midnight on the first day of every month"
+    },
+    {
+      "expression": "0 0 * * 0",
+      "description": "Every Sunday at midnight",
+      "expected_human": "At midnight every Sunday"
+    },
+    {
+      "expression": "*/10 8-18 * * *",
+      "description": "Every 10 minutes, 8am-6pm",
+      "expected_human": "Every 10 minutes between 08:00 and 18:59 every day"
+    },
+    {
+      "expression": "0 2 * * *",
+      "description": "2am daily",
+      "expected_human": "At 02:00 every day"
+    }
+  ],
+  "aliases": [
+    {
+      "expression": "@daily",
+      "normalized": "0 0 * * *",
+      "expected_human": "At midnight every day"
+    },
+    {
+      "expression": "@hourly",
+      "normalized": "0 * * * *",
+      "expected_human": "At the start of every hour"
+    },
+    {
+      "expression": "@weekly",
+      "normalized": "0 0 * * 0",
+      "expected_human": "At midnight every Sunday"
+    },
+    {
+      "expression": "@monthly",
+      "normalized": "0 0 1 * *",
+      "expected_human": "At midnight on the first day of every month"
+    },
+    {
+      "expression": "@yearly",
+      "normalized": "0 0 1 1 *",
+      "expected_human": "At midnight on January 1st"
+    },
+    {
+      "expression": "@annually",
+      "normalized": "0 0 1 1 *",
+      "expected_human": "At midnight on January 1st"
+    }
+  ],
+  "case_insensitive": [
+    {
+      "expression": "0 9 * * MON-FRI",
+      "expected_human": "At 09:00 on weekdays (Mon-Fri)"
+    },
+    {
+      "expression": "0 9 * * mon-fri",
+      "expected_human": "At 09:00 on weekdays (Mon-Fri)"
+    },
+    {
+      "expression": "0 9 * * Mon-Fri",
+      "expected_human": "At 09:00 on weekdays (Mon-Fri)"
+    },
+    {
+      "expression": "0 0 1 JAN-DEC *",
+      "expected_human": "At midnight on day 1 from January to December"
+    }
+  ],
+  "invalid": [
+    {
+      "expression": "",
+      "error": "empty expression"
+    },
+    {
+      "expression": "invalid expression",
+      "error": "Failed to parse"
+    },
+    {
+      "expression": "* * * * * *",
+      "error": "expected 5 fields"
+    },
+    {
+      "expression": "60 * * * *",
+      "error": "out of range"
+    },
+    {
+      "expression": "* 25 * * *",
+      "error": "out of range"
+    },
+    {
+      "expression": "* * 32 * *",
+      "error": "out of range"
+    },
+    {
+      "expression": "* * * 13 *",
+      "error": "out of range"
+    },
+    {
+      "expression": "@invalid",
+      "error": "Failed to parse"
+    }
+  ]
+}
