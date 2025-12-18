@@ -329,23 +329,18 @@ func TestNextCommand_Help(t *testing.T) {
 			assert.Contains(t, output, "--json", "should document --json flag")
 			assert.Contains(t, output, "@daily", "should show example with @daily")
 			assert.Contains(t, output, "*/15 * * * *", "should show example with interval")
-
-			// Help invocation can leave command state polluted, ensure cleanup
-			t.Cleanup(func() {
-				nextCmd.SetHelpFunc(nil)
-				nextCmd.SetUsageFunc(nil)
-			})
 		})
 	}
 }
 
-func TestAAAANextCommand_TextOutputFormat(t *testing.T) {
-	// Renamed with "AAAA" prefix to run first before all tests
+func TestNextCommand_TextOutputFormat(t *testing.T) {
 	output := executeCommand(t, "next", "@daily", "-c", "1")
 
-	// Basic sanity check - full validation in integration tests
-	assert.NotEmpty(t, output, "should produce output")
-	assert.NotContains(t, output, "Error", "should not error")
+	// Verify text output format
+	assert.Contains(t, output, "Next 1 run", "should show count in header")
+	assert.Contains(t, output, "@daily", "should show expression")
+	assert.Contains(t, output, "1.", "should show run number")
+	assert.Regexp(t, `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \w+`, output, "should contain timestamp with timezone")
 }
 
 func TestNextCommand_ComplexExpressions(t *testing.T) {
@@ -379,18 +374,33 @@ func TestNextCommand_ComplexExpressions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			output := executeCommand(t, "next", tt.expression, "-c", tt.count)
-			// Basic validation - full coverage in integration tests
+
+			// Verify basic structure
 			assert.NotEmpty(t, output, "should produce output")
+			assert.Contains(t, output, tt.expression, "should show expression")
+			assert.Contains(t, output, "1.", "should show first run number")
 			assert.NotContains(t, output, "Error:", "should not contain errors")
 		})
 	}
 }
 
-func TestAAAANextCommand_TimeProgression(t *testing.T) {
-	// Renamed with "AAAA" prefix to run first before all tests
+func TestNextCommand_TimeProgression(t *testing.T) {
 	output := executeCommand(t, "next", "@hourly", "--json", "-c", "2")
 
-	// Basic sanity check - full JSON structure tested in integration tests
-	assert.NotEmpty(t, output, "should produce output")
-	assert.NotContains(t, output, "Error", "should not error")
+	var result map[string]interface{}
+	err := json.Unmarshal([]byte(output), &result)
+	require.NoError(t, err, "output should be valid JSON")
+
+	nextRuns := result["next_runs"].([]interface{})
+	require.Len(t, nextRuns, 2, "should have 2 runs")
+
+	// Verify timestamps progress forward
+	firstRun := nextRuns[0].(map[string]interface{})
+	secondRun := nextRuns[1].(map[string]interface{})
+
+	firstTime := firstRun["timestamp"].(string)
+	secondTime := secondRun["timestamp"].(string)
+
+	assert.NotEqual(t, firstTime, secondTime, "timestamps should be different")
+	assert.Less(t, firstTime, secondTime, "timestamps should progress forward")
 }

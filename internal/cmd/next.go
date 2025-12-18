@@ -60,6 +60,78 @@ func init() {
 	nextCmd.Flags().BoolVarP(&nextJSON, "json", "j", false, "Output as JSON")
 }
 
+// newNextCommand creates a fresh next command instance for testing
+// This avoids state pollution between tests by creating isolated command instances
+func newNextCommand() *cobra.Command {
+	var testCount int
+	var testJSON bool
+
+	cmd := &cobra.Command{
+		Use:   "next <cron-expression>",
+		Short: "Show next scheduled run times for a cron expression",
+		Long: `Calculate and display the next scheduled run times for a cron expression.
+
+This command helps you understand when a cron job will actually run in the future.
+It shows both the exact timestamps and relative times (e.g., "in 2 hours").
+
+Supports:
+  - Standard 5-field cron expressions (minute, hour, day-of-month, month, day-of-week)
+  - Cron aliases (@daily, @hourly, @weekly, @monthly, @yearly)
+  - Custom count with --count flag (1-100 runs, default: 10)
+  - JSON output with --json flag for programmatic use
+
+Examples:
+  cronic next "*/15 * * * *"              # Next 10 runs (default)
+  cronic next "@daily" --count 5          # Next 5 runs
+  cronic next "0 9 * * 1-5" -c 3          # Next 3 runs (short flag)
+  cronic next "0 14 * * *" --json         # JSON output
+  cronic next "*/5 9-17 * * 1-5" -c 20    # Business hours monitoring`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			expression := args[0]
+
+			// Validate count range
+			if testCount < 1 {
+				return fmt.Errorf("count must be at least 1")
+			}
+			if testCount > 100 {
+				return fmt.Errorf("count must be at most 100")
+			}
+
+			// Create scheduler and calculate next runs
+			scheduler := cronx.NewScheduler()
+			now := time.Now()
+
+			times, err := scheduler.Next(expression, now, testCount)
+			if err != nil {
+				return fmt.Errorf("failed to calculate next runs: %w", err)
+			}
+
+			// Get human description
+			parser := cronx.NewParser()
+			schedule, err := parser.Parse(expression)
+			if err != nil {
+				return fmt.Errorf("failed to parse expression: %w", err)
+			}
+
+			humanizer := human.NewHumanizer()
+			description := humanizer.Humanize(schedule)
+
+			// Output based on format
+			if testJSON {
+				return outputNextJSON(cmd, expression, description, times, now)
+			}
+
+			return outputNextText(cmd, expression, description, times)
+		},
+	}
+
+	cmd.Flags().IntVarP(&testCount, "count", "c", 10, "Number of runs to show (1-100)")
+	cmd.Flags().BoolVarP(&testJSON, "json", "j", false, "Output as JSON")
+
+	return cmd
+}
+
 func runNext(cmd *cobra.Command, args []string) error {
 	expression := args[0]
 

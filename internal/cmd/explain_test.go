@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -209,34 +208,20 @@ func executeCommand(t *testing.T, args ...string) string {
 func executeCommandWithError(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
-	// Reset global flag variables to defaults
-	explainJSON = false
-	nextCount = 10
-	nextJSON = false
-
-	// Create a new root command for testing
+	// Create fresh command instances to avoid state pollution
+	// Each test gets completely isolated commands with no shared state
 	buf := new(bytes.Buffer)
 	cmd := &cobra.Command{Use: "cronic"}
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs(args)
 
-	// Add commands
-	cmd.AddCommand(explainCmd)
-	cmd.AddCommand(nextCmd)
+	// Add fresh command instances (not global singletons)
+	cmd.AddCommand(newExplainCommand())
+	cmd.AddCommand(newNextCommand())
 
-	// Execute and return immediately
+	// Execute
 	err := cmd.Execute()
-
-	// Clean up: ensure flags are parsed fresh next time by resetting command state
-	t.Cleanup(func() {
-		explainCmd.Flags().VisitAll(func(f *pflag.Flag) {
-			f.Changed = false
-		})
-		nextCmd.Flags().VisitAll(func(f *pflag.Flag) {
-			f.Changed = false
-		})
-	})
 
 	return buf.String(), err
 }
