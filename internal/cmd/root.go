@@ -21,7 +21,7 @@ Add your application description here.`,
 	Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Default behavior when no subcommand is specified
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 

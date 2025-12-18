@@ -39,7 +39,7 @@ var _ = Describe("E2E Scenarios", func() {
 	AfterEach(func() {
 		// Clean up the temporary directory
 		if tempDir != "" {
-			os.RemoveAll(tempDir)
+			_ = os.RemoveAll(tempDir)
 		}
 	})
 
