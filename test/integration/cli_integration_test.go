@@ -35,41 +35,6 @@ var _ = Describe("CLI Integration Tests", func() {
 		})
 	})
 
-	Describe("Example Command", func() {
-		Context("when running 'cronic example' without flags", func() {
-			It("should display default greeting", func() {
-				command := exec.Command(pathToCLI, "example")
-				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
-				Expect(err).NotTo(HaveOccurred())
-
-				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("Hello from cronic!"))
-			})
-		})
-
-		Context("when running 'cronic example --name World'", func() {
-			It("should display personalized greeting", func() {
-				command := exec.Command(pathToCLI, "example", "--name", "World")
-				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
-				Expect(err).NotTo(HaveOccurred())
-
-				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("Hello, World!"))
-			})
-		})
-
-		Context("when running 'cronic example -n TestUser'", func() {
-			It("should display personalized greeting with short flag", func() {
-				command := exec.Command(pathToCLI, "example", "-n", "TestUser")
-				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
-				Expect(err).NotTo(HaveOccurred())
-
-				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("Hello, TestUser!"))
-			})
-		})
-	})
-
 	Describe("Help Command", func() {
 		Context("when running 'cronic --help'", func() {
 			It("should display help information", func() {
@@ -81,7 +46,6 @@ var _ = Describe("CLI Integration Tests", func() {
 				output := string(session.Out.Contents())
 				Expect(output).To(ContainSubstring("Available Commands"))
 				Expect(output).To(ContainSubstring("version"))
-				Expect(output).To(ContainSubstring("example"))
 				Expect(output).To(ContainSubstring("explain"))
 			})
 		})

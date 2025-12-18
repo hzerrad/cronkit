@@ -62,15 +62,6 @@ var _ = Describe("E2E Scenarios", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				Expect(session.Out).To(gbytes.Say("cronic"))
 			})
-
-			It("should be able to use the example command", func() {
-				command := exec.Command(pathToCLI, "example")
-				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
-				Expect(err).NotTo(HaveOccurred())
-
-				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("Hello from cronic!"))
-			})
 		})
 
 		Context("when a user tries different commands in sequence", func() {
@@ -81,15 +72,15 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 
-				By("running example command")
-				command = exec.Command(pathToCLI, "example", "--name", "E2E Test")
+				By("running explain command")
+				command = exec.Command(pathToCLI, "explain", "@daily")
 				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("Hello, E2E Test!"))
+				Expect(session.Out).To(gbytes.Say("midnight"))
 
-				By("checking help for a specific command")
-				command = exec.Command(pathToCLI, "help", "example")
+				By("checking help for explain command")
+				command = exec.Command(pathToCLI, "help", "explain")
 				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
@@ -111,7 +102,7 @@ var _ = Describe("E2E Scenarios", func() {
 
 		Context("when invalid flags are used", func() {
 			It("should provide helpful error messages", func() {
-				command := exec.Command(pathToCLI, "example", "--invalid-flag")
+				command := exec.Command(pathToCLI, "explain", "--invalid-flag")
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 
