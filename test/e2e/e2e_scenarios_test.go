@@ -11,23 +11,22 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
+var pathToCLI string
+
+var _ = BeforeSuite(func() {
+	var err error
+	// Build the CLI binary for testing
+	pathToCLI, err = gexec.Build("github.com/hzerrad/cronic/cmd/cronic")
+	Expect(err).NotTo(HaveOccurred())
+})
+
+var _ = AfterSuite(func() {
+	// Clean up the built binary
+	gexec.CleanupBuildArtifacts()
+})
+
 var _ = Describe("E2E Scenarios", func() {
-	var (
-		pathToCLI string
-		tempDir   string
-	)
-
-	BeforeSuite(func() {
-		var err error
-		// Build the CLI binary for testing
-		pathToCLI, err = gexec.Build("github.com/hzerrad/cronic/cmd/cronic")
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterSuite(func() {
-		// Clean up the built binary
-		gexec.CleanupBuildArtifacts()
-	})
+	var tempDir string
 
 	BeforeEach(func() {
 		var err error
