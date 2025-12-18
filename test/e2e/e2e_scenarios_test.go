@@ -86,6 +86,60 @@ var _ = Describe("E2E Scenarios", func() {
 				Eventually(session).Should(gexec.Exit(0))
 			})
 		})
+
+		Context("when a user plans and validates cron schedules", func() {
+			It("should support complete workflow with explain and next", func() {
+				By("understanding what a cron expression means")
+				command := exec.Command(pathToCLI, "explain", "0 9 * * 1-5")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("09:00"))
+
+				By("checking when the job will actually run")
+				command = exec.Command(pathToCLI, "next", "0 9 * * 1-5", "-c", "5")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("Next 5 runs"))
+
+				By("getting machine-readable output for automation")
+				command = exec.Command(pathToCLI, "next", "0 9 * * 1-5", "--json", "-c", "3")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say(`"expression"`))
+			})
+
+			It("should help DevOps engineer plan backup schedules", func() {
+				By("explaining backup schedule frequency")
+				command := exec.Command(pathToCLI, "explain", "0 2 * * *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("verifying next 7 backup times")
+				command = exec.Command(pathToCLI, "next", "0 2 * * *", "-c", "7")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("02:00"))
+			})
+
+			It("should help developer debug cron timing issues", func() {
+				By("checking when hourly job runs")
+				command := exec.Command(pathToCLI, "next", "@hourly", "-c", "3")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("comparing with custom interval")
+				command = exec.Command(pathToCLI, "next", "0 * * * *", "-c", "3")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+			})
+		})
 	})
 
 	Describe("Error Handling", func() {
