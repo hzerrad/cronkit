@@ -7,12 +7,6 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// Parser is the abstraction layer for cron expression parsing
-// This is the ONLY package that imports robfig/cron (single-boundary pattern)
-type Parser interface {
-	Parse(expression string) (Schedule, error)
-}
-
 // Schedule represents a parsed cron schedule with field information
 type Schedule interface {
 	Original() string
@@ -23,53 +17,26 @@ type Schedule interface {
 	DayOfWeek() Field
 }
 
-// Field represents a single cron field (minute, hour, etc.)
-type Field interface {
-	// IsEvery returns true if field is "*" (every value)
-	IsEvery() bool
-
-	// IsStep returns true if field has step notation (*/N)
-	IsStep() bool
-
-	// Step returns the step value (e.g., 15 for "*/15")
-	Step() int
-
-	// IsRange returns true if field is a range (e.g., "1-5")
-	IsRange() bool
-
-	// RangeStart returns the start of a range
-	RangeStart() int
-
-	// RangeEnd returns the end of a range
-	RangeEnd() int
-
-	// IsList returns true if field is a comma-separated list
-	IsList() bool
-
-	// ListValues returns the list values
-	ListValues() []int
-
-	// IsSingle returns true if field is a single value
-	IsSingle() bool
-
-	// Value returns the single value
-	Value() int
-
-	// Raw returns the raw field string
-	Raw() string
+// Parser is the abstraction layer for cron expression parsing
+type Parser interface {
+	Parse(expression string) (Schedule, error)
 }
 
 // parser implements Parser interface
 type parser struct {
 	cronParser cron.Parser
+	symbols    SymbolRegistry
 }
 
 // NewParser creates a new cron expression parser
 func NewParser() Parser {
+	// Load English locale for now
+	symbols, _ := GetSymbolRegistry("en")
 	return &parser{
 		cronParser: cron.NewParser(
 			cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 		),
+		symbols: symbols,
 	}
 }
 
@@ -117,11 +84,11 @@ func (p *parser) Parse(expression string) (Schedule, error) {
 
 	return &schedule{
 		original:   original,
-		minute:     parseField(fields[0], 0, 59),
-		hour:       parseField(fields[1], 0, 23),
-		dayOfMonth: parseField(fields[2], 1, 31),
-		month:      parseField(fields[3], 1, 12),
-		dayOfWeek:  parseField(fields[4], 0, 6),
+		minute:     parseField(fields[0], 0, 59, p.symbols),
+		hour:       parseField(fields[1], 0, 23, p.symbols),
+		dayOfMonth: parseField(fields[2], 1, 31, p.symbols),
+		month:      parseField(fields[3], 1, 12, p.symbols),
+		dayOfWeek:  parseField(fields[4], 0, 6, p.symbols),
 	}, nil
 }
 

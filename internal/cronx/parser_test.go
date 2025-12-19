@@ -1,6 +1,7 @@
 package cronx_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/hzerrad/cronic/internal/cronx"
@@ -156,6 +157,15 @@ func TestParser_ParseCaseInsensitive(t *testing.T) {
 			schedule, err := parser.Parse(tt.expression)
 			require.NoError(t, err)
 			assert.NotNil(t, schedule)
+
+			if strings.Contains(tt.name, "days") {
+				assert.Equal(t, 1, schedule.DayOfWeek().RangeStart())
+				assert.Equal(t, 5, schedule.DayOfWeek().RangeEnd())
+			}
+			if strings.Contains(tt.name, "months") {
+				assert.Equal(t, 1, schedule.Month().RangeStart())
+				assert.Equal(t, 12, schedule.Month().RangeEnd())
+			}
 		})
 	}
 }

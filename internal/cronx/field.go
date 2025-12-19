@@ -5,6 +5,42 @@ import (
 	"strings"
 )
 
+// Field represents a single cron field (minute, hour, etc.)
+type Field interface {
+	// IsEvery returns true if field is "*" (every value)
+	IsEvery() bool
+
+	// IsStep returns true if field has step notation (*/N)
+	IsStep() bool
+
+	// Step returns the step value (e.g., 15 for "*/15")
+	Step() int
+
+	// IsRange returns true if field is a range (e.g., "1-5")
+	IsRange() bool
+
+	// RangeStart returns the start of a range
+	RangeStart() int
+
+	// RangeEnd returns the end of a range
+	RangeEnd() int
+
+	// IsList returns true if field is a comma-separated list
+	IsList() bool
+
+	// ListValues returns the list values
+	ListValues() []int
+
+	// IsSingle returns true if field is a single value
+	IsSingle() bool
+
+	// Value returns the single value
+	Value() int
+
+	// Raw returns the raw field string
+	Raw() string
+}
+
 // field implements Field interface
 type field struct {
 	raw        string
@@ -22,8 +58,8 @@ type field struct {
 	value      int
 }
 
-// parseField parses a single cron field
-func parseField(raw string, min, max int) Field {
+// parseField parses a single cron field using a specific symbol registry
+func parseField(raw string, min, max int, registry SymbolRegistry) Field {
 	f := &field{
 		raw: raw,
 		min: min,
@@ -46,8 +82,8 @@ func parseField(raw string, min, max int) Field {
 		// Check if it's a range with step (N-M/S)
 		if strings.Contains(parts[0], "-") && parts[0] != "*" {
 			rangeParts := strings.Split(parts[0], "-")
-			start, _ := strconv.Atoi(rangeParts[0])
-			end, _ := strconv.Atoi(rangeParts[1])
+			start := parseValue(rangeParts[0], registry)
+			end := parseValue(rangeParts[1], registry)
 			f.isRange = true
 			f.rangeStart = start
 			f.rangeEnd = end
@@ -58,8 +94,8 @@ func parseField(raw string, min, max int) Field {
 	// Check for range (N-M)
 	if strings.Contains(raw, "-") {
 		parts := strings.Split(raw, "-")
-		start, _ := strconv.Atoi(parts[0])
-		end, _ := strconv.Atoi(parts[1])
+		start := parseValue(parts[0], registry)
+		end := parseValue(parts[1], registry)
 		f.isRange = true
 		f.rangeStart = start
 		f.rangeEnd = end
@@ -72,17 +108,33 @@ func parseField(raw string, min, max int) Field {
 		f.isList = true
 		f.listValues = make([]int, len(parts))
 		for i, p := range parts {
-			val, _ := strconv.Atoi(p)
-			f.listValues[i] = val
+			f.listValues[i] = parseValue(p, registry)
 		}
 		return f
 	}
 
 	// Single value
-	val, _ := strconv.Atoi(raw)
+	val := parseValue(raw, registry)
 	f.isSingle = true
 	f.value = val
 	return f
+}
+
+// parseValue converts a string to an integer, supporting both numeric values and symbols
+func parseValue(s string, registry SymbolRegistry) int {
+	// Try parsing as integer first
+	val, err := strconv.Atoi(s)
+	if err == nil {
+		return val
+	}
+
+	// Try parsing as symbol (day/month name)
+	if v, ok := registry.ParseSymbol(s); ok {
+		return v
+	}
+
+	// Return 0 if unable to parse
+	return 0
 }
 
 func (f *field) IsEvery() bool     { return f.isEvery }

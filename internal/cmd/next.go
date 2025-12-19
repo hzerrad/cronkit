@@ -10,10 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	nextCount int
-	nextJSON  bool
-)
+// NextCommand wraps cobra.Command with next-specific functionality
+type NextCommand struct {
+	*cobra.Command
+	count int
+	json  bool
+}
 
 // NextRun represents a single scheduled run time
 type NextRun struct {
@@ -30,43 +32,17 @@ type NextResult struct {
 	NextRuns    []NextRun `json:"next_runs"`
 }
 
-var nextCmd = &cobra.Command{
-	Use:   "next <cron-expression>",
-	Short: "Show next scheduled run times for a cron expression",
-	Long: `Calculate and display the next scheduled run times for a cron expression.
-
-This command helps you understand when a cron job will actually run in the future.
-It shows both the exact timestamps and relative times (e.g., "in 2 hours").
-
-Supports:
-  - Standard 5-field cron expressions (minute, hour, day-of-month, month, day-of-week)
-  - Cron aliases (@daily, @hourly, @weekly, @monthly, @yearly)
-  - Custom count with --count flag (1-100 runs, default: 10)
-  - JSON output with --json flag for programmatic use
-
-Examples:
-  cronic next "*/15 * * * *"              # Next 10 runs (default)
-  cronic next "@daily" --count 5          # Next 5 runs
-  cronic next "0 9 * * 1-5" -c 3          # Next 3 runs (short flag)
-  cronic next "0 14 * * *" --json         # JSON output
-  cronic next "*/5 9-17 * * 1-5" -c 20    # Business hours monitoring`,
-	Args: cobra.ExactArgs(1),
-	RunE: runNext,
-}
-
 func init() {
-	rootCmd.AddCommand(nextCmd)
-	nextCmd.Flags().IntVarP(&nextCount, "count", "c", 10, "Number of runs to show (1-100)")
-	nextCmd.Flags().BoolVarP(&nextJSON, "json", "j", false, "Output as JSON")
+	rootCmd.AddCommand(newNextCommand().Command)
 }
 
 // newNextCommand creates a fresh next command instance for testing
 // This avoids state pollution between tests by creating isolated command instances
-func newNextCommand() *cobra.Command {
-	var testCount int
-	var testJSON bool
-
-	cmd := &cobra.Command{
+func newNextCommand() *NextCommand {
+	nc := &NextCommand{}
+	nc.Command = &cobra.Command{
+		Args:  cobra.ExactArgs(1),
+		RunE:  nc.runNext,
 		Use:   "next <cron-expression>",
 		Short: "Show next scheduled run times for a cron expression",
 		Long: `Calculate and display the next scheduled run times for a cron expression.
@@ -86,73 +62,35 @@ Examples:
   cronic next "0 9 * * 1-5" -c 3          # Next 3 runs (short flag)
   cronic next "0 14 * * *" --json         # JSON output
   cronic next "*/5 9-17 * * 1-5" -c 20    # Business hours monitoring`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			expression := args[0]
-
-			// Validate count range
-			if testCount < 1 {
-				return fmt.Errorf("count must be at least 1")
-			}
-			if testCount > 100 {
-				return fmt.Errorf("count must be at most 100")
-			}
-
-			// Create scheduler and calculate next runs
-			scheduler := cronx.NewScheduler()
-			now := time.Now()
-
-			times, err := scheduler.Next(expression, now, testCount)
-			if err != nil {
-				return fmt.Errorf("failed to calculate next runs: %w", err)
-			}
-
-			// Get human description
-			parser := cronx.NewParser()
-			schedule, err := parser.Parse(expression)
-			if err != nil {
-				return fmt.Errorf("failed to parse expression: %w", err)
-			}
-
-			humanizer := human.NewHumanizer()
-			description := humanizer.Humanize(schedule)
-
-			// Output based on format
-			if testJSON {
-				return outputNextJSON(cmd, expression, description, times, now)
-			}
-
-			return outputNextText(cmd, expression, description, times)
-		},
 	}
 
-	cmd.Flags().IntVarP(&testCount, "count", "c", 10, "Number of runs to show (1-100)")
-	cmd.Flags().BoolVarP(&testJSON, "json", "j", false, "Output as JSON")
+	nc.Command.Flags().IntVarP(&nc.count, "count", "c", 10, "Number of runs to show (1-100)")
+	nc.Command.Flags().BoolVarP(&nc.json, "json", "j", false, "Output as JSON")
 
-	return cmd
+	return nc
 }
 
-func runNext(cmd *cobra.Command, args []string) error {
+func (nc *NextCommand) runNext(_ *cobra.Command, args []string) error {
 	expression := args[0]
 
 	// Validate count range
-	if nextCount < 1 {
+	if nc.count < 1 {
 		return fmt.Errorf("count must be at least 1")
 	}
-	if nextCount > 100 {
+	if nc.count > 100 {
 		return fmt.Errorf("count must be at most 100")
 	}
 
 	// Create scheduler and calculate next runs
 	scheduler := cronx.NewScheduler()
-	now := time.Now() // Use system timezone
+	now := time.Now()
 
-	times, err := scheduler.Next(expression, now, nextCount)
+	times, err := scheduler.Next(expression, now, nc.count)
 	if err != nil {
 		return fmt.Errorf("failed to calculate next runs: %w", err)
 	}
 
-	// Get human-readable description
+	// Get human description
 	parser := cronx.NewParser()
 	schedule, err := parser.Parse(expression)
 	if err != nil {
@@ -163,32 +101,32 @@ func runNext(cmd *cobra.Command, args []string) error {
 	description := humanizer.Humanize(schedule)
 
 	// Output based on format
-	if nextJSON {
-		return outputNextJSON(cmd, expression, description, times, now)
+	if nc.json {
+		return nc.outputNextJSON(expression, description, times, now)
 	}
 
-	return outputNextText(cmd, expression, description, times)
+	return nc.outputNextText(expression, description, times)
 }
 
-func outputNextText(cmd *cobra.Command, expression, description string, times []time.Time) error {
+func (nc *NextCommand) outputNextText(expression, description string, times []time.Time) error {
 	// Header with count
 	runWord := "runs"
 	if len(times) == 1 {
 		runWord = "run"
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Next %d %s for \"%s\" (%s):\n\n",
+	_, _ = fmt.Fprintf(nc.OutOrStdout(), "Next %d %s for \"%s\" (%s):\n\n",
 		len(times), runWord, expression, description)
 
 	// List each run with timestamp
 	for i, t := range times {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%d. %s\n",
+		_, _ = fmt.Fprintf(nc.OutOrStdout(), "%d. %s\n",
 			i+1, t.Format("2006-01-02 15:04:05 MST"))
 	}
 
 	return nil
 }
 
-func outputNextJSON(cmd *cobra.Command, expression, description string, times []time.Time, now time.Time) error {
+func (nc *NextCommand) outputNextJSON(expression, description string, times []time.Time, now time.Time) error {
 	// Build next runs array
 	runs := make([]NextRun, len(times))
 	for i, t := range times {
@@ -208,7 +146,7 @@ func outputNextJSON(cmd *cobra.Command, expression, description string, times []
 	}
 
 	// Encode as JSON with indentation
-	encoder := json.NewEncoder(cmd.OutOrStdout())
+	encoder := json.NewEncoder(nc.OutOrStdout())
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(result); err != nil {
 		return fmt.Errorf("failed to encode JSON: %w", err)
@@ -218,7 +156,6 @@ func outputNextJSON(cmd *cobra.Command, expression, description string, times []
 }
 
 // formatRelativeTime converts a duration between two times to a human-readable format.
-// For v0.1.0, supports minutes, hours, and days only.
 func formatRelativeTime(from, to time.Time) string {
 	duration := to.Sub(from)
 
