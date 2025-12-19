@@ -43,3 +43,13 @@ func GetLocale() string {
 	}
 	return locale
 }
+
+// SetOutput sets the output and error writers for the root command
+func SetOutput(out, err interface{}) {
+	if w, ok := out.(interface{ Write([]byte) (int, error) }); ok {
+		rootCmd.SetOut(w)
+	}
+	if w, ok := err.(interface{ Write([]byte) (int, error) }); ok {
+		rootCmd.SetErr(w)
+	}
+}
