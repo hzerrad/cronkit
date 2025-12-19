@@ -7,19 +7,19 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// Schedule represents a parsed cron schedule with field information
-type Schedule interface {
-	Original() string
-	Minute() Field
-	Hour() Field
-	DayOfMonth() Field
-	Month() Field
-	DayOfWeek() Field
+// Schedule represents a parsed cron schedule with field information.
+type Schedule struct {
+	Original   string // The original cron expression string
+	Minute     Field  // Minute field (0-59)
+	Hour       Field  // Hour field (0-23)
+	DayOfMonth Field  // Day of month field (1-31)
+	Month      Field  // Month field (1-12)
+	DayOfWeek  Field  // Day of week field (0-6, Sunday=0)
 }
 
 // Parser is the abstraction layer for cron expression parsing
 type Parser interface {
-	Parse(expression string) (Schedule, error)
+	Parse(expression string) (*Schedule, error)
 }
 
 // parser implements Parser interface
@@ -41,7 +41,7 @@ func NewParser() Parser {
 }
 
 // Parse parses a cron expression (5-field format or @alias)
-func (p *parser) Parse(expression string) (Schedule, error) {
+func (p *parser) Parse(expression string) (*Schedule, error) {
 	if expression == "" {
 		return nil, fmt.Errorf("empty expression")
 	}
@@ -82,32 +82,15 @@ func (p *parser) Parse(expression string) (Schedule, error) {
 		}
 	}
 
-	return &schedule{
-		original:   original,
-		minute:     parseField(fields[0], 0, 59, p.symbols),
-		hour:       parseField(fields[1], 0, 23, p.symbols),
-		dayOfMonth: parseField(fields[2], 1, 31, p.symbols),
-		month:      parseField(fields[3], 1, 12, p.symbols),
-		dayOfWeek:  parseField(fields[4], 0, 6, p.symbols),
+	return &Schedule{
+		Original:   original,
+		Minute:     parseField(fields[0], 0, 59, p.symbols),
+		Hour:       parseField(fields[1], 0, 23, p.symbols),
+		DayOfMonth: parseField(fields[2], 1, 31, p.symbols),
+		Month:      parseField(fields[3], 1, 12, p.symbols),
+		DayOfWeek:  parseField(fields[4], 0, 6, p.symbols),
 	}, nil
 }
-
-// schedule implements Schedule interface
-type schedule struct {
-	original   string
-	minute     Field
-	hour       Field
-	dayOfMonth Field
-	month      Field
-	dayOfWeek  Field
-}
-
-func (s *schedule) Original() string  { return s.original }
-func (s *schedule) Minute() Field     { return s.minute }
-func (s *schedule) Hour() Field       { return s.hour }
-func (s *schedule) DayOfMonth() Field { return s.dayOfMonth }
-func (s *schedule) Month() Field      { return s.month }
-func (s *schedule) DayOfWeek() Field  { return s.dayOfWeek }
 
 // aliasToFields converts cron aliases to field representation
 func aliasToFields(alias string) []string {

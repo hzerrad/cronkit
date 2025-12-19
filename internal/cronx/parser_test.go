@@ -54,7 +54,7 @@ func TestParser_Parse_ValidExpressions(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, schedule)
-				assert.Equal(t, tt.expression, schedule.Original())
+				assert.Equal(t, tt.expression, schedule.Original)
 			}
 		})
 	}
@@ -132,7 +132,7 @@ func TestParser_ParseAlias(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, schedule)
-				assert.Equal(t, tt.alias, schedule.Original())
+				assert.Equal(t, tt.alias, schedule.Original)
 			}
 		})
 	}
@@ -159,12 +159,12 @@ func TestParser_ParseCaseInsensitive(t *testing.T) {
 			assert.NotNil(t, schedule)
 
 			if strings.Contains(tt.name, "days") {
-				assert.Equal(t, 1, schedule.DayOfWeek().RangeStart())
-				assert.Equal(t, 5, schedule.DayOfWeek().RangeEnd())
+				assert.Equal(t, 1, schedule.DayOfWeek.RangeStart())
+				assert.Equal(t, 5, schedule.DayOfWeek.RangeEnd())
 			}
 			if strings.Contains(tt.name, "months") {
-				assert.Equal(t, 1, schedule.Month().RangeStart())
-				assert.Equal(t, 12, schedule.Month().RangeEnd())
+				assert.Equal(t, 1, schedule.Month.RangeStart())
+				assert.Equal(t, 12, schedule.Month.RangeEnd())
 			}
 		})
 	}
@@ -176,11 +176,11 @@ func TestSchedule_Fields(t *testing.T) {
 	require.NoError(t, err)
 
 	// Schedule should expose parsed field information
-	assert.NotNil(t, schedule.Minute())
-	assert.NotNil(t, schedule.Hour())
-	assert.NotNil(t, schedule.DayOfMonth())
-	assert.NotNil(t, schedule.Month())
-	assert.NotNil(t, schedule.DayOfWeek())
+	assert.NotNil(t, schedule.Minute)
+	assert.NotNil(t, schedule.Hour)
+	assert.NotNil(t, schedule.DayOfMonth)
+	assert.NotNil(t, schedule.Month)
+	assert.NotNil(t, schedule.DayOfWeek)
 }
 
 func TestSchedule_Original(t *testing.T) {
@@ -190,7 +190,7 @@ func TestSchedule_Original(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should preserve original expression
-	assert.Equal(t, expression, schedule.Original())
+	assert.Equal(t, expression, schedule.Original)
 }
 
 func TestField_EveryPattern(t *testing.T) {
@@ -199,11 +199,11 @@ func TestField_EveryPattern(t *testing.T) {
 	require.NoError(t, err)
 
 	// All fields should be "every" (wildcard)
-	assert.True(t, schedule.Minute().IsEvery())
-	assert.True(t, schedule.Hour().IsEvery())
-	assert.True(t, schedule.DayOfMonth().IsEvery())
-	assert.True(t, schedule.Month().IsEvery())
-	assert.True(t, schedule.DayOfWeek().IsEvery())
+	assert.True(t, schedule.Minute.IsEvery())
+	assert.True(t, schedule.Hour.IsEvery())
+	assert.True(t, schedule.DayOfMonth.IsEvery())
+	assert.True(t, schedule.Month.IsEvery())
+	assert.True(t, schedule.DayOfWeek.IsEvery())
 }
 
 func TestField_StepPattern(t *testing.T) {
@@ -211,7 +211,7 @@ func TestField_StepPattern(t *testing.T) {
 	schedule, err := parser.Parse("*/15 * * * *")
 	require.NoError(t, err)
 
-	minute := schedule.Minute()
+	minute := schedule.Minute
 	assert.True(t, minute.IsStep())
 	assert.Equal(t, 15, minute.Step())
 }
@@ -221,7 +221,7 @@ func TestField_RangePattern(t *testing.T) {
 	schedule, err := parser.Parse("0 9-17 * * *")
 	require.NoError(t, err)
 
-	hour := schedule.Hour()
+	hour := schedule.Hour
 	assert.True(t, hour.IsRange())
 	assert.Equal(t, 9, hour.RangeStart())
 	assert.Equal(t, 17, hour.RangeEnd())
@@ -232,7 +232,7 @@ func TestField_ListPattern(t *testing.T) {
 	schedule, err := parser.Parse("0 9,12,17 * * *")
 	require.NoError(t, err)
 
-	hour := schedule.Hour()
+	hour := schedule.Hour
 	assert.True(t, hour.IsList())
 	assert.Equal(t, []int{9, 12, 17}, hour.ListValues())
 }
@@ -242,11 +242,11 @@ func TestField_SinglePattern(t *testing.T) {
 	schedule, err := parser.Parse("30 14 * * *")
 	require.NoError(t, err)
 
-	minute := schedule.Minute()
+	minute := schedule.Minute
 	assert.True(t, minute.IsSingle())
 	assert.Equal(t, 30, minute.Value())
 
-	hour := schedule.Hour()
+	hour := schedule.Hour
 	assert.True(t, hour.IsSingle())
 	assert.Equal(t, 14, hour.Value())
 }
@@ -256,9 +256,9 @@ func TestField_Raw(t *testing.T) {
 	schedule, err := parser.Parse("*/15 9-17 1,15 * 1-5")
 	require.NoError(t, err)
 
-	assert.Equal(t, "*/15", schedule.Minute().Raw())
-	assert.Equal(t, "9-17", schedule.Hour().Raw())
-	assert.Equal(t, "1,15", schedule.DayOfMonth().Raw())
-	assert.Equal(t, "*", schedule.Month().Raw())
-	assert.Equal(t, "1-5", schedule.DayOfWeek().Raw())
+	assert.Equal(t, "*/15", schedule.Minute.Raw())
+	assert.Equal(t, "9-17", schedule.Hour.Raw())
+	assert.Equal(t, "1,15", schedule.DayOfMonth.Raw())
+	assert.Equal(t, "*", schedule.Month.Raw())
+	assert.Equal(t, "1-5", schedule.DayOfWeek.Raw())
 }

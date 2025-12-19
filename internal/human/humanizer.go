@@ -9,7 +9,7 @@ import (
 
 // Humanizer converts cron schedules to human-readable descriptions
 type Humanizer interface {
-	Humanize(schedule cronx.Schedule) string
+	Humanize(schedule *cronx.Schedule) string
 }
 
 type humanizer struct {
@@ -22,18 +22,18 @@ func NewHumanizer() Humanizer {
 }
 
 // Humanize converts a parsed cron schedule to human-readable text
-func (h *humanizer) Humanize(schedule cronx.Schedule) string {
+func (h *humanizer) Humanize(schedule *cronx.Schedule) string {
 	var parts []string
 
-	minute := schedule.Minute()
-	hour := schedule.Hour()
-	dayOfWeek := schedule.DayOfWeek()
-	dayOfMonth := schedule.DayOfMonth()
+	minute := schedule.Minute
+	hour := schedule.Hour
+	dayOfWeek := schedule.DayOfWeek
+	dayOfMonth := schedule.DayOfMonth
 
 	// Build the human-readable description by analyzing each field
 	timePart := h.buildTimePart(minute, hour)
 	dayPart := h.buildDayPart(dayOfWeek, dayOfMonth)
-	monthPart := h.buildMonthPart(schedule.Month())
+	monthPart := h.buildMonthPart(schedule.Month)
 
 	parts = append(parts, timePart)
 
@@ -44,7 +44,7 @@ func (h *humanizer) Humanize(schedule cronx.Schedule) string {
 	isSimplePattern := minuteBasedPattern && dayOfWeek.IsEvery() && dayOfMonth.IsEvery()
 
 	// Special case: specific day + specific month (e.g., @yearly)
-	month := schedule.Month()
+	month := schedule.Month
 	if dayOfMonth.IsSingle() && month.IsSingle() && dayOfWeek.IsEvery() {
 		parts = append(parts, fmt.Sprintf("on %s %d%s",
 			formatMonth(month.Value()),
