@@ -10,6 +10,7 @@ var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
+	locale  string // Global locale flag for symbol parsing
 )
 
 var rootCmd = &cobra.Command{
@@ -31,9 +32,14 @@ func Execute() error {
 }
 
 func init() {
-	// Global flags can be added here
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cronic.yaml)")
+	// Global flags - these apply to all subcommands
+	rootCmd.PersistentFlags().StringVar(&locale, "locale", "en", "Locale for parsing day/month names (e.g., en, fr, es)")
+}
 
-	// Local flags
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+// GetLocale returns the current locale setting
+func GetLocale() string {
+	if locale == "" {
+		return "en" // Default to English
+	}
+	return locale
 }

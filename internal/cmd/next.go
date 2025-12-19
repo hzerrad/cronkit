@@ -90,8 +90,8 @@ func (nc *NextCommand) runNext(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to calculate next runs: %w", err)
 	}
 
-	// Get human description
-	parser := cronx.NewParser()
+	// Get human description with the specified locale
+	parser := cronx.NewParserWithLocale(GetLocale())
 	schedule, err := parser.Parse(expression)
 	if err != nil {
 		return fmt.Errorf("failed to parse expression: %w", err)

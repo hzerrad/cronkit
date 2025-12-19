@@ -28,10 +28,14 @@ type parser struct {
 	symbols    SymbolRegistry
 }
 
-// NewParser creates a new cron expression parser
+// NewParser creates a new cron expression parser with English locale (default)
 func NewParser() Parser {
-	// Load English locale for now
-	symbols, _ := GetSymbolRegistry("en")
+	return NewParserWithLocale("en")
+}
+
+// NewParserWithLocale creates a new cron expression parser with a specific locale
+func NewParserWithLocale(locale string) Parser {
+	symbols, _ := GetSymbolRegistry(locale)
 	return &parser{
 		cronParser: cron.NewParser(
 			cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,

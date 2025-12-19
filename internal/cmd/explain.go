@@ -45,8 +45,8 @@ func init() {
 func (ec *ExplainCommand) runExplain(_ *cobra.Command, args []string) error {
 	expression := args[0]
 
-	// Parse the cron expression
-	parser := cronx.NewParser()
+	// Parse the cron expression with the specified locale
+	parser := cronx.NewParserWithLocale(GetLocale())
 	schedule, err := parser.Parse(expression)
 	if err != nil {
 		return fmt.Errorf("failed to parse expression: %w", err)
