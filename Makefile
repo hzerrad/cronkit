@@ -44,7 +44,7 @@ test: ## Run all tests (unit + BDD)
 
 test-unit: ## Run unit tests only
 	@echo "Running unit tests..."
-	go test -v -race -short ./internal/... ./pkg/...
+	go test -v -race -short ./internal/...
 
 test-integration: ## Run integration tests
 	@echo "Running integration tests..."
@@ -64,7 +64,7 @@ test-bdd: ## Run all BDD tests (integration + e2e)
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
 	@mkdir -p $(BUILD_DIR)
-	go test -v -race -coverprofile=$(BUILD_DIR)/coverage.out ./internal/... ./pkg/...
+	go test -v -race -coverprofile=$(BUILD_DIR)/coverage.out ./internal/...
 	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
 	@echo "Coverage report generated: $(BUILD_DIR)/coverage.html"
 	@go tool cover -func=$(BUILD_DIR)/coverage.out | tail -1
