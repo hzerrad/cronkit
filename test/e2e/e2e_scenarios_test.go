@@ -88,7 +88,7 @@ var _ = Describe("E2E Scenarios", func() {
 		})
 
 		Context("when a user plans and validates cron schedules", func() {
-			It("should support complete workflow with explain and next", func() {
+			It("should support complete workflow with explain, next, and check", func() {
 				By("understanding what a cron expression means")
 				command := exec.Command(pathToCLI, "explain", "0 9 * * 1-5")
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -102,6 +102,13 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 				Expect(session.Out).To(gbytes.Say("Next 5 runs"))
+
+				By("validating the expression is correct")
+				command = exec.Command(pathToCLI, "check", "0 9 * * 1-5")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("All valid"))
 
 				By("getting machine-readable output for automation")
 				command = exec.Command(pathToCLI, "next", "0 9 * * 1-5", "--json", "-c", "3")
@@ -138,6 +145,45 @@ var _ = Describe("E2E Scenarios", func() {
 				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
+			})
+
+			It("should help DevOps engineer validate crontab before deployment", func() {
+				By("validating a crontab file")
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+				command := exec.Command(pathToCLI, "check", "--file", testFile)
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("checking invalid expressions are caught")
+				command = exec.Command(pathToCLI, "check", "60 0 * * *")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(1))
+				Expect(session.Out).To(gbytes.Say("issue"))
+
+				By("getting JSON output for CI/CD integration")
+				command = exec.Command(pathToCLI, "check", "0 0 * * *", "--json")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say(`"valid"`))
+			})
+
+			It("should help identify DOM/DOW conflicts in schedules", func() {
+				By("checking expression with DOM/DOW conflict")
+				command := exec.Command(pathToCLI, "check", "0 0 1 * 1", "--verbose")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(2))
+				Expect(session.Out).To(gbytes.Say("warning"))
+
+				By("verifying it's valid without verbose flag")
+				command = exec.Command(pathToCLI, "check", "0 0 1 * 1")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("All valid"))
 			})
 		})
 	})

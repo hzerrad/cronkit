@@ -145,3 +145,24 @@ func TestParseFile_AllEntries(t *testing.T) {
 	assert.Greater(t, counts[EntryTypeEnvVar], 0, "Should have env var entries")
 	assert.Greater(t, counts[EntryTypeEmpty], 0, "Should have empty line entries")
 }
+
+// TestReadUser tests reading the user's crontab
+// This test will work whether the user has a crontab or not
+func TestReadUser(t *testing.T) {
+	reader := NewReader()
+	jobs, err := reader.ReadUser()
+
+	// Should not error (even if no crontab exists, it returns empty list)
+	assert.NoError(t, err)
+	assert.NotNil(t, jobs, "Should return jobs list (may be empty)")
+
+	// If user has crontab, verify jobs are parsed correctly
+	if len(jobs) > 0 {
+		// Verify all jobs have required fields
+		for _, job := range jobs {
+			assert.NotEmpty(t, job.Expression, "Job should have expression")
+			assert.NotEmpty(t, job.Command, "Job should have command")
+			assert.Greater(t, job.LineNumber, 0, "Job should have line number")
+		}
+	}
+}

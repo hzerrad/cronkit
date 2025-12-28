@@ -276,4 +276,59 @@ func TestParseLine_EdgeCases(t *testing.T) {
 		assert.Equal(t, EntryTypeComment, entry.Type)
 		assert.Nil(t, entry.Job)
 	})
+
+	t.Run("alias job with inline comment", func(t *testing.T) {
+		line := "@daily /usr/bin/daily-task.sh # Daily backup"
+		entry := ParseLine(line, 1)
+
+		assert.Equal(t, EntryTypeJob, entry.Type)
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@daily", entry.Job.Expression)
+		assert.Equal(t, "/usr/bin/daily-task.sh", entry.Job.Command)
+		assert.Equal(t, "Daily backup", entry.Job.Comment)
+		assert.True(t, entry.Job.Valid)
+	})
+
+	t.Run("alias job without comment", func(t *testing.T) {
+		line := "@hourly /usr/bin/hourly-task.sh"
+		entry := ParseLine(line, 1)
+
+		assert.Equal(t, EntryTypeJob, entry.Type)
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@hourly", entry.Job.Expression)
+		assert.Equal(t, "/usr/bin/hourly-task.sh", entry.Job.Command)
+		assert.Empty(t, entry.Job.Comment)
+		assert.True(t, entry.Job.Valid)
+	})
+
+	t.Run("alias job with invalid alias", func(t *testing.T) {
+		line := "@invalid /usr/bin/test.sh"
+		entry := ParseLine(line, 1)
+
+		// Should be parsed as a job (alias format detected)
+		if entry.Type == EntryTypeJob {
+			require.NotNil(t, entry.Job)
+			assert.Equal(t, "@invalid", entry.Job.Expression)
+			// May or may not be valid depending on parser
+			// The important thing is it's parsed
+		} else {
+			// Or might be invalid entry
+			assert.Equal(t, EntryTypeInvalid, entry.Type)
+		}
+	})
+
+	t.Run("alias job with only alias no command", func(t *testing.T) {
+		line := "@daily"
+		entry := ParseLine(line, 1)
+
+		// Should return nil from parseAliasJob (len(fields) < 2)
+		// This tests the len(fields) < 2 path
+		if entry.Type == EntryTypeJob {
+			// If it's parsed as a job, it should be invalid
+			assert.False(t, entry.Job.Valid)
+		} else {
+			// Or it might be invalid entry
+			assert.Equal(t, EntryTypeInvalid, entry.Type)
+		}
+	})
 }

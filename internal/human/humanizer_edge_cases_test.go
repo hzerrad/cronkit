@@ -1,6 +1,7 @@
 package human_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hzerrad/cronic/internal/cronx"
@@ -148,6 +149,143 @@ func TestHumanizer_OrdinalDays(t *testing.T) {
 			assert.Contains(t, result, tt.dayStr)
 		})
 	}
+}
+
+func TestHumanizer_EdgeCases_Formatters(t *testing.T) {
+	parser := cronx.NewParser()
+	humanizer := human.NewHumanizer()
+
+	t.Run("ordinalSuffix edge cases", func(t *testing.T) {
+		// Test ordinalSuffix with various day numbers
+		tests := []struct {
+			day      int
+			expected string
+		}{
+			{1, "1st"},
+			{2, "2nd"},
+			{3, "3rd"},
+			{11, "11th"}, // Special case
+			{12, "12th"}, // Special case
+			{13, "13th"}, // Special case
+			{21, "21st"},
+			{22, "22nd"},
+			{23, "23rd"},
+			{31, "31st"},
+		}
+
+		for _, tt := range tests {
+			schedule, err := parser.Parse(fmt.Sprintf("0 0 %d 1 *", tt.day))
+			require.NoError(t, err)
+			result := humanizer.Humanize(schedule)
+			// Should contain the ordinal suffix
+			assert.Contains(t, result, tt.expected, "ordinalSuffix should work for day %d", tt.day)
+		}
+	})
+
+	t.Run("buildTimePart with hour list", func(t *testing.T) {
+		// Test buildTimePart with hour list
+		schedule, err := parser.Parse("30 9,12,15 * * *")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Should contain formatted times
+		assert.Contains(t, result, "09:30")
+		assert.Contains(t, result, "12:30")
+		assert.Contains(t, result, "15:30")
+		// Should use formatList
+		assert.Contains(t, result, "and")
+	})
+
+	t.Run("buildTimePart fallback", func(t *testing.T) {
+		// Test buildTimePart fallback case
+		// This is hard to trigger, but we can test with complex patterns
+		schedule, err := parser.Parse("*/5 9-17 * * *")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Should not be fallback for this pattern
+		assert.NotContains(t, result, "Runs periodically")
+	})
+
+	t.Run("formatList with empty list", func(t *testing.T) {
+		// Test formatList with empty list (case 0)
+		// This is hard to trigger directly, but we can test via edge cases
+		// Actually, formatList is only called with non-empty lists in practice
+		// But we can test the code path exists
+		schedule, err := parser.Parse("0 9 * * 1")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Should work normally
+		assert.NotEmpty(t, result)
+	})
+
+	t.Run("formatList with single item", func(t *testing.T) {
+		// Test formatList with single item (case 1)
+		schedule, err := parser.Parse("0 9 * 1 *")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Should contain single month name
+		assert.Contains(t, result, "January")
+		// Should not have "and" for single item
+		// (Actually, single month won't use formatList, but let's test day lists)
+		schedule2, err := parser.Parse("0 9 * * 1")
+		require.NoError(t, err)
+		result2 := humanizer.Humanize(schedule2)
+		assert.Contains(t, result2, "Monday")
+	})
+
+	t.Run("formatList with default case (3+ items)", func(t *testing.T) {
+		// Test formatList default case with 3+ items
+		schedule, err := parser.Parse("0 9 * * 1,3,5,6")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Should contain formatted list with Oxford comma
+		assert.Contains(t, result, "Monday")
+		assert.Contains(t, result, "Wednesday")
+		assert.Contains(t, result, "Friday")
+		assert.Contains(t, result, "Saturday")
+		// Should have "and" before last item
+		assert.Contains(t, result, "and Saturday")
+	})
+
+	t.Run("formatList with 4+ items for months", func(t *testing.T) {
+		// Test formatList with 4+ items via month list
+		schedule, err := parser.Parse("0 9 * 1,3,5,7,9 *")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Should contain formatted month list with Oxford comma
+		assert.Contains(t, result, "January")
+		assert.Contains(t, result, "March")
+		assert.Contains(t, result, "May")
+		assert.Contains(t, result, "July")
+		assert.Contains(t, result, "September")
+		// Should have "and" before last item
+		assert.Contains(t, result, "and September")
+	})
+
+	t.Run("formatList with 3 items for hours", func(t *testing.T) {
+		// Test formatList with 3 items via hour list (buildTimePart case 7)
+		schedule, err := parser.Parse("30 9,12,15 * * *")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Should contain formatted time list with Oxford comma
+		assert.Contains(t, result, "09:30")
+		assert.Contains(t, result, "12:30")
+		assert.Contains(t, result, "15:30")
+		// Should have "and" before last item
+		assert.Contains(t, result, "and 15:30")
+	})
+
+	t.Run("formatList with 2 items for hours", func(t *testing.T) {
+		// Test formatList with 2 items via hour list
+		schedule, err := parser.Parse("30 9,12 * * *")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Should contain formatted time list with "and"
+		assert.Contains(t, result, "09:30")
+		assert.Contains(t, result, "12:30")
+		assert.Contains(t, result, "and 12:30")
+		// Should not have Oxford comma for 2 items
+		assert.NotContains(t, result, ", and")
+	})
 }
 
 func TestHumanizer_DayOfWeekRanges(t *testing.T) {

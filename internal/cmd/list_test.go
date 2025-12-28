@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/hzerrad/cronic/internal/crontab"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -209,5 +210,50 @@ func TestListCommand(t *testing.T) {
 		assert.NotEmpty(t, output)
 		// Output should contain the job (MON is parsed internally)
 		assert.Contains(t, output, "weekly-report")
+	})
+
+	t.Run("list with --all flag and JSON output", func(t *testing.T) {
+		// Setup: Create command with output capture
+		buf := new(bytes.Buffer)
+		cmd := newListCommand()
+		cmd.SetOut(buf)
+		cmd.SetErr(buf)
+
+		// Get test fixture path
+		testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+
+		// Execute: Run command with --all and --json flags
+		cmd.SetArgs([]string{"--file", testFile, "--all", "--json"})
+		err := cmd.Execute()
+
+		// Assert: Should succeed and output JSON with entries
+		require.NoError(t, err)
+		output := buf.String()
+
+		// Should contain JSON structure with entries
+		assert.Contains(t, output, `"entries"`)
+		assert.Contains(t, output, `"type"`)
+		assert.Contains(t, output, `"JOB"`)
+		assert.Contains(t, output, `"COMMENT"`)
+		assert.Contains(t, output, `"ENV"`)
+	})
+
+	t.Run("entryTypeString covers all types", func(t *testing.T) {
+		// Test all entry types are covered
+		types := []struct {
+			entryType crontab.EntryType
+			expected  string
+		}{
+			{crontab.EntryTypeJob, "JOB"},
+			{crontab.EntryTypeComment, "COMMENT"},
+			{crontab.EntryTypeEnvVar, "ENV"},
+			{crontab.EntryTypeEmpty, "EMPTY"},
+			{crontab.EntryTypeInvalid, "INVALID"},
+		}
+
+		for _, tt := range types {
+			result := entryTypeString(tt.entryType)
+			assert.Equal(t, tt.expected, result, "entryTypeString should return correct string for %v", tt.entryType)
+		}
 	})
 }

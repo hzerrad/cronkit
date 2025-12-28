@@ -1,0 +1,511 @@
+# Cronic Project - Cursor AI Coding Standards
+
+## Project Overview
+
+**Cronic** is a CLI tool that makes cron jobs human-readable, auditable, and visual. It converts cron syntax to plain English, generates schedules, and provides visualizations.
+
+**Core Principles:**
+- **Clarity**: Make cron expressions readable by humans
+- **Safety**: Read-only by default; NEVER execute or modify crontabs
+- **Portability**: Single static binary for all major OSes
+- **Accessibility**: Works in all terminals, width-aware, color optional
+- **Extensibility**: JSON schema and modular internals
+
+**CRITICAL**: Cronic is read-only. It must NEVER execute or modify crontabs.
+
+## Technology Stack
+
+- **Language**: Go 1.25.2 or higher
+- **CLI Framework**: Cobra (github.com/spf13/cobra)
+- **Cron Parsing**: robfig/cron/v3 (wrapped in internal/cronx)
+- **Unit Testing**: Go testing + testify (github.com/stretchr/testify)
+- **BDD Testing**: Ginkgo v2 + Gomega (github.com/onsi/ginkgo/v2, github.com/onsi/gomega)
+- **Build System**: Makefile
+- **Linting**: golangci-lint (recommended)
+
+## Project Structure
+
+```
+cronic/
+├── cmd/cronic/          # CLI entry point (main.go)
+├── internal/            # Private application code
+│   ├── cmd/            # Command implementations (Cobra)
+│   ├── cronx/          # Parser abstraction (wraps robfig/cron)
+│   ├── human/          # Humanization templates
+│   ├── crontab/        # Reader (system/user/file)
+│   └── ...             # Other internal packages
+├── pkg/                # Public libraries (optional, future)
+├── test/
+│   ├── integration/    # Integration tests (Ginkgo)
+│   └── e2e/           # End-to-end tests (Ginkgo)
+├── testdata/          # Test fixtures
+└── docs/              # Documentation
+```
+
+## Code Style & Conventions
+
+### Go Style Guidelines
+
+- Follow [Effective Go](https://golang.org/doc/effective_go.html) guidelines
+- Use `gofmt` for formatting (enforced by pre-commit hooks)
+- Write clear, descriptive names
+- Comment all exported functions (godoc style)
+- Use `go vet` to check for common errors
+- Run `golangci-lint` for comprehensive linting
+
+### Naming Conventions
+
+- **Commands**: lowercase, single word (e.g., `explain`, `list`, `next`)
+- **Functions**: PascalCase for exported, camelCase for private
+- **Variables**: camelCase
+- **Constants**: PascalCase or UPPER_SNAKE_CASE
+- **Test Functions**: `TestFeatureName` or `TestFeatureName_Scenario`
+- **BDD Tests**: `Describe("Feature")`, `Context("when condition")`, `It("should outcome")`
+
+### File Organization
+
+- One command per file: `internal/cmd/explain.go`, `internal/cmd/explain_test.go`
+- Test files alongside source: `foo.go` → `foo_test.go`
+- Shared test fixtures: `testdata/` directory
+- Package names match directory names
+
+## Cobra Command Pattern
+
+### Standard Command Structure
+
+```go
+package cmd
+
+import (
+    "fmt"
+    "github.com/spf13/cobra"
+)
+
+type MyCommand struct {
+    *cobra.Command
+    json bool
+    // other flags
+}
+
+func newMyCommand() *MyCommand {
+    mc := &MyCommand{}
+    mc.Command = &cobra.Command{
+        Use:   "mycommand <args>",
+        Short: "One-line description",
+        Long: `Detailed explanation with usage examples.
+
+Can span multiple lines.`,
+        Args:  cobra.ExactArgs(1), // or other validation
+        RunE:  mc.runMyCommand,    // Use RunE for error handling
+    }
+    
+    // Define flags
+    mc.Flags().BoolVarP(&mc.json, "json", "j", false, "Output JSON")
+    
+    return mc
+}
+
+func init() {
+    rootCmd.AddCommand(newMyCommand().Command)
+}
+
+func (mc *MyCommand) runMyCommand(_ *cobra.Command, args []string) error {
+    // Implementation with error handling
+    if mc.json {
+        return mc.outputJSON(result)
+    }
+    _, _ = fmt.Fprintln(mc.OutOrStdout(), result)
+    return nil
+}
+```
+
+### Command Conventions
+
+- Use lowercase for command names
+- Use `RunE` for commands that can return errors
+- Register in `init()` via `rootCmd.AddCommand()`
+- Define flags with long and short forms (e.g., `--json`, `-j`)
+- Provide clear help text (Short and Long)
+- Support `--json` flag for machine-readable output
+- Use `cobra.ExactArgs()`, `cobra.MinimumNArgs()`, etc. for argument validation
+
+### Global Flags
+
+All commands should support (via rootCmd.PersistentFlags):
+- `--locale <LANG>`: Locale for parsing day/month names (default: "en")
+- `--json` / `-j`: Output JSON (machine-readable)
+- `--tz <ZONE>`: Timezone override (if implemented)
+- `--width <COLS>`: Terminal width override (if implemented)
+- `--no-color`: Disable colored output (if implemented)
+
+## Testing Strategy
+
+### Three-Tier Testing Approach
+
+1. **Unit Tests** (colocated with source)
+   - Location: `internal/*/*_test.go`
+   - Framework: Go testing + testify
+   - Pattern: Table-driven tests with subtests
+   - Coverage: Test individual functions and methods
+
+2. **Integration Tests** (test/integration/)
+   - Framework: Ginkgo v2 + Gomega
+   - Pattern: BDD style (Describe/Context/It)
+   - Coverage: Test CLI commands via binary execution
+
+3. **E2E Tests** (test/e2e/)
+   - Framework: Ginkgo v2 + Gomega
+   - Pattern: BDD style with multi-step scenarios
+   - Coverage: Test complete user workflows
+
+### Test-Driven Development (TDD)
+
+Follow the TDD cycle:
+1. **Red**: Write failing test first
+2. **Green**: Write minimal code to pass
+3. **Refactor**: Clean up while keeping tests green
+
+### Unit Test Pattern
+
+```go
+func TestFeatureName(t *testing.T) {
+    t.Run("should handle valid input", func(t *testing.T) {
+        // Setup
+        input := "test"
+        
+        // Execute
+        result, err := SomeFunction(input)
+        
+        // Assert
+        require.NoError(t, err)
+        assert.Equal(t, expected, result)
+    })
+    
+    t.Run("should return error for invalid input", func(t *testing.T) {
+        _, err := SomeFunction(invalidInput)
+        require.Error(t, err)
+        assert.Contains(t, err.Error(), "expected message")
+    })
+}
+```
+
+**Key patterns:**
+- Use `t.Run()` for subtests
+- Use `require.*` for critical checks (fails fast)
+- Use `assert.*` for non-critical checks (continues)
+- Capture output with `bytes.Buffer`
+- Test both success and error paths
+- Use table-driven tests for multiple cases
+
+### BDD Test Pattern (Integration/E2E)
+
+```go
+package integration_test
+
+import (
+    . "github.com/onsi/ginkgo/v2"
+    . "github.com/onsi/gomega"
+    "github.com/onsi/gomega/gbytes"
+    "github.com/onsi/gomega/gexec"
+)
+
+var _ = Describe("Feature Name", func() {
+    Context("when condition exists", func() {
+        It("should produce expected outcome", func() {
+            command := exec.Command(pathToCLI, "command", "args")
+            session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+            Expect(err).NotTo(HaveOccurred())
+            
+            Eventually(session).Should(gexec.Exit(0))
+            Expect(session.Out).To(gbytes.Say("expected output"))
+        })
+    })
+})
+```
+
+**Key patterns:**
+- `Describe()` - Feature grouping
+- `Context()` - Scenario conditions
+- `It()` - Expected behavior
+- `BeforeSuite()/AfterSuite()` - One-time setup/teardown
+- `BeforeEach()/AfterEach()` - Per-test setup/teardown
+- `gexec.Build()` - Compile binary for testing
+- `gexec.Start()` - Execute binary
+- `Eventually()` - Wait for async operations
+- `gbytes.Say()` - Pattern match output
+- Use `By()` to document steps in complex scenarios
+
+### Coverage Requirements
+
+- **Overall minimum**: 95% (no less than 95% test coverage required)
+- **Critical paths**: 90%
+- **New code**: 100% (all new code MUST have tests)
+
+## Dependency Management
+
+### Approved Dependencies
+
+- `github.com/spf13/cobra` - CLI framework (Apache 2.0)
+- `github.com/robfig/cron/v3` - Cron parsing (MIT) - wrapped in internal/cronx
+- `github.com/stretchr/testify` - Testing assertions (MIT)
+- `github.com/onsi/ginkgo/v2` - BDD testing (MIT)
+- `github.com/onsi/gomega` - BDD matchers (MIT)
+
+### Dependency Policy
+
+- All dependencies must be Apache/MIT/BSD licensed
+- Wrap third-party libs under `internal/cronx` (single import boundary)
+- Pin versions in `go.mod`
+- Run security audits: `govulncheck ./...`
+- Never add dependencies with non-permissive licenses
+
+### Adding New Dependencies
+
+1. Check license compatibility (Apache/MIT/BSD only)
+2. Verify active maintenance
+3. Run `go get <package>`
+4. Update `go.mod` and `go.sum`
+5. Document in architecture section
+
+## Code Quality Gates
+
+### Pre-Commit (Automatic via hooks)
+
+- `go fmt` - Code formatting (blocks commit if not formatted)
+- `go vet` - Error detection
+- `golangci-lint` - Comprehensive linting (if installed)
+
+Install hooks: `make setup-hooks`
+
+### Pre-Push (Manual)
+
+- `make test` - All tests pass
+- `make test-coverage` - Coverage thresholds met
+- `make lint` - No linting issues
+
+### AI Assistant Workflow Requirements
+
+**CRITICAL**: When adding or modifying code, the AI assistant MUST:
+
+1. **After completing code changes, ALWAYS run pre-commit checks:**
+   ```bash
+   make fmt
+   make vet
+   make lint
+   ```
+   This ensures code meets linter rules before the user reviews it.
+
+2. **NEVER commit code unless explicitly asked by the user:**
+   - The user is in charge of all commits
+   - Only run pre-commit checks, never execute `git commit`
+   - The user will review changes and commit when ready
+   - Pre-commit hooks will run automatically when the user commits
+
+3. **Verify code quality before finishing:**
+   - All tests pass (`make test`)
+   - Coverage requirements met (`make test-coverage`)
+   - No linting errors (`make lint`)
+   - Code is properly formatted (`make fmt`)
+
+### Pull Request Requirements
+
+- All tests pass (unit + integration + E2E)
+- Coverage: 95% overall minimum (no less than 95%), 90% critical paths, 100% new code
+- No linting errors
+- Documentation updated
+- Pre-commit hooks passing
+
+## Makefile Targets
+
+### Building
+- `make build` - Build binary (./bin/cronic)
+- `make build-all` - Cross-platform builds
+- `make install` - Install to GOPATH/bin
+- `make clean` - Remove build artifacts
+- `make dev` - Run without building (go run)
+
+### Testing
+- `make test` - All tests (unit + BDD)
+- `make test-unit` - Unit tests only
+- `make test-integration` - Integration tests
+- `make test-e2e` - E2E tests
+- `make test-bdd` - Integration + E2E
+- `make test-coverage` - Generate coverage report
+- `make test-watch` - Continuous testing
+
+### Code Quality
+- `make fmt` - Format code
+- `make vet` - Run go vet
+- `make lint` - Run golangci-lint
+- `make setup-hooks` - Install pre-commit hooks
+
+## Adding New Commands
+
+### Step-by-Step Process
+
+1. **Write tests first (TDD)**
+   - Create `internal/cmd/mycommand_test.go`
+   - Write failing tests
+   - Run: `make test-unit`
+
+2. **Implement command**
+   - Create `internal/cmd/mycommand.go`
+   - Follow Cobra command pattern
+   - Implement to pass tests
+
+3. **Add integration tests**
+   - Add to `test/integration/cli_integration_test.go` or create new file
+   - Run: `make test-integration`
+
+4. **Run quality checks (REQUIRED before finishing)**
+   ```bash
+   make fmt
+   make vet
+   make lint
+   ```
+   **Note**: These commands MUST be run after adding/modifying code to ensure linter rules are met.
+
+5. **Verify coverage**
+   ```bash
+   make test-coverage
+   # Check HTML report: open bin/coverage.html
+   ```
+
+6. **Manual testing**
+   ```bash
+   make build
+   ./bin/cronic mycommand --help
+   ```
+
+7. **NEVER commit code** - The user will review and commit when ready. Pre-commit hooks will run automatically on commit.
+
+## Architectural Patterns
+
+### Single-Boundary Integration
+
+All third-party cron parsing goes through `internal/cronx` wrapper. Never import `robfig/cron` directly outside of `internal/cronx`.
+
+### Separation of Concerns
+
+- Parser (`internal/cronx`) - Parsing logic
+- Humanizer (`internal/human`) - Human-readable descriptions
+- Commands (`internal/cmd`) - CLI interface
+- Reader (`internal/crontab`) - Crontab file reading
+
+### Dependency Injection
+
+Commands receive dependencies via constructor/init patterns. Use interfaces for testability.
+
+## Dos and Don'ts
+
+### DO
+
+- ✅ Write tests first (TDD approach)
+- ✅ Use BDD style for integration/E2E tests
+- ✅ Wrap third-party dependencies under `internal/cronx`
+- ✅ Document all exported functions
+- ✅ Keep binary lightweight (<10 MB)
+- ✅ Support both human and JSON output modes
+- ✅ Respect `NO_COLOR` environment variable
+- ✅ Respect terminal width
+- ✅ Ensure read-only operation (never modify crontabs)
+- ✅ Validate crontab syntax comprehensively
+- ✅ Run `make fmt`, `make vet`, and `make lint` after completing code changes
+- ✅ Maintain 95%+ test coverage (no less than 95% overall)
+- ✅ Use table-driven tests for multiple cases
+- ✅ Test both success and error paths
+- ✅ Use `RunE` for commands that return errors
+- ✅ Register commands in `init()` function
+- ✅ Verify all pre-commit checks pass before finishing code changes
+
+### DON'T
+
+- ❌ Execute or modify crontabs (safety principle)
+- ❌ Add external APIs or network calls
+- ❌ Add unpinned or unvetted dependencies
+- ❌ Break backward compatibility of `--json` output
+- ❌ Skip tests or documentation
+- ❌ Commit code (user is in charge of all commits - NEVER commit unless explicitly asked)
+- ❌ Skip pre-commit checks after adding/modifying code
+- ❌ Add dependencies with non-permissive licenses
+- ❌ Ignore terminal accessibility (NO_COLOR, width)
+- ❌ Support Quartz extensions (L, W, #) in v0.1.0
+- ❌ Add complexity beyond v0.1.0 scope
+- ❌ Use mocks without clear benefit
+- ❌ Write implementation-dependent tests
+- ❌ Commit code without tests
+- ❌ Import `robfig/cron` outside of `internal/cronx`
+- ❌ Use `Run` instead of `RunE` when errors are possible
+
+## Cron Dialect Support
+
+### Supported (v0.1.0)
+
+- Standard 5-field Vixie cron: `minute hour dom month dow`
+- Aliases: `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`
+- Case-insensitive day/month names: `MON-SUN`, `JAN-DEC`
+- Ranges: `1-5`, `MON-FRI`
+- Steps: `*/15`, `0-23/2`
+- Lists: `1,3,5`, `MON,WED,FRI`
+
+### Not Supported (v0.1.0)
+
+- Quartz extensions: `L`, `W`, `LW`, `#`
+- Seconds field (planned for v0.2 with `--with-seconds`)
+- Non-standard dialects
+
+## Error Handling
+
+- Always return errors from functions that can fail
+- Use `fmt.Errorf()` with `%w` for error wrapping
+- Provide clear, actionable error messages
+- Log errors appropriately (if logging is added)
+- Test error paths explicitly
+
+## Output Formatting
+
+### Human-Readable Output
+
+- Use clear, natural language
+- Format tables for readability
+- Respect terminal width
+- Support color (but respect NO_COLOR)
+
+### JSON Output
+
+- Always support `--json` flag
+- Use consistent JSON schema
+- Pretty-print with 2-space indentation
+- Never break backward compatibility of JSON structure
+
+## Documentation
+
+- Update README.md for user-facing changes
+- Add godoc comments for exported functions
+- Update CONTRIBUTING.md if workflow changes
+- Keep CLAUDE.md up to date with project status
+- Document breaking changes clearly
+
+## Version Information
+
+- **Cronic Version**: v0.1.0 (in development)
+- **Go Version**: 1.25.2+
+- **License**: Apache 2.0
+
+## AI Assistant Commit Policy
+
+**STRICT RULE**: The AI assistant MUST NEVER commit code unless the user explicitly requests a commit. 
+
+**Required workflow after code changes:**
+1. Complete code changes and tests
+2. Run pre-commit checks: `make fmt`, `make vet`, `make lint`
+3. Verify tests pass: `make test`
+4. Verify coverage: `make test-coverage`
+5. **STOP** - Do not commit. The user will review and commit when ready.
+
+The user maintains full control over the git repository and commit history. Pre-commit hooks will automatically run when the user commits, ensuring code quality.
+
+---
+
+**Remember**: Cronic's mission is to make cron human-readable, safe, and accessible. Every change should align with these core principles. Always follow TDD, maintain high test coverage, ensure the tool remains read-only and safe to use, and **NEVER commit code unless explicitly asked by the user**.
+

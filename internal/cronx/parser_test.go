@@ -262,3 +262,53 @@ func TestField_Raw(t *testing.T) {
 	assert.Equal(t, "*", schedule.Month.Raw())
 	assert.Equal(t, "1-5", schedule.DayOfWeek.Raw())
 }
+
+func TestField_EdgeCases(t *testing.T) {
+	parser := cronx.NewParser()
+
+	t.Run("RangeStart returns 0 for non-range fields", func(t *testing.T) {
+		schedule, err := parser.Parse("0 * * * *")
+		require.NoError(t, err)
+		// Hour is wildcard, not a range
+		assert.Equal(t, 0, schedule.Hour.RangeStart())
+	})
+
+	t.Run("RangeEnd returns 0 for non-range fields", func(t *testing.T) {
+		schedule, err := parser.Parse("0 * * * *")
+		require.NoError(t, err)
+		// Hour is wildcard, not a range
+		assert.Equal(t, 0, schedule.Hour.RangeEnd())
+	})
+
+	t.Run("Value returns 0 for non-single fields", func(t *testing.T) {
+		schedule, err := parser.Parse("0 9-17 * * *")
+		require.NoError(t, err)
+		// Hour is a range, not a single value
+		assert.Equal(t, 0, schedule.Hour.Value())
+	})
+
+	t.Run("ListValues with ranges in list", func(t *testing.T) {
+		schedule, err := parser.Parse("0 9-11,15-17 * * *")
+		require.NoError(t, err)
+		// Hour is a list with ranges
+		values := schedule.Hour.ListValues()
+		assert.Contains(t, values, 9)
+		assert.Contains(t, values, 10)
+		assert.Contains(t, values, 11)
+		assert.Contains(t, values, 15)
+		assert.Contains(t, values, 16)
+		assert.Contains(t, values, 17)
+	})
+
+	t.Run("ListValues with single values and ranges", func(t *testing.T) {
+		schedule, err := parser.Parse("0 5,9-11,15 * * *")
+		require.NoError(t, err)
+		// Hour is a list with single value and ranges
+		values := schedule.Hour.ListValues()
+		assert.Contains(t, values, 5)
+		assert.Contains(t, values, 9)
+		assert.Contains(t, values, 10)
+		assert.Contains(t, values, 11)
+		assert.Contains(t, values, 15)
+	})
+}
