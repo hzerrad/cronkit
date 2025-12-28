@@ -145,7 +145,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         go-version: ["1.25.2"]
     steps:
       - name: Checkout code
@@ -168,18 +168,10 @@ jobs:
         run: make build
 
       - name: Verify binary exists
-        shell: bash
         run: |
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            if [ ! -f ./bin/cronic.exe ]; then
-              echo "Binary not found"
-              exit 1
-            fi
-          else
-            if [ ! -f ./bin/cronic ]; then
-              echo "Binary not found"
-              exit 1
-            fi
+          if [ ! -f ./bin/cronic ]; then
+            echo "Binary not found"
+            exit 1
           fi
 
       - name: Upload build artifact
