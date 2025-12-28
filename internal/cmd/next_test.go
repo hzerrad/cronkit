@@ -167,4 +167,19 @@ func TestNextCommand(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("outputNextText with singular run", func(t *testing.T) {
+		nc := newNextCommand()
+		buf := new(bytes.Buffer)
+		nc.SetOut(buf)
+		nc.SetArgs([]string{"@daily", "--count", "1"})
+
+		err := nc.Execute()
+		require.NoError(t, err)
+
+		output := buf.String()
+		assert.Contains(t, output, "Next 1 run", "Should use singular 'run' for count of 1")
+		assert.Contains(t, output, "1.")
+		assert.NotContains(t, output, "2.")
+	})
 }

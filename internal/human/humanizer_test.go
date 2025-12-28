@@ -171,6 +171,16 @@ func TestFormatters_EdgeCases(t *testing.T) {
 		assert.NotContains(t, result, "day 15")
 	})
 
+	t.Run("buildDayPart fallback to every day", func(t *testing.T) {
+		// Test the final fallback case where both dayOfWeek and dayOfMonth are wildcards
+		// This should return "every day"
+		schedule, err := parser.Parse("0 9 * * *")
+		require.NoError(t, err)
+		result := humanizer.Humanize(schedule)
+		// Both are wildcards, so should return "every day"
+		assert.Contains(t, result, "every day", "Should return 'every day' when both dayOfWeek and dayOfMonth are wildcards")
+	})
+
 	t.Run("formatDayOfWeek with step returns empty", func(t *testing.T) {
 		// Test formatDayOfWeek with step (should return empty, not handled)
 		// This tests the return "" path at the end of formatDayOfWeek

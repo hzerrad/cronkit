@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,4 +98,22 @@ func TestExplainCommand(t *testing.T) {
 		err := ec.Execute()
 		assert.Error(t, err)
 	})
+
+	t.Run("outputJSON error handling", func(t *testing.T) {
+		ec := newExplainCommand()
+		// Use an error writer to trigger JSON encoding error
+		ec.SetOut(&explainErrorWriter{})
+
+		err := ec.outputJSON("0 0 * * *", "At midnight every day")
+		// Should return error from JSON encoding
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to encode JSON")
+	})
+}
+
+// explainErrorWriter is a writer that always returns an error
+type explainErrorWriter struct{}
+
+func (e *explainErrorWriter) Write(p []byte) (n int, err error) {
+	return 0, fmt.Errorf("write error")
 }

@@ -67,6 +67,14 @@ func TestParseLine_ValidJobs(t *testing.T) {
 			wantExpr:    "@reboot",
 			wantCommand: "/usr/bin/startup.sh",
 		},
+		{
+			name:        "job with only expression no command",
+			line:        "0 0 * * *", // Only expression, no command - exprEnd will be 0
+			lineNumber:  1,
+			wantType:    EntryTypeInvalid,
+			wantExpr:    "",
+			wantCommand: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -74,12 +82,14 @@ func TestParseLine_ValidJobs(t *testing.T) {
 			entry := ParseLine(tt.line, tt.lineNumber)
 
 			assert.Equal(t, tt.wantType, entry.Type)
-			require.NotNil(t, entry.Job, "Job should not be nil for EntryTypeJob")
-			assert.Equal(t, tt.lineNumber, entry.LineNumber)
-			assert.Equal(t, tt.wantExpr, entry.Job.Expression)
-			assert.Equal(t, tt.wantCommand, entry.Job.Command)
-			if tt.wantComment != "" {
-				assert.Equal(t, tt.wantComment, entry.Job.Comment)
+			if tt.wantType == EntryTypeJob {
+				require.NotNil(t, entry.Job, "Job should not be nil for EntryTypeJob")
+				assert.Equal(t, tt.lineNumber, entry.LineNumber)
+				assert.Equal(t, tt.wantExpr, entry.Job.Expression)
+				assert.Equal(t, tt.wantCommand, entry.Job.Command)
+				if tt.wantComment != "" {
+					assert.Equal(t, tt.wantComment, entry.Job.Comment)
+				}
 			}
 		})
 	}

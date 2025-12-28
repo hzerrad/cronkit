@@ -255,5 +255,10 @@ func TestListCommand(t *testing.T) {
 			result := entryTypeString(tt.entryType)
 			assert.Equal(t, tt.expected, result, "entryTypeString should return correct string for %v", tt.entryType)
 		}
+
+		// Test default case with invalid EntryType value
+		invalidType := crontab.EntryType(999)
+		result := entryTypeString(invalidType)
+		assert.Equal(t, "UNKNOWN", result, "entryTypeString should return UNKNOWN for invalid EntryType")
 	})
 }

@@ -164,12 +164,23 @@ func TestHumanizer_EdgeCases_Formatters(t *testing.T) {
 			{1, "1st"},
 			{2, "2nd"},
 			{3, "3rd"},
+			{4, "4th"},   // Default case
+			{5, "5th"},   // Default case
+			{6, "6th"},   // Default case
+			{7, "7th"},   // Default case
+			{8, "8th"},   // Default case
+			{9, "9th"},   // Default case
+			{10, "10th"}, // Default case
 			{11, "11th"}, // Special case
 			{12, "12th"}, // Special case
 			{13, "13th"}, // Special case
+			{14, "14th"}, // Default case
+			{20, "20th"}, // Default case
 			{21, "21st"},
 			{22, "22nd"},
 			{23, "23rd"},
+			{24, "24th"}, // Default case
+			{30, "30th"}, // Default case
 			{31, "31st"},
 		}
 

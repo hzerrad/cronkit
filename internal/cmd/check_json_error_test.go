@@ -163,3 +163,44 @@ func TestCheckCommand_OutputJSON_ValidWithNoIssues(t *testing.T) {
 	assert.True(t, output["valid"].(bool))
 	assert.Equal(t, float64(1), output["totalJobs"])
 }
+
+func TestCheckCommand_OutputJSON_InvalidResult(t *testing.T) {
+	cc := newCheckCommand()
+	buf := new(bytes.Buffer)
+	cc.SetOut(buf)
+
+	// Create result with invalid (has errors)
+	result := check.ValidationResult{
+		Valid:       false,
+		TotalJobs:   1,
+		ValidJobs:   0,
+		InvalidJobs: 1,
+		Issues: []check.Issue{
+			{
+				Type:       "error",
+				LineNumber: 1,
+				Expression: "invalid",
+				Message:    "Invalid cron expression",
+			},
+		},
+	}
+
+	// Don't let os.Exit kill the test
+	oldExit := osExit
+	exitCode := 0
+	osExit = func(code int) { exitCode = code }
+	defer func() { osExit = oldExit }()
+
+	err := cc.outputJSON(result)
+	require.NoError(t, err)
+
+	// Should exit with code 1 for invalid result
+	assert.Equal(t, 1, exitCode, "Should exit with code 1 for invalid result")
+
+	var output map[string]interface{}
+	err = json.Unmarshal(buf.Bytes(), &output)
+	require.NoError(t, err)
+	// Should be invalid
+	assert.False(t, output["valid"].(bool))
+	assert.Equal(t, float64(1), output["totalJobs"])
+}
