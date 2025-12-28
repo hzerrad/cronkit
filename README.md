@@ -1,8 +1,29 @@
-# cronic
+# Cronic
 
-A CLI application built with Go.
+> Make cron human again.
+
+**Cronic** is a command-line tool that makes cron jobs human-readable, auditable, and visual. It converts confusing cron syntax into plain English, generates upcoming run schedules, and provides ASCII timeline visualizations.
+
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/go-1.25.2%2B-blue.svg)](https://golang.org/)
+
+## Features
+
+- **Explain** - Convert cron expressions to plain English
+- **Next** - Show the next N scheduled run times
+- **List** - Parse and summarize crontab jobs from files or user crontabs
+- **Timeline** - Visualize job schedules with ASCII timelines showing density and overlaps
+- **Check** - Validate crontab syntax and detect common issues (DOM/DOW conflicts, empty schedules)
+- **JSON Output** - Machine-readable output for all commands via `--json` flag
+- **Read-Only** - Safe by design; never executes or modifies crontabs
 
 ## Installation
+
+### Using Go Install
+
+```bash
+go install github.com/hzerrad/cronic/cmd/cronic@latest
+```
 
 ### From Source
 
@@ -12,148 +33,283 @@ cd cronic
 make install
 ```
 
-### Using Go Install
+### Building from Source
 
 ```bash
-go install github.com/hzerrad/cronic/cmd/cronic@latest
+git clone https://github.com/hzerrad/cronic.git
+cd cronic
+make build
+# Binary will be in ./bin/cronic
 ```
 
-## Usage
+## Quick Start
+
+### Explain a Cron Expression
 
 ```bash
-cronic [command]
+$ cronic explain "*/15 2-5 * * 1-5"
+Runs every 15 minutes between 02:00–05:59 on weekdays (Mon–Fri).
 ```
 
-### Available Commands
+### Show Next Run Times
 
-- `version` - Print the version number of cronic
-- `help` - Help about any command
+```bash
+$ cronic next "0 9 * * *" --count 5
+Next 5 runs for "0 9 * * *" (At 09:00 daily):
 
-### Flags
+1. 2025-12-29 09:00:00 UTC
+2. 2025-12-30 09:00:00 UTC
+3. 2025-12-31 09:00:00 UTC
+4. 2026-01-01 09:00:00 UTC
+5. 2026-01-02 09:00:00 UTC
+```
 
-- `-h, --help` - Help for cronic
-- `-v, --version` - Version for cronic
+### List Crontab Jobs
+
+```bash
+$ cronic list --file /etc/crontab
+LINE  EXPRESSION        DESCRIPTION                          COMMAND
+────  ────────────────  ───────────────────────────────────  ────────────────────────
+1     0 2 * * *         At 02:00 daily                       /usr/bin/backup.sh
+2     */15 * * * *      Every 15 minutes                     /usr/bin/check-disk.sh
+```
+
+### Visualize Timeline
+
+```bash
+$ cronic timeline "*/15 * * * *" --view day
+Timeline for 2025-12-28 (Day View)
+00:00 ──────────────────────────────────────────────────────────────── 24:00
+      │                                                                    │
+      │  ████  ████  ████  ████  ████  ████  ████  ████  ████  ████  ████  │
+      │                                                                    │
+      └──────────────────────────────────────────────────────────────────┘
+      expr-*/15 * * * *: Every 15 minutes
+```
+
+### Validate Crontab
+
+```bash
+$ cronic check --file /etc/crontab
+✓ All valid (2 jobs)
+
+$ cronic check "0 0 1 * 1" --verbose
+✓ Valid (1 job)
+⚠ WARNING: Line 1: Both day-of-month and day-of-week specified
+  Expression: 0 0 1 * 1
+```
+
+## Commands
+
+### `explain`
+
+Convert a cron expression to plain English.
+
+```bash
+cronic explain <cron-expression>
+cronic explain "*/15 * * * *"
+cronic explain "@daily"
+cronic explain "0 9 * * 1-5" --json
+```
+
+### `next`
+
+Show the next N scheduled run times for a cron expression.
+
+```bash
+cronic next <cron-expression> [flags]
+cronic next "*/15 * * * *"              # Next 10 runs (default)
+cronic next "@daily" --count 5          # Next 5 runs
+cronic next "0 9 * * 1-5" -c 3          # Next 3 runs
+cronic next "0 14 * * *" --json          # JSON output
+```
+
+**Flags:**
+- `-c, --count <number>` - Number of runs to show (1-100, default: 10)
+- `-j, --json` - Output as JSON
+
+### `list`
+
+Parse and list cron jobs from a crontab file or the user's crontab.
+
+```bash
+cronic list [flags]
+cronic list                              # List user's crontab
+cronic list --file /etc/crontab         # List from file
+cronic list --all                        # Include comments and env vars
+cronic list --json                       # JSON output
+```
+
+**Flags:**
+- `-f, --file <path>` - Path to crontab file
+- `-a, --all` - Show all entries including comments and environment variables
+- `-j, --json` - Output as JSON
+
+### `timeline`
+
+Display ASCII timeline visualization of cron job schedules.
+
+```bash
+cronic timeline [cron-expression] [flags]
+cronic timeline "*/15 * * * *"              # Timeline for single expression
+cronic timeline --file /etc/crontab         # Timeline for crontab file
+cronic timeline "*/5 * * * *" --view hour   # Hour view timeline
+cronic timeline --file jobs.cron --json     # JSON output
+```
+
+**Flags:**
+- `-f, --file <path>` - Path to crontab file (defaults to user's crontab)
+- `--view <type>` - Timeline view: `day` (24 hours) or `hour` (60 minutes, default: `day`)
+- `--from <time>` - Start time for timeline (RFC3339 format, defaults to current time)
+- `-j, --json` - Output as JSON
+
+### `check`
+
+Validate crontab syntax and detect common issues.
+
+```bash
+cronic check [cron-expression|--file <path>] [flags]
+cronic check "0 0 * * *"                  # Validate single expression
+cronic check --file /etc/crontab         # Validate crontab file
+cronic check "0 0 1 * 1" --verbose       # Show warnings
+cronic check --file jobs.cron --json     # JSON output
+```
+
+**Flags:**
+- `-f, --file <path>` - Path to crontab file
+- `--verbose` - Show warnings (DOM/DOW conflicts, etc.)
+- `-j, --json` - Output as JSON
+
+**Exit Codes:**
+- `0` - All valid (no errors)
+- `1` - Errors found
+- `2` - Warnings found (only with `--verbose`)
+
+## Global Flags
+
+All commands support these global flags:
+
+- `--locale <LANG>` - Locale for parsing day/month names (default: `en`)
+- `--json, -j` - Output as JSON (machine-readable)
+
+## Supported Cron Dialect
+
+- **Standard 5-field Vixie cron**: `minute hour dom month dow`
+- **Aliases**: `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`
+- **Case-insensitive day/month names**: `MON-SUN`, `JAN-DEC`
+- **Ranges**: `1-5`, `MON-FRI`
+- **Steps**: `*/15`, `0-23/2`
+- **Lists**: `1,3,5`, `MON,WED,FRI`
+
+## JSON Output
+
+All commands support `--json` flag for machine-readable output. The JSON schema is stable and documented for automation and CI/CD integration.
+
+Example:
+
+```bash
+$ cronic explain "*/15 * * * *" --json
+{
+  "expression": "*/15 * * * *",
+  "description": "Every 15 minutes"
+}
+```
+
+## Safety
+
+**Cronic is read-only by design.** It never executes or modifies crontabs. It's safe to use on production systems for auditing and documentation purposes.
+
+## Requirements
+
+- **Go**: 1.25.2 or higher (for building from source)
+- **Platform**: Linux, macOS, Windows (single static binary)
 
 ## Development
 
 ### Prerequisites
 
 - Go 1.25.2 or higher
+- Make
+- golangci-lint (recommended, for linting)
 
 ### Building
 
 ```bash
-# Build the binary
-make build
-
-# Build for all platforms
-make build-all
+make build          # Build binary (./bin/cronic)
+make build-all      # Cross-platform builds
+make install        # Install to GOPATH/bin
 ```
 
 ### Testing
 
-This project follows **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices.
+This project follows **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices with 95%+ test coverage.
+
+```bash
+make test           # All tests (unit + integration + E2E)
+make test-unit      # Unit tests only
+make test-integration  # Integration tests
+make test-e2e       # E2E tests
+make test-coverage  # Generate coverage report
+```
 
 **Documentation:**
 - [TESTING.md](TESTING.md) - Comprehensive testing guidelines
 - [BDD Tutorial](docs/BDD_TUTORIAL.md) - Hands-on BDD with Ginkgo tutorial
 
-```bash
-# Run all tests (unit + BDD)
-make test
-
-# Run only unit tests
-make test-unit
-
-# Run only integration tests
-make test-integration
-
-# Run only E2E tests
-make test-e2e
-
-# Run all BDD tests
-make test-bdd
-
-# Run tests with coverage
-make test-coverage
-
-# Watch mode (auto-run on changes)
-make test-watch
-```
-
 ### Code Quality
 
 ```bash
-# Run linter
-make lint
-
-# Format code
-make fmt
-
-# Run go vet
-make vet
+make fmt            # Format code
+make vet            # Run go vet
+make lint           # Run golangci-lint
+make setup-hooks    # Install pre-commit hooks
 ```
 
-### Git Hooks
-
-The project includes pre-commit hooks to enforce code quality standards. The hooks will automatically run:
-- `go fmt` - Ensures all code is properly formatted
-- `go vet` - Checks for common Go programming errors
-- `golangci-lint` - Runs comprehensive linting (if installed)
-- `go test` - Runs unit tests (when test files are modified)
-
-To install the pre-commit hooks:
-
-```bash
-make setup-hooks
-```
-
-After installation, these checks will run automatically on every commit. If any check fails, the commit will be blocked until the issues are fixed.
-
-**Configuration:**
-- Skip tests temporarily: `SKIP_TESTS=1 git commit`
-- Always run tests: `RUN_TESTS=1 git commit`
-
-**Note:** If you don't have `golangci-lint` installed, the hook will skip it with a warning. Install it for comprehensive linting:
-
-```bash
-# macOS
-brew install golangci-lint
-
-# Linux/macOS
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
-
-# Or visit: https://golangci-lint.run/usage/install/
-```
-
-## Project Structure
+### Project Structure
 
 ```
 cronic/
-├── cmd/
-│   └── cronic/          # Application entry point
-│       └── main.go
+├── cmd/cronic/          # CLI entry point
 ├── internal/            # Private application code
-│   └── cmd/            # Command implementations
-│       ├── root.go     # Root command
-│       └── version.go  # Version command
-├── pkg/                # Public libraries
-├── go.mod              # Go module definition
-├── go.sum              # Go module checksums
-├── Makefile            # Build automation
-├── LICENSE             # Apache 2.0 License
-└── README.md           # This file
+│   ├── cmd/            # Command implementations
+│   ├── cronx/          # Cron parser abstraction
+│   ├── human/          # Humanization templates
+│   ├── render/         # Timeline renderer
+│   ├── crontab/        # Crontab reader
+│   └── check/          # Validation logic
+├── test/               # Integration and E2E tests
+│   ├── integration/    # Integration tests (Ginkgo)
+│   └── e2e/           # E2E tests (Ginkgo)
+├── testdata/          # Test fixtures
+└── docs/              # Documentation
 ```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please read our contributing guidelines first.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Make your changes following TDD practices
+4. Ensure all tests pass and coverage is maintained (95%+)
+5. Run pre-commit checks: `make fmt && make vet && make lint`
+6. Commit your changes (`git commit -m 'Add some amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+**Important:**
+- Write tests first (TDD approach)
+- Maintain 95%+ test coverage
+- Follow the coding standards in `.cursorrules` (if available)
+- All tests must pass before submitting PR
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+## Documentation
+
+- [CRONIC_REFERENCE.md](docs/CRONIC_REFERENCE.md) - Complete specification and roadmap
+- [TESTING.md](TESTING.md) - Testing guidelines
+- [BDD_TUTORIAL.md](docs/BDD_TUTORIAL.md) - BDD testing tutorial
 
 ## License
 
@@ -162,3 +318,13 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## Author
 
 [hzerrad](https://github.com/hzerrad)
+
+## Acknowledgments
+
+- Built with [Cobra](https://github.com/spf13/cobra) for CLI framework
+- Cron parsing powered by [robfig/cron](https://github.com/robfig/cron/v3)
+- Testing with [Ginkgo](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/)
+
+---
+
+**Made with ❤️ for developers who work with cron jobs**
