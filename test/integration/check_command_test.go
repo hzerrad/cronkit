@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -259,6 +260,57 @@ var _ = Describe("Check Command", func() {
 			output := string(session.Out.Contents())
 			Expect(output).To(ContainSubstring(`"severity"`))
 			Expect(output).To(ContainSubstring(`"warn"`))
+		})
+	})
+
+	Context("when running 'cronic check' with --group-by flag", func() {
+		It("should group issues by severity", func() {
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "mixed_issues.cron")
+			// Create a test file with mixed issues if it doesn't exist
+			if _, err := os.Stat(testFile); os.IsNotExist(err) {
+				// Skip if file doesn't exist, we'll test with inline expression
+				command := exec.Command(pathToCLI, "check", "0 0 1 * 1", "--verbose", "--group-by", "severity")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(2))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("warn Issues"))
+			}
+		})
+
+		It("should group issues by line when using --file", func() {
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "invalid.cron")
+			command := exec.Command(pathToCLI, "check", "--file", testFile, "--group-by", "line")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(1))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring("Line"))
+			Expect(output).To(ContainSubstring("━━━"))
+		})
+
+		It("should work with --group-by and --json", func() {
+			command := exec.Command(pathToCLI, "check", "0 0 1 * 1", "--json", "--verbose", "--group-by", "severity")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(2))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring(`"severity"`))
+			Expect(output).To(ContainSubstring(`"warn"`))
+		})
+
+		It("should use flat display with --group-by none", func() {
+			command := exec.Command(pathToCLI, "check", "60 0 * * *", "--group-by", "none")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(1))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring("issue"))
+			Expect(output).NotTo(ContainSubstring("━━━"))
 		})
 	})
 })

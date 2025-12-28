@@ -681,4 +681,181 @@ func TestCheckCommand(t *testing.T) {
 		exitCode := calculateExitCode(result, result.Issues, check.SeverityError, false)
 		assert.Equal(t, 0, exitCode, "Should return 0 for invalid severity")
 	})
+
+	t.Run("check with --group-by severity", func(t *testing.T) {
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.groupBy = "severity"
+		cc.verbose = true
+
+		result := check.ValidationResult{
+			Valid:       false,
+			TotalJobs:   3,
+			ValidJobs:   1,
+			InvalidJobs: 2,
+			Issues: []check.Issue{
+				{Severity: check.SeverityWarn, Code: check.CodeDOMDOWConflict, Message: "Warning 1"},
+				{Severity: check.SeverityError, Code: check.CodeParseError, Message: "Error 1"},
+				{Severity: check.SeverityWarn, Code: check.CodeDOMDOWConflict, Message: "Warning 2"},
+			},
+		}
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err := cc.outputText(result, check.SeverityError)
+		require.NoError(t, err)
+		output := buf.String()
+		// Should have severity group headers
+		assert.Contains(t, output, "error Issues")
+		assert.Contains(t, output, "warn Issues")
+		// Should have grouped issues
+		assert.Contains(t, output, "Error 1")
+		assert.Contains(t, output, "Warning 1")
+		assert.Contains(t, output, "Warning 2")
+	})
+
+	t.Run("check with --group-by line", func(t *testing.T) {
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.groupBy = "line"
+		cc.verbose = true
+
+		result := check.ValidationResult{
+			Valid:       false,
+			TotalJobs:   2,
+			ValidJobs:   0,
+			InvalidJobs: 2,
+			Issues: []check.Issue{
+				{Severity: check.SeverityError, Code: check.CodeParseError, LineNumber: 5, Message: "Error on line 5"},
+				{Severity: check.SeverityError, Code: check.CodeParseError, LineNumber: 3, Message: "Error on line 3"},
+				{Severity: check.SeverityError, Code: check.CodeParseError, LineNumber: 0, Message: "General error"},
+			},
+		}
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err := cc.outputText(result, check.SeverityError)
+		require.NoError(t, err)
+		output := buf.String()
+		// Should have line group headers
+		assert.Contains(t, output, "Line 3")
+		assert.Contains(t, output, "Line 5")
+		assert.Contains(t, output, "General Issues")
+		// Should have grouped issues
+		assert.Contains(t, output, "Error on line 3")
+		assert.Contains(t, output, "Error on line 5")
+		assert.Contains(t, output, "General error")
+	})
+
+	t.Run("check with --group-by job", func(t *testing.T) {
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.groupBy = "job"
+		cc.verbose = true
+
+		result := check.ValidationResult{
+			Valid:       false,
+			TotalJobs:   2,
+			ValidJobs:   0,
+			InvalidJobs: 2,
+			Issues: []check.Issue{
+				{Severity: check.SeverityError, Code: check.CodeParseError, Expression: "0 0 * * *", Message: "Error 1"},
+				{Severity: check.SeverityError, Code: check.CodeParseError, Expression: "0 0 * * *", Message: "Error 2"},
+				{Severity: check.SeverityError, Code: check.CodeParseError, Expression: "", Message: "General error"},
+			},
+		}
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err := cc.outputText(result, check.SeverityError)
+		require.NoError(t, err)
+		output := buf.String()
+		// Should have expression group headers
+		assert.Contains(t, output, "Expression: 0 0 * * *")
+		assert.Contains(t, output, "General Issues")
+		// Should have grouped issues
+		assert.Contains(t, output, "Error 1")
+		assert.Contains(t, output, "Error 2")
+		assert.Contains(t, output, "General error")
+	})
+
+	t.Run("check with --group-by none (default)", func(t *testing.T) {
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.groupBy = "none"
+
+		result := check.ValidationResult{
+			Valid:       false,
+			TotalJobs:   1,
+			ValidJobs:   0,
+			InvalidJobs: 1,
+			Issues: []check.Issue{
+				{Severity: check.SeverityError, Code: check.CodeParseError, Message: "Error 1"},
+			},
+		}
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err := cc.outputText(result, check.SeverityError)
+		require.NoError(t, err)
+		output := buf.String()
+		// Should not have group headers
+		assert.NotContains(t, output, "━━━")
+		// Should have flat display
+		assert.Contains(t, output, "Error 1")
+	})
+
+	t.Run("parseGroupBy with valid values", func(t *testing.T) {
+		assert.Equal(t, GroupByNone, parseGroupBy("none"))
+		assert.Equal(t, GroupBySeverity, parseGroupBy("severity"))
+		assert.Equal(t, GroupByLine, parseGroupBy("line"))
+		assert.Equal(t, GroupByJob, parseGroupBy("job"))
+		assert.Equal(t, GroupByNone, parseGroupBy("invalid"))
+	})
+
+	t.Run("groupIssues by severity", func(t *testing.T) {
+		issues := []check.Issue{
+			{Severity: check.SeverityError, Message: "Error 1"},
+			{Severity: check.SeverityWarn, Message: "Warning 1"},
+			{Severity: check.SeverityError, Message: "Error 2"},
+		}
+		groups := groupIssues(issues, GroupBySeverity)
+		assert.Equal(t, 2, len(groups["error"]))
+		assert.Equal(t, 1, len(groups["warn"]))
+	})
+
+	t.Run("groupIssues by line", func(t *testing.T) {
+		issues := []check.Issue{
+			{Severity: check.SeverityError, LineNumber: 5, Message: "Error 1"},
+			{Severity: check.SeverityError, LineNumber: 3, Message: "Error 2"},
+			{Severity: check.SeverityError, LineNumber: 0, Message: "Error 3"},
+		}
+		groups := groupIssues(issues, GroupByLine)
+		assert.Equal(t, 1, len(groups["line-5"]))
+		assert.Equal(t, 1, len(groups["line-3"]))
+		assert.Equal(t, 1, len(groups["no-line"]))
+	})
+
+	t.Run("groupIssues by job", func(t *testing.T) {
+		issues := []check.Issue{
+			{Severity: check.SeverityError, Expression: "0 0 * * *", Message: "Error 1"},
+			{Severity: check.SeverityError, Expression: "0 0 * * *", Message: "Error 2"},
+			{Severity: check.SeverityError, Expression: "", Message: "Error 3"},
+		}
+		groups := groupIssues(issues, GroupByJob)
+		assert.Equal(t, 2, len(groups["0 0 * * *"]))
+		assert.Equal(t, 1, len(groups["no-expression"]))
+	})
 }
