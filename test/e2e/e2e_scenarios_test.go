@@ -38,7 +38,7 @@ var _ = Describe("E2E Scenarios", func() {
 	AfterEach(func() {
 		// Clean up the temporary directory
 		if tempDir != "" {
-			_ = os.RemoveAll(tempDir)
+			_ = os.RemoveAll(tempDir) // nolint:errcheck // Test cleanup, ignore errors
 		}
 	})
 
@@ -240,6 +240,223 @@ var _ = Describe("E2E Scenarios", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Eventually(session).Should(gexec.Exit(0))
 				}
+			})
+		})
+	})
+
+	Describe("Timeline Visualization Workflows", func() {
+		Context("when a DevOps engineer visualizes cron schedules", func() {
+			It("should support complete timeline workflow with all features", func() {
+				By("creating a timeline for a single expression")
+				command := exec.Command(pathToCLI, "timeline", "*/15 * * * *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("Timeline"))
+
+				By("visualizing with custom width")
+				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--width", "120")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("visualizing with timezone")
+				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--timezone", "UTC")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("visualizing with specific start time")
+				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--from", "2025-01-15T00:00:00Z")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("showing overlap information")
+				command = exec.Command(pathToCLI, "timeline", "0 * * * *", "--show-overlaps")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("Overlap Summary"))
+
+				By("exporting timeline to file")
+				exportFile := filepath.Join(tempDir, "timeline.txt")
+				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--export", exportFile)
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				// Verify file was created
+				_, err = os.Stat(exportFile)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should help identify job overlaps and conflicts", func() {
+				By("creating a timeline from crontab file")
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+				command := exec.Command(pathToCLI, "timeline", "--file", testFile)
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("analyzing overlaps in the schedule")
+				command = exec.Command(pathToCLI, "timeline", "--file", testFile, "--show-overlaps")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("Overlap Summary"))
+
+				By("getting JSON output for programmatic analysis")
+				command = exec.Command(pathToCLI, "timeline", "--file", testFile, "--json")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say(`"overlapStats"`))
+			})
+
+			It("should support timezone-aware scheduling analysis", func() {
+				By("visualizing schedule in UTC")
+				command := exec.Command(pathToCLI, "timeline", "0 9 * * 1-5", "--timezone", "UTC", "--from", "2025-01-15T00:00:00Z")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("comparing with different timezone")
+				command = exec.Command(pathToCLI, "timeline", "0 9 * * 1-5", "--timezone", "America/New_York", "--from", "2025-01-15T00:00:00Z")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("exporting timezone-aware timeline")
+				exportFile := filepath.Join(tempDir, "timeline-utc.txt")
+				command = exec.Command(pathToCLI, "timeline", "0 9 * * 1-5", "--timezone", "UTC", "--export", exportFile)
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				// Verify file was created
+				_, err = os.Stat(exportFile)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should support hour view for detailed minute-by-minute analysis", func() {
+				By("creating hour view timeline")
+				command := exec.Command(pathToCLI, "timeline", "*/5 * * * *", "--view", "hour", "--from", "2025-01-15T14:00:00Z")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("Hour View"))
+
+				By("exporting hour view to JSON")
+				exportFile := filepath.Join(tempDir, "timeline-hour.json")
+				command = exec.Command(pathToCLI, "timeline", "*/5 * * * *", "--view", "hour", "--json", "--export", exportFile)
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				// Verify file was created
+				_, err = os.Stat(exportFile)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("when combining timeline with other commands", func() {
+			It("should support explain -> timeline -> check workflow", func() {
+				By("understanding what the expression means")
+				command := exec.Command(pathToCLI, "explain", "*/15 * * * *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("visualizing the schedule")
+				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("validating the expression")
+				command = exec.Command(pathToCLI, "check", "*/15 * * * *")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+			})
+
+			It("should support list -> timeline workflow for crontab analysis", func() {
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+
+				By("listing jobs in crontab")
+				command := exec.Command(pathToCLI, "list", "--file", testFile)
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("visualizing timeline for the same crontab")
+				command = exec.Command(pathToCLI, "timeline", "--file", testFile)
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				By("analyzing overlaps in the crontab")
+				command = exec.Command(pathToCLI, "timeline", "--file", testFile, "--show-overlaps")
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+			})
+		})
+
+		Context("when exporting timelines for reporting", func() {
+			It("should export both text and JSON formats", func() {
+				By("exporting text format")
+				textFile := filepath.Join(tempDir, "timeline.txt")
+				command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--export", textFile)
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				// Verify text file
+				_, err = os.Stat(textFile)
+				Expect(err).NotTo(HaveOccurred())
+				content, err := os.ReadFile(textFile)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(content)).To(ContainSubstring("Timeline"))
+
+				By("exporting JSON format")
+				jsonFile := filepath.Join(tempDir, "timeline.json")
+				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--json", "--export", jsonFile)
+				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				// Verify JSON file
+				_, err = os.Stat(jsonFile)
+				Expect(err).NotTo(HaveOccurred())
+				content, err = os.ReadFile(jsonFile)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(content)).To(ContainSubstring(`"view"`))
+			})
+
+			It("should export with all flags combined", func() {
+				exportFile := filepath.Join(tempDir, "timeline-full.txt")
+				command := exec.Command(pathToCLI, "timeline", "*/15 * * * *",
+					"--width", "120",
+					"--timezone", "UTC",
+					"--from", "2025-01-15T00:00:00Z",
+					"--show-overlaps",
+					"--export", exportFile)
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(session).Should(gexec.Exit(0))
+
+				// Verify file was created with all features
+				_, err = os.Stat(exportFile)
+				Expect(err).NotTo(HaveOccurred())
+				content, err := os.ReadFile(exportFile)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(content)).To(ContainSubstring("Timeline"))
+				Expect(string(content)).To(ContainSubstring("Overlap Summary"))
 			})
 		})
 	})

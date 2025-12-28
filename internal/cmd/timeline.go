@@ -3,6 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/hzerrad/cronic/internal/crontab"
@@ -15,12 +17,15 @@ import (
 // TimelineCommand wraps cobra.Command with timeline-specific functionality
 type TimelineCommand struct {
 	*cobra.Command
-	file   string
-	json   bool
-	view   string
-	from   string
-	width  int
-	locale string
+	file         string
+	json         bool
+	view         string
+	from         string
+	width        int
+	timezone     string
+	export       string
+	locale       string
+	showOverlaps bool
 }
 
 func init() {
@@ -59,6 +64,10 @@ Examples:
 	tc.Command.Flags().BoolVarP(&tc.json, "json", "j", false, "Output as JSON")
 	tc.Command.Flags().StringVar(&tc.view, "view", "day", "Timeline view type: 'day' (24 hours) or 'hour' (60 minutes)")
 	tc.Command.Flags().StringVar(&tc.from, "from", "", "Start time for timeline (RFC3339 format, defaults to current time)")
+	tc.Command.Flags().IntVar(&tc.width, "width", 0, "Terminal width (0 = auto-detect, defaults to 80 if detection fails)")
+	tc.Command.Flags().StringVar(&tc.timezone, "timezone", "", "Timezone for timeline (e.g., 'America/New_York', 'UTC', defaults to local timezone)")
+	tc.Command.Flags().StringVar(&tc.export, "export", "", "Export timeline to file (format determined by extension: .txt, .json)")
+	tc.Command.Flags().BoolVar(&tc.showOverlaps, "show-overlaps", false, "Show detailed overlap information in output")
 
 	return tc
 }
@@ -75,14 +84,24 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid view type: %s (must be 'day' or 'hour')", tc.view)
 	}
 
+	// Determine timezone
+	loc := time.Local
+	if tc.timezone != "" {
+		parsedLoc, err := time.LoadLocation(tc.timezone)
+		if err != nil {
+			return fmt.Errorf("invalid timezone: %w (use IANA timezone name like 'America/New_York' or 'UTC')", err)
+		}
+		loc = parsedLoc
+	}
+
 	// Determine start time
-	startTime := time.Now()
+	startTime := time.Now().In(loc)
 	if tc.from != "" {
 		parsed, err := time.Parse(time.RFC3339, tc.from)
 		if err != nil {
 			return fmt.Errorf("invalid --from time format: %w (expected RFC3339)", err)
 		}
-		startTime = parsed
+		startTime = parsed.In(loc)
 	}
 
 	// Round down start time based on view
@@ -92,10 +111,13 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 		startTime = time.Date(startTime.Year(), startTime.Month(), startTime.Day(), startTime.Hour(), 0, 0, 0, startTime.Location())
 	}
 
-	// Determine width (default to 80, can be overridden via global flag if implemented)
-	width := 80
+	// Determine width (auto-detect if not specified)
+	width := detectTerminalWidth()
 	if tc.width > 0 {
 		width = tc.width
+	}
+	if width < 40 {
+		width = 40 // Minimum width for readability
 	}
 
 	// Create timeline
@@ -204,26 +226,80 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	}
 
 	// Output based on format
+	var output string
 	if tc.json {
-		return tc.outputTimelineJSON(timeline)
+		result := timeline.RenderJSON()
+		// If exporting JSON, write to file, otherwise to stdout
+		if tc.export != "" {
+			file, err := os.Create(tc.export)
+			if err != nil {
+				return fmt.Errorf("failed to create export file: %w", err)
+			}
+			encoder := json.NewEncoder(file)
+			encoder.SetIndent("", "  ")
+			if err := encoder.Encode(result); err != nil {
+				_ = file.Close()
+				return fmt.Errorf("failed to encode JSON: %w", err)
+			}
+			if err := file.Close(); err != nil {
+				return fmt.Errorf("failed to close export file: %w", err)
+			}
+		} else {
+			encoder := json.NewEncoder(tc.OutOrStdout())
+			encoder.SetIndent("", "  ")
+			if err := encoder.Encode(result); err != nil {
+				return fmt.Errorf("failed to encode JSON: %w", err)
+			}
+		}
+		return nil
 	}
 
-	return tc.outputTimelineText(timeline)
-}
+	// Text output
+	output = timeline.Render(tc.showOverlaps)
 
-func (tc *TimelineCommand) outputTimelineText(timeline *render.Timeline) error {
-	output := timeline.Render()
-	_, _ = fmt.Fprint(tc.OutOrStdout(), output)
+	// Handle export if specified
+	if tc.export != "" {
+		if err := tc.exportTimeline(output, timeline); err != nil {
+			return fmt.Errorf("failed to export timeline: %w", err)
+		}
+		// Also print to stdout when exporting
+		_, _ = fmt.Fprint(tc.OutOrStdout(), output)
+	} else {
+		// Normal output
+		_, _ = fmt.Fprint(tc.OutOrStdout(), output)
+	}
+
 	return nil
 }
 
-func (tc *TimelineCommand) outputTimelineJSON(timeline *render.Timeline) error {
-	result := timeline.RenderJSON()
+// detectTerminalWidth attempts to detect the terminal width
+func detectTerminalWidth() int {
+	// Try COLUMNS environment variable first
+	if colsStr := os.Getenv("COLUMNS"); colsStr != "" {
+		if cols, err := strconv.Atoi(colsStr); err == nil && cols > 0 {
+			return cols
+		}
+	}
 
-	encoder := json.NewEncoder(tc.OutOrStdout())
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(result); err != nil {
-		return fmt.Errorf("failed to encode JSON: %w", err)
+	// Try to get terminal size (Unix-like systems)
+	// Note: This is a simple implementation; for cross-platform support,
+	// we'd need a library like golang.org/x/term
+	// For now, default to 80
+	return 80
+}
+
+// exportTimeline exports the timeline to a file (text format only, JSON handled separately)
+func (tc *TimelineCommand) exportTimeline(textOutput string, timeline *render.Timeline) error {
+	file, err := os.Create(tc.export)
+	if err != nil {
+		return fmt.Errorf("failed to create export file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	if _, err := file.WriteString(textOutput); err != nil {
+		return fmt.Errorf("failed to write text output: %w", err)
 	}
 
 	return nil

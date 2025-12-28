@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -148,7 +149,7 @@ func TestTimeline_Render(t *testing.T) {
 		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 		tl := NewTimeline(DayView, startTime, 80)
 
-		output := tl.Render()
+		output := tl.Render(false)
 		assert.Contains(t, output, "Timeline")
 		assert.Contains(t, output, "00:00")
 	})
@@ -160,7 +161,7 @@ func TestTimeline_Render(t *testing.T) {
 		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
 		tl.AddJobRun("job-1", startTime.Add(2*time.Hour))
 
-		output := tl.Render()
+		output := tl.Render(false)
 		assert.Contains(t, output, "Timeline")
 		assert.Contains(t, output, "job-1")
 	})
@@ -172,7 +173,7 @@ func TestTimeline_Render(t *testing.T) {
 		tl.AddJobRun("job-1", startTime.Add(5*time.Minute))
 		tl.AddJobRun("job-1", startTime.Add(10*time.Minute))
 
-		output := tl.Render()
+		output := tl.Render(false)
 		assert.Contains(t, output, "Timeline")
 		assert.Contains(t, output, "09:00")
 		assert.Contains(t, output, "10:00")
@@ -184,7 +185,7 @@ func TestTimeline_Render(t *testing.T) {
 
 		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
 
-		output := tl.Render()
+		output := tl.Render(false)
 		assert.NotEmpty(t, output)
 		// Should still render, just with fewer slots
 	})
@@ -195,7 +196,7 @@ func TestTimeline_Render(t *testing.T) {
 
 		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
 
-		output := tl.Render()
+		output := tl.Render(false)
 		assert.NotEmpty(t, output)
 	})
 }
@@ -327,5 +328,399 @@ func TestTimeline_findSlotIndex(t *testing.T) {
 		tl := NewTimeline(HourView, startTime, 80)
 
 		assert.Equal(t, -1, tl.findSlotIndex(startTime.Add(61*time.Minute)))
+	})
+}
+
+func TestGetDensityChar(t *testing.T) {
+	t.Run("should return full block for high density", func(t *testing.T) {
+		char := getDensityChar(8, 10)
+		assert.Equal(t, "█", char)
+	})
+
+	t.Run("should return dark shade for medium-high density", func(t *testing.T) {
+		char := getDensityChar(6, 10)
+		assert.Equal(t, "▓", char)
+	})
+
+	t.Run("should return medium shade for medium density", func(t *testing.T) {
+		char := getDensityChar(4, 10)
+		assert.Equal(t, "▒", char)
+	})
+
+	t.Run("should return light shade for low density", func(t *testing.T) {
+		char := getDensityChar(2, 10)
+		assert.Equal(t, "░", char)
+	})
+
+	t.Run("should return dot for very low density", func(t *testing.T) {
+		char := getDensityChar(1, 10)
+		assert.Equal(t, "·", char)
+	})
+
+	t.Run("should handle zero maxOverlaps", func(t *testing.T) {
+		char := getDensityChar(1, 0)
+		assert.Equal(t, "█", char)
+	})
+}
+
+func TestTimeline_Render_AdaptiveWidth(t *testing.T) {
+	t.Run("should render with narrow width", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 50)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should still render successfully
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should render with very narrow width", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 40)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should still render successfully even with very narrow width
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should render with wide width", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 200)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+		tl.AddJobRun("job-2", startTime.Add(1*time.Hour))
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should use density characters
+		assert.Contains(t, output, "█")
+	})
+
+	t.Run("should use density characters for overlaps", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 100)
+
+		overlapTime := startTime.Add(1 * time.Hour)
+		// Add multiple jobs at same time to create high density
+		for i := 0; i < 8; i++ {
+			tl.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime)
+		}
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "█") // Should use full block for high density
+	})
+
+	t.Run("should handle very narrow width with slotWidth calculation", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 50) // Narrow width
+
+		// Add runs at different hours
+		for i := 0; i < 5; i++ {
+			tl.AddJobRun("job-1", startTime.Add(time.Duration(i)*time.Hour))
+		}
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should render successfully with narrow width
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should handle slotWidth calculation when availableWidth < slotCount", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Very narrow width - less than number of slots (24 for day view)
+		tl := NewTimeline(DayView, startTime, 30)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should handle narrow width gracefully
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should use different density characters based on overlap count", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+
+		// Test high density (8+ jobs) - should use full block
+		tl := NewTimeline(DayView, startTime, 100)
+		overlapTime := startTime.Add(1 * time.Hour)
+		for i := 0; i < 8; i++ {
+			tl.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime)
+		}
+		output := tl.Render(false)
+		// With 8 jobs and maxOverlaps=8, density = 8/8 = 1.0, should use █
+		assert.Contains(t, output, "█")
+
+		// Test medium-high density (6 jobs out of 10 max) - should use dark shade
+		tl2 := NewTimeline(DayView, startTime, 100)
+		overlapTime2 := startTime.Add(1 * time.Hour)
+		overlapTime3 := startTime.Add(2 * time.Hour)
+		// Create 10 jobs at time2 to set maxOverlaps=10
+		for i := 0; i < 10; i++ {
+			tl2.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime3)
+		}
+		// Then 6 jobs at time1 (density = 6/10 = 0.6, should use ▓)
+		for i := 0; i < 6; i++ {
+			tl2.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime2)
+		}
+		output2 := tl2.Render(false)
+		assert.Contains(t, output2, "▓")
+
+		// Test medium density (4 jobs out of 10 max) - should use medium shade
+		tl3 := NewTimeline(DayView, startTime, 100)
+		// Create 10 jobs at time3 to set maxOverlaps=10
+		for i := 0; i < 10; i++ {
+			tl3.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime3)
+		}
+		// Then 4 jobs at time2 (density = 4/10 = 0.4, should use ▒)
+		for i := 0; i < 4; i++ {
+			tl3.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime2)
+		}
+		output3 := tl3.Render(false)
+		assert.Contains(t, output3, "▒")
+
+		// Test low density (2 jobs out of 10 max) - should use light shade
+		tl4 := NewTimeline(DayView, startTime, 100)
+		// Create 10 jobs at time3 to set maxOverlaps=10
+		for i := 0; i < 10; i++ {
+			tl4.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime3)
+		}
+		// Then 2 jobs at time2 (density = 2/10 = 0.2, should use ░)
+		for i := 0; i < 2; i++ {
+			tl4.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime2)
+		}
+		output4 := tl4.Render(false)
+		assert.Contains(t, output4, "░")
+
+		// Test very low density (1 job out of 10 max) - should use dot
+		tl5 := NewTimeline(DayView, startTime, 100)
+		// Create 10 jobs at time3 to set maxOverlaps=10
+		for i := 0; i < 10; i++ {
+			tl5.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime3)
+		}
+		// Then 1 job at time2 (density = 1/10 = 0.1, should use ·)
+		tl5.AddJobRun("job-1", overlapTime2)
+		output5 := tl5.Render(false)
+		assert.Contains(t, output5, "·")
+	})
+
+	t.Run("should handle Render with showOverlaps and many overlaps (>50)", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 100)
+
+		// Create 60 overlaps (one per minute for 60 minutes)
+		for i := 0; i < 60; i++ {
+			overlapTime := startTime.Add(time.Duration(i) * time.Minute)
+			tl.AddJobRun("job-1", overlapTime)
+			tl.AddJobRun("job-2", overlapTime)
+		}
+
+		output := tl.Render(true)
+		assert.Contains(t, output, "Overlap Summary")
+		assert.Contains(t, output, "showing first 50")
+		assert.Contains(t, output, "and 10 more overlap window(s)")
+	})
+
+	t.Run("should handle Render with showOverlaps and exactly 50 overlaps", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 100)
+
+		// Create exactly 50 overlaps
+		for i := 0; i < 50; i++ {
+			overlapTime := startTime.Add(time.Duration(i) * time.Minute)
+			tl.AddJobRun("job-1", overlapTime)
+			tl.AddJobRun("job-2", overlapTime)
+		}
+
+		output := tl.Render(true)
+		assert.Contains(t, output, "Overlap Summary")
+		assert.NotContains(t, output, "showing first 50")
+		assert.NotContains(t, output, "more overlap window(s)")
+	})
+
+	t.Run("should handle Render with slotWidth > 1", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Wide width so slotWidth will be > 1
+		tl := NewTimeline(DayView, startTime, 200)
+
+		// Add runs at different hours
+		for i := 0; i < 5; i++ {
+			tl.AddJobRun("job-1", startTime.Add(time.Duration(i)*time.Hour))
+		}
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should render successfully with wide width
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should handle Render with usedWidth < availableWidth", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Width that doesn't divide evenly into slots
+		tl := NewTimeline(DayView, startTime, 100)
+
+		// Add a few runs
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+		tl.AddJobRun("job-2", startTime.Add(2*time.Hour))
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should fill remaining space correctly
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should handle Render with level >= len(uniqueJobs)", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 100)
+
+		// Add runs that create multiple overlap levels
+		overlapTime := startTime.Add(1 * time.Hour)
+		tl.AddJobRun("job-1", overlapTime)
+		tl.AddJobRun("job-2", overlapTime)
+		tl.AddJobRun("job-3", overlapTime)
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should render all levels correctly
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should handle Render with hour view and adaptive width", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 9, 0, 0, 0, time.UTC)
+		tl := NewTimeline(HourView, startTime, 80)
+
+		// Add runs at different minutes
+		for i := 0; i < 10; i++ {
+			tl.AddJobRun("job-1", startTime.Add(time.Duration(i)*time.Minute))
+		}
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "Hour View")
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should handle Render with no job info", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Add run without setting job info
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "job-1")
+		// Should show job ID even without description
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should handle Render with slotWidth calculation when availableWidth is 0", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Very narrow width that results in availableWidth = 0 or negative
+		tl := NewTimeline(DayView, startTime, 5)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should handle gracefully
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should handle Render with slotCount reduction for narrow terminals", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Width that's less than number of slots (24 for day view)
+		tl := NewTimeline(DayView, startTime, 20)
+
+		// Add runs at different hours
+		for i := 0; i < 5; i++ {
+			tl.AddJobRun("job-1", startTime.Add(time.Duration(i)*time.Hour))
+		}
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should handle narrow width with slotCount reduction
+		assert.NotEmpty(t, output)
+	})
+
+	t.Run("should handle Render with slotWidth > 1 and multiple slots", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Wide width so slotWidth will be > 1
+		tl := NewTimeline(DayView, startTime, 300)
+
+		// Add runs at multiple hours
+		for i := 0; i < 10; i++ {
+			tl.AddJobRun("job-1", startTime.Add(time.Duration(i)*time.Hour))
+		}
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+		// Should render successfully with wide width
+		assert.NotEmpty(t, output)
+	})
+}
+
+func TestTimeline_findSlotIndex_EdgeCases(t *testing.T) {
+	t.Run("should handle exact boundary times", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Test exact start time
+		assert.Equal(t, 0, tl.findSlotIndex(startTime))
+
+		// Test exact end time (should return -1 as it's not before endTime)
+		endTime := startTime.Add(24 * time.Hour)
+		assert.Equal(t, -1, tl.findSlotIndex(endTime))
+	})
+
+	t.Run("should handle hour view boundary times", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 9, 0, 0, 0, time.UTC)
+		tl := NewTimeline(HourView, startTime, 80)
+
+		// Test exact start time
+		assert.Equal(t, 0, tl.findSlotIndex(startTime))
+
+		// Test exact end time (should return -1)
+		endTime := startTime.Add(time.Hour)
+		assert.Equal(t, -1, tl.findSlotIndex(endTime))
+	})
+
+	t.Run("should handle times just before start", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		beforeStart := startTime.Add(-1 * time.Minute)
+		assert.Equal(t, -1, tl.findSlotIndex(beforeStart))
+	})
+
+	t.Run("should handle times just after end", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		afterEnd := startTime.Add(24*time.Hour + 1*time.Minute)
+		assert.Equal(t, -1, tl.findSlotIndex(afterEnd))
+	})
+
+	t.Run("should handle hour view with hours >= 60", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 9, 0, 0, 0, time.UTC)
+		tl := NewTimeline(HourView, startTime, 80)
+
+		// Time that would be >= 60 minutes
+		tooLate := startTime.Add(60 * time.Minute)
+		assert.Equal(t, -1, tl.findSlotIndex(tooLate))
+	})
+
+	t.Run("should handle day view with hours >= 24", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Time that would be >= 24 hours
+		tooLate := startTime.Add(24 * time.Hour)
+		assert.Equal(t, -1, tl.findSlotIndex(tooLate))
 	})
 }

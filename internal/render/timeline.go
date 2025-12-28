@@ -42,6 +42,13 @@ type Overlap struct {
 	JobIDs []string
 }
 
+// OverlapStats contains statistics about job overlaps
+type OverlapStats struct {
+	TotalWindows    int
+	MaxConcurrent   int
+	MostProblematic []Overlap // Top N overlaps sorted by count
+}
+
 // JobInfo contains metadata about a job
 type JobInfo struct {
 	Expression  string
@@ -151,8 +158,49 @@ func (tl *Timeline) DetectOverlaps() []Overlap {
 	return overlaps
 }
 
-// Render generates an ASCII timeline string
-func (tl *Timeline) Render() string {
+// GetOverlapStats returns statistics about overlaps
+func (tl *Timeline) GetOverlapStats() OverlapStats {
+	overlaps := tl.DetectOverlaps()
+
+	if len(overlaps) == 0 {
+		return OverlapStats{
+			TotalWindows:    0,
+			MaxConcurrent:   0,
+			MostProblematic: []Overlap{},
+		}
+	}
+
+	maxConcurrent := 0
+	for _, overlap := range overlaps {
+		if overlap.Count > maxConcurrent {
+			maxConcurrent = overlap.Count
+		}
+	}
+
+	// Sort overlaps by count (descending) for most problematic
+	mostProblematic := make([]Overlap, len(overlaps))
+	copy(mostProblematic, overlaps)
+	sort.Slice(mostProblematic, func(i, j int) bool {
+		if mostProblematic[i].Count != mostProblematic[j].Count {
+			return mostProblematic[i].Count > mostProblematic[j].Count
+		}
+		return mostProblematic[i].Time.Before(mostProblematic[j].Time)
+	})
+
+	// Limit to top 10 most problematic
+	if len(mostProblematic) > 10 {
+		mostProblematic = mostProblematic[:10]
+	}
+
+	return OverlapStats{
+		TotalWindows:    len(overlaps),
+		MaxConcurrent:   maxConcurrent,
+		MostProblematic: mostProblematic,
+	}
+}
+
+// Render generates an ASCII timeline string with optional overlap reporting
+func (tl *Timeline) Render(showOverlaps bool) string {
 	var sb strings.Builder
 
 	// Header
@@ -168,7 +216,20 @@ func (tl *Timeline) Render() string {
 	}
 
 	sb.WriteString(timeRange + "\n")
-	sb.WriteString("      │                                                                    │\n")
+
+	// Calculate available width for timeline bars
+	// Account for: "      │" (7 chars) + "  │" (3 chars) = 10 chars fixed
+	availableWidth := tl.width - 10
+	if availableWidth < 0 {
+		availableWidth = 0
+	}
+
+	// Draw top border with adaptive width
+	sb.WriteString("      │")
+	for i := 0; i < availableWidth; i++ {
+		sb.WriteString(" ")
+	}
+	sb.WriteString("  │\n")
 
 	// Group runs by slot
 	slotRuns := make(map[int][]string) // slot index -> job IDs
@@ -188,26 +249,67 @@ func (tl *Timeline) Render() string {
 		}
 	}
 
+	// Calculate slot width based on available space
+	slotCount := len(tl.slots)
+	slotWidth := 1 // Minimum slot width
+	if availableWidth > 0 && slotCount > 0 {
+		slotWidth = availableWidth / slotCount
+		if slotWidth < 1 {
+			slotWidth = 1
+		}
+		// For narrow terminals, use compact representation
+		if slotWidth == 1 && availableWidth < slotCount {
+			// Use every Nth slot to fit in available width
+			slotCount = availableWidth
+		}
+	}
+
 	// Draw bars for each overlap level
 	for level := 0; level < maxOverlaps; level++ {
 		sb.WriteString("      │")
-		for i := 0; i < len(tl.slots); i++ {
+		for i := 0; i < len(tl.slots) && i < slotCount; i++ {
 			if jobIDs, hasRuns := slotRuns[i]; hasRuns {
 				uniqueJobs := uniqueStrings(jobIDs)
 				if level < len(uniqueJobs) {
-					sb.WriteString("  ████")
+					// Use different density characters based on overlap count
+					densityChar := getDensityChar(len(uniqueJobs), maxOverlaps)
+					for w := 0; w < slotWidth; w++ {
+						sb.WriteString(densityChar)
+					}
 				} else {
-					sb.WriteString("      ")
+					// Empty slot
+					for w := 0; w < slotWidth; w++ {
+						sb.WriteString(" ")
+					}
 				}
 			} else {
-				sb.WriteString("      ")
+				// Empty slot
+				for w := 0; w < slotWidth; w++ {
+					sb.WriteString(" ")
+				}
 			}
+		}
+		// Fill remaining space if slots don't fill width
+		usedWidth := slotCount * slotWidth
+		for w := usedWidth; w < availableWidth; w++ {
+			sb.WriteString(" ")
 		}
 		sb.WriteString("  │\n")
 	}
 
-	sb.WriteString("      │                                                                    │\n")
-	sb.WriteString("      └──────────────────────────────────────────────────────────────────┘\n")
+	// Draw bottom border with adaptive width
+	sb.WriteString("      │")
+	for i := 0; i < availableWidth; i++ {
+		sb.WriteString(" ")
+	}
+	sb.WriteString("  │\n")
+
+	// Draw bottom edge
+	sb.WriteString("      └")
+	for i := 0; i < availableWidth; i++ {
+		sb.WriteString("─")
+	}
+	sb.WriteString("──┘\n")
 
 	// List jobs
 	jobIDsSeen := make(map[string]bool)
@@ -219,6 +321,43 @@ func (tl *Timeline) Render() string {
 				sb.WriteString(fmt.Sprintf("      %s: %s\n", run.JobID, info.Description))
 			} else {
 				sb.WriteString(fmt.Sprintf("      %s\n", run.JobID))
+			}
+		}
+	}
+
+	// Add overlap summary if requested
+	if showOverlaps {
+		overlaps := tl.DetectOverlaps()
+		stats := tl.GetOverlapStats()
+
+		sb.WriteString("\n")
+		sb.WriteString("━━━ Overlap Summary ━━━\n")
+
+		if len(overlaps) == 0 {
+			sb.WriteString("No overlaps detected\n")
+		} else {
+			sb.WriteString(fmt.Sprintf("Total overlap windows: %d\n", stats.TotalWindows))
+			sb.WriteString(fmt.Sprintf("Maximum concurrent jobs: %d\n", stats.MaxConcurrent))
+			sb.WriteString("\n")
+			sb.WriteString("Overlaps:\n")
+
+			// Show all overlaps, or limit to first 50 if too many
+			displayOverlaps := overlaps
+			if len(displayOverlaps) > 50 {
+				displayOverlaps = displayOverlaps[:50]
+				sb.WriteString(fmt.Sprintf("  (showing first 50 of %d overlap windows)\n", len(overlaps)))
+			}
+
+			for _, overlap := range displayOverlaps {
+				jobList := strings.Join(overlap.JobIDs, ", ")
+				sb.WriteString(fmt.Sprintf("  %s: %d job(s) (%s)\n",
+					overlap.Time.Format("2006-01-02 15:04:05"),
+					overlap.Count,
+					jobList))
+			}
+
+			if len(overlaps) > 50 {
+				sb.WriteString(fmt.Sprintf("  ... and %d more overlap window(s)\n", len(overlaps)-50))
 			}
 		}
 	}
@@ -286,13 +425,31 @@ func (tl *Timeline) RenderJSON() map[string]interface{} {
 		})
 	}
 
+	// Add overlap statistics
+	stats := tl.GetOverlapStats()
+	mostProblematicJSON := make([]map[string]interface{}, 0, len(stats.MostProblematic))
+	for _, overlap := range stats.MostProblematic {
+		mostProblematicJSON = append(mostProblematicJSON, map[string]interface{}{
+			"time":  overlap.Time.Format(time.RFC3339),
+			"count": overlap.Count,
+			"jobs":  overlap.JobIDs,
+		})
+	}
+
+	overlapStatsJSON := map[string]interface{}{
+		"totalWindows":    stats.TotalWindows,
+		"maxConcurrent":   stats.MaxConcurrent,
+		"mostProblematic": mostProblematicJSON,
+	}
+
 	return map[string]interface{}{
-		"view":      tl.view.String(),
-		"startTime": tl.startTime.Format(time.RFC3339),
-		"endTime":   tl.endTime.Format(time.RFC3339),
-		"width":     tl.width,
-		"jobs":      jobs,
-		"overlaps":  overlapsJSON,
+		"view":         tl.view.String(),
+		"startTime":    tl.startTime.Format(time.RFC3339),
+		"endTime":      tl.endTime.Format(time.RFC3339),
+		"width":        tl.width,
+		"jobs":         jobs,
+		"overlaps":     overlapsJSON,
+		"overlapStats": overlapStatsJSON,
 	}
 }
 
@@ -318,6 +475,29 @@ func (tl *Timeline) findSlotIndex(t time.Time) int {
 	}
 
 	return -1
+}
+
+// getDensityChar returns a character representing density level
+// Higher density = darker/more solid character
+func getDensityChar(overlapCount, maxOverlaps int) string {
+	if maxOverlaps == 0 {
+		return "█"
+	}
+
+	// Normalize to 0-1 range
+	density := float64(overlapCount) / float64(maxOverlaps)
+
+	// Use different characters based on density
+	if density >= 0.8 {
+		return "█" // Full block for high density
+	} else if density >= 0.6 {
+		return "▓" // Dark shade
+	} else if density >= 0.4 {
+		return "▒" // Medium shade
+	} else if density >= 0.2 {
+		return "░" // Light shade
+	}
+	return "·" // Dot for very low density
 }
 
 // uniqueStrings returns unique strings from a slice
