@@ -30,6 +30,7 @@ go.work.sum
 *.swo
 *~
 .DS_Store
+.cursorrules
 
 # Environment and config files
 .env
