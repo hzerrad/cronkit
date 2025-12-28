@@ -109,10 +109,11 @@ var _ = Describe("Check Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(1))
-			Expect(session.Out).To(gbytes.Say(`"issues"`))
-			Expect(session.Out).To(gbytes.Say(`"severity"`))
-			Expect(session.Out).To(gbytes.Say(`"code"`))
-			Expect(session.Out).To(gbytes.Say(`"CRON-003"`))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring(`"issues"`))
+			Expect(output).To(ContainSubstring(`"severity"`))
+			Expect(output).To(ContainSubstring(`"code"`))
+			Expect(output).To(ContainSubstring(`"CRON-003"`))
 		})
 
 		It("should include severity and codes in JSON output with verbose", func() {
@@ -209,6 +210,55 @@ var _ = Describe("Check Command", func() {
 
 			// Should exit successfully (even if no crontab exists)
 			Eventually(session).Should(gexec.Exit(0))
+		})
+	})
+
+	Context("when running 'cronic check' with --fail-on flag", func() {
+		It("should exit with code 0 for warnings with --fail-on error (default)", func() {
+			command := exec.Command(pathToCLI, "check", "0 0 1 * 1")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out).To(gbytes.Say("All valid"))
+		})
+
+		It("should exit with code 2 for warnings with --fail-on warn", func() {
+			command := exec.Command(pathToCLI, "check", "0 0 1 * 1", "--fail-on", "warn", "--verbose")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(2))
+			Expect(session.Out).To(gbytes.Say("warning"))
+		})
+
+		It("should exit with code 1 for errors even with --fail-on warn", func() {
+			command := exec.Command(pathToCLI, "check", "60 0 * * *", "--fail-on", "warn")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(1))
+			Expect(session.Out).To(gbytes.Say("issue"))
+		})
+
+		It("should show error for invalid --fail-on value", func() {
+			command := exec.Command(pathToCLI, "check", "0 0 * * *", "--fail-on", "invalid")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(1))
+			Expect(session.Err).To(gbytes.Say("invalid --fail-on value"))
+		})
+
+		It("should work with --fail-on and --json", func() {
+			command := exec.Command(pathToCLI, "check", "0 0 1 * 1", "--fail-on", "warn", "--json", "--verbose")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(2))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring(`"severity"`))
+			Expect(output).To(ContainSubstring(`"warn"`))
 		})
 	})
 })

@@ -36,7 +36,7 @@ func TestCheckCommand_OutputJSON_Error(t *testing.T) {
 	osExit = func(code int) {}
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result)
+	err := cc.outputJSON(result, check.SeverityError)
 	// Should return error from JSON encoding
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to encode JSON")
@@ -91,10 +91,10 @@ func TestCheckCommand_OutputJSON_ExitCode2(t *testing.T) {
 	osExit = func(code int) { exitCode = code }
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result)
+	err := cc.outputJSON(result, check.SeverityError)
 	require.NoError(t, err)
-	// Should exit with code 2 for warnings with verbose
-	assert.Equal(t, 2, exitCode, "Should exit with code 2 for warnings with --verbose")
+	// Should exit with code 2 for warnings with --verbose (backward compatibility)
+	assert.Equal(t, 2, exitCode, "Should exit with code 2 for warnings with --verbose (backward compatibility)")
 }
 
 func TestCheckCommand_OutputJSON_WithWarningsButNotVerbose(t *testing.T) {
@@ -126,7 +126,7 @@ func TestCheckCommand_OutputJSON_WithWarningsButNotVerbose(t *testing.T) {
 	osExit = func(code int) { exitCode = code }
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result)
+	err := cc.outputJSON(result, check.SeverityError)
 	require.NoError(t, err)
 	// Should not exit with code 2 when not verbose (warnings filtered out)
 	assert.Equal(t, 0, exitCode, "Should not exit with code 2 when not verbose")
@@ -157,7 +157,7 @@ func TestCheckCommand_OutputJSON_ValidWithNoIssues(t *testing.T) {
 	osExit = func(code int) {}
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result)
+	err := cc.outputJSON(result, check.SeverityError)
 	require.NoError(t, err)
 
 	var output map[string]interface{}
@@ -197,7 +197,7 @@ func TestCheckCommand_OutputJSON_InvalidResult(t *testing.T) {
 	osExit = func(code int) { exitCode = code }
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result)
+	err := cc.outputJSON(result, check.SeverityError)
 	require.NoError(t, err)
 
 	// Should exit with code 1 for invalid result

@@ -15,6 +15,7 @@ type CheckCommand struct {
 	file    string
 	json    bool
 	verbose bool
+	failOn  string
 }
 
 func newCheckCommand() *CheckCommand {
@@ -43,6 +44,7 @@ Examples:
 	cc.Flags().StringVarP(&cc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab)")
 	cc.Flags().BoolVarP(&cc.json, "json", "j", false, "Output as JSON")
 	cc.Flags().BoolVarP(&cc.verbose, "verbose", "v", false, "Show warnings (DOM/DOW conflicts) as well as errors")
+	cc.Flags().StringVar(&cc.failOn, "fail-on", "error", "Severity level to fail on: error (default), warn, or info")
 
 	return cc
 }
@@ -52,6 +54,12 @@ func init() {
 }
 
 func (cc *CheckCommand) runCheck(_ *cobra.Command, args []string) error {
+	// Validate --fail-on flag
+	failOnSeverity, err := check.ParseFailOnLevel(cc.failOn)
+	if err != nil {
+		return fmt.Errorf("invalid --fail-on value: %w", err)
+	}
+
 	validator := check.NewValidator(GetLocale())
 	reader := crontab.NewReader()
 
@@ -71,13 +79,13 @@ func (cc *CheckCommand) runCheck(_ *cobra.Command, args []string) error {
 
 	// Output based on format
 	if cc.json {
-		return cc.outputJSON(result)
+		return cc.outputJSON(result, failOnSeverity)
 	}
 
-	return cc.outputText(result)
+	return cc.outputText(result, failOnSeverity)
 }
 
-func (cc *CheckCommand) outputText(result check.ValidationResult) error {
+func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.Severity) error {
 	// Filter issues based on verbose flag
 	issuesToShow := cc.filterIssues(result.Issues)
 
@@ -141,17 +149,16 @@ func (cc *CheckCommand) outputText(result check.ValidationResult) error {
 		}
 	}
 
-	// Set exit code based on result
-	if !result.Valid {
-		osExit(1)
-	} else if len(issuesToShow) > 0 && cc.verbose {
-		osExit(2)
+	// Set exit code based on result and fail-on threshold
+	exitCode := calculateExitCode(result, issuesToShow, failOn, cc.verbose)
+	if exitCode != 0 {
+		osExit(exitCode)
 	}
 
 	return nil
 }
 
-func (cc *CheckCommand) outputJSON(result check.ValidationResult) error {
+func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.Severity) error {
 	// Filter issues based on verbose flag
 	issuesToShow := cc.filterIssues(result.Issues)
 
@@ -186,11 +193,10 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult) error {
 		return fmt.Errorf("failed to encode JSON: %w", err)
 	}
 
-	// Set exit code based on result
-	if !result.Valid {
-		osExit(1)
-	} else if len(issuesToShow) > 0 && cc.verbose {
-		osExit(2)
+	// Set exit code based on result and fail-on threshold
+	exitCode := calculateExitCode(result, issuesToShow, failOn, cc.verbose)
+	if exitCode != 0 {
+		osExit(exitCode)
 	}
 
 	return nil
@@ -198,6 +204,49 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult) error {
 
 // osExit is a variable that can be overridden in tests
 var osExit = os.Exit
+
+// calculateExitCode determines the appropriate exit code based on validation result,
+// issues shown, fail-on threshold, and verbose flag.
+// Returns:
+//   - 0: No issues, or only issues below the fail-on threshold
+//   - 1: Errors present (or configured severity level reached)
+//   - 2: Warnings present (only if fail-on is warn or info, or if verbose is set for backward compatibility)
+func calculateExitCode(result check.ValidationResult, issuesToShow []check.Issue, failOn check.Severity, verbose bool) int {
+	if len(issuesToShow) == 0 {
+		return 0
+	}
+
+	// Find the highest severity in the issues shown
+	highestSeverity := check.SeverityInfo
+	for _, issue := range issuesToShow {
+		if issue.Severity > highestSeverity {
+			highestSeverity = issue.Severity
+		}
+	}
+
+	// Backward compatibility: if verbose is set and we have warnings, exit with code 2
+	// This maintains the old behavior where --verbose would cause exit 2 for warnings
+	if verbose && highestSeverity == check.SeverityWarn && failOn == check.SeverityError {
+		return 2
+	}
+
+	// If highest severity is below the fail-on threshold, return 0
+	if highestSeverity < failOn {
+		return 0
+	}
+
+	// Determine exit code based on highest severity
+	switch highestSeverity {
+	case check.SeverityError:
+		return 1
+	case check.SeverityWarn:
+		return 2
+	case check.SeverityInfo:
+		return 2
+	default:
+		return 0
+	}
+}
 
 // filterIssues filters issues based on the verbose flag
 func (cc *CheckCommand) filterIssues(issues []check.Issue) []check.Issue {

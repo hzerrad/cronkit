@@ -267,3 +267,104 @@ func TestSeverity_UnmarshalJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestParseFailOnLevel(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		expected  Severity
+		wantError bool
+	}{
+		{
+			name:      "error lowercase",
+			input:     "error",
+			expected:  SeverityError,
+			wantError: false,
+		},
+		{
+			name:      "error uppercase",
+			input:     "ERROR",
+			expected:  SeverityError,
+			wantError: false,
+		},
+		{
+			name:      "error mixed case",
+			input:     "Error",
+			expected:  SeverityError,
+			wantError: false,
+		},
+		{
+			name:      "warn lowercase",
+			input:     "warn",
+			expected:  SeverityWarn,
+			wantError: false,
+		},
+		{
+			name:      "warn uppercase",
+			input:     "WARN",
+			expected:  SeverityWarn,
+			wantError: false,
+		},
+		{
+			name:      "warn mixed case",
+			input:     "Warn",
+			expected:  SeverityWarn,
+			wantError: false,
+		},
+		{
+			name:      "warning lowercase",
+			input:     "warning",
+			expected:  SeverityWarn,
+			wantError: false,
+		},
+		{
+			name:      "warning uppercase",
+			input:     "WARNING",
+			expected:  SeverityWarn,
+			wantError: false,
+		},
+		{
+			name:      "info lowercase",
+			input:     "info",
+			expected:  SeverityInfo,
+			wantError: false,
+		},
+		{
+			name:      "info uppercase",
+			input:     "INFO",
+			expected:  SeverityInfo,
+			wantError: false,
+		},
+		{
+			name:      "info mixed case",
+			input:     "Info",
+			expected:  SeverityInfo,
+			wantError: false,
+		},
+		{
+			name:      "invalid string",
+			input:     "invalid",
+			expected:  Severity(-1),
+			wantError: true,
+		},
+		{
+			name:      "empty string",
+			input:     "",
+			expected:  Severity(-1),
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseFailOnLevel(tt.input)
+			if tt.wantError {
+				require.Error(t, err)
+				assert.Equal(t, Severity(-1), result)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}

@@ -3,6 +3,7 @@ package check
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Severity represents the severity level of a validation issue
@@ -80,4 +81,28 @@ func (s Severity) IsWarning() bool {
 // IsInfo returns true if the severity is Info
 func (s Severity) IsInfo() bool {
 	return s == SeverityInfo
+}
+
+// ParseFailOnLevel parses a fail-on level string and returns the corresponding Severity.
+// Valid values: "error", "warn", "info" (case-insensitive).
+// Returns an error if the string is invalid.
+func ParseFailOnLevel(level string) (Severity, error) {
+	normalized := ""
+	switch strings.ToLower(level) {
+	case "error":
+		normalized = "error"
+	case "warn", "warning":
+		normalized = "warn"
+	case "info":
+		normalized = "info"
+	default:
+		return -1, fmt.Errorf("invalid fail-on level: %s (must be 'error', 'warn', or 'info')", level)
+	}
+
+	severity := SeverityFromString(normalized)
+	if severity == -1 {
+		return -1, fmt.Errorf("invalid fail-on level: %s", level)
+	}
+
+	return severity, nil
 }
