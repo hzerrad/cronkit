@@ -339,23 +339,6 @@ cronic/
 
 ## Contributing
 
-Contributions are welcome! Please read our contributing guidelines first.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes following TDD practices
-4. Ensure all tests pass and coverage is maintained (95%+)
-5. Run pre-commit checks: `make fmt && make vet && make lint`
-6. Commit your changes (`git commit -m 'Add some amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
-
-**Important:**
-- Write tests first (TDD approach)
-- Maintain 95%+ test coverage
-- Follow the coding standards in `.cursorrules` (if available)
-- All tests must pass before submitting PR
-
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Documentation
