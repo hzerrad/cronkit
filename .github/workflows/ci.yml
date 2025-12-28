@@ -1,0 +1,187 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.25.2"
+  MIN_COVERAGE: 95.0
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: Check code formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not formatted:"
+            echo "$unformatted"
+            echo "Please run: make fmt"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: make vet
+
+      - name: Run golangci-lint
+        run: make lint
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.25.2", "1.25"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install Ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+
+      - name: Run unit tests
+        run: make test-unit
+
+      - name: Run integration tests
+        run: make test-integration
+
+      - name: Run E2E tests
+        run: make test-e2e
+
+  coverage:
+    name: Coverage Check
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Generate coverage report
+        run: make test-coverage
+
+      - name: Check coverage threshold
+        run: |
+          coverage=$(go tool cover -func=./bin/coverage.out | grep -E "^total:" | awk '{print $3}' | sed 's/%//')
+          min_coverage="${{ env.MIN_COVERAGE }}"
+          echo "Current coverage: ${coverage}%"
+          echo "Required coverage: ${min_coverage}%"
+          
+          # Compare coverage (using awk for floating point comparison)
+          if awk "BEGIN {exit !($coverage >= $min_coverage)}"; then
+            echo "✅ Coverage meets threshold"
+          else
+            echo "❌ Coverage ${coverage}% is below required ${min_coverage}%"
+            exit 1
+          fi
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./bin/coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            ./bin/coverage.out
+            ./bin/coverage.html
+
+  build:
+    name: Build Verification
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ["1.25.2"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Build binary
+        run: make build
+
+      - name: Verify binary exists
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            test -f ./bin/cronic.exe || (echo "Binary not found" && exit 1)
+          else
+            test -f ./bin/cronic || (echo "Binary not found" && exit 1)
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cronic-${{ matrix.os }}
+          path: ./bin/cronic*
+

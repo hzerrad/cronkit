@@ -6,6 +6,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-1.25.2%2B-blue.svg)](https://golang.org/)
+[![codecov](https://codecov.io/gh/hzerrad/cronic/branch/main/graph/badge.svg)](https://codecov.io/gh/hzerrad/cronic)
 
 ## Features
 
