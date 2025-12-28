@@ -30,6 +30,8 @@ var _ = Describe("Check Command", func() {
 
 			Eventually(session).Should(gexec.Exit(1))
 			Expect(session.Out).To(gbytes.Say("issue"))
+			Expect(session.Out).To(gbytes.Say("ERROR"))
+			Expect(session.Out).To(gbytes.Say("CRON-003"))
 		})
 	})
 
@@ -50,6 +52,8 @@ var _ = Describe("Check Command", func() {
 
 			Eventually(session).Should(gexec.Exit(2))
 			Expect(session.Out).To(gbytes.Say("warning"))
+			Expect(session.Out).To(gbytes.Say("CRON-001"))
+			Expect(session.Out).To(gbytes.Say("Hint:"))
 		})
 	})
 
@@ -106,6 +110,24 @@ var _ = Describe("Check Command", func() {
 
 			Eventually(session).Should(gexec.Exit(1))
 			Expect(session.Out).To(gbytes.Say(`"issues"`))
+			Expect(session.Out).To(gbytes.Say(`"severity"`))
+			Expect(session.Out).To(gbytes.Say(`"code"`))
+			Expect(session.Out).To(gbytes.Say(`"CRON-003"`))
+		})
+
+		It("should include severity and codes in JSON output with verbose", func() {
+			command := exec.Command(pathToCLI, "check", "0 0 1 * 1", "--json", "--verbose")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(2))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring(`"severity"`))
+			Expect(output).To(ContainSubstring(`"warn"`))
+			Expect(output).To(ContainSubstring(`"code"`))
+			Expect(output).To(ContainSubstring(`"CRON-001"`))
+			Expect(output).To(ContainSubstring(`"hint"`))
+			Expect(output).To(ContainSubstring(`"type"`)) // Backward compatibility
 		})
 	})
 

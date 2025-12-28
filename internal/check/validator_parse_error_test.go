@@ -56,7 +56,7 @@ func TestValidateCrontab_ParseErrorAfterValidation(t *testing.T) {
 	assert.Equal(t, 1, result.InvalidJobs)
 	hasParseError := false
 	for _, issue := range result.Issues {
-		if issue.Type == "error" && issue.Message != "" {
+		if issue.Severity == SeverityError && issue.Message != "" {
 			hasParseError = true
 			assert.Contains(t, issue.Message, "Failed to parse expression")
 			break
@@ -90,7 +90,7 @@ func TestValidateUserCrontab_ParseErrorAfterValidation(t *testing.T) {
 	assert.Equal(t, 1, result.InvalidJobs)
 	hasParseError := false
 	for _, issue := range result.Issues {
-		if issue.Type == "error" && issue.Message != "" {
+		if issue.Severity == SeverityError && issue.Message != "" {
 			hasParseError = true
 			assert.Contains(t, issue.Message, "Failed to parse expression")
 			break

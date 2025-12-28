@@ -210,7 +210,10 @@ func TestCheckCommand(t *testing.T) {
 		issues, ok := result["issues"].([]interface{})
 		if ok && len(issues) > 0 {
 			issue := issues[0].(map[string]interface{})
-			assert.Equal(t, "warning", issue["Type"])
+			assert.Equal(t, "warn", issue["severity"])
+			assert.Equal(t, check.CodeDOMDOWConflict, issue["code"])
+			assert.Contains(t, issue, "hint")
+			assert.Contains(t, issue, "type") // Backward compatibility
 		}
 	})
 
@@ -341,7 +344,8 @@ func TestCheckCommand(t *testing.T) {
 			ValidJobs: 1,
 			Issues: []check.Issue{
 				{
-					Type:       "warning",
+					Severity:   check.SeverityWarn,
+					Code:       check.CodeDOMDOWConflict,
 					LineNumber: 0,
 					Expression: "0 0 1 * 1",
 					Message:    "Both day-of-month and day-of-week specified",
@@ -399,7 +403,8 @@ func TestCheckCommand(t *testing.T) {
 			InvalidJobs: 1,
 			Issues: []check.Issue{
 				{
-					Type:       "error",
+					Severity:   check.SeverityError,
+					Code:       check.CodeParseError,
 					LineNumber: 5,
 					Expression: "60 0 * * *",
 					Message:    "Invalid cron expression",
@@ -429,7 +434,8 @@ func TestCheckCommand(t *testing.T) {
 			TotalJobs: 0,
 			Issues: []check.Issue{
 				{
-					Type:       "error",
+					Severity:   check.SeverityError,
+					Code:       check.CodeParseError,
 					LineNumber: 0,
 					Expression: "",
 					Message:    "Failed to read crontab file",
@@ -463,7 +469,8 @@ func TestCheckCommand(t *testing.T) {
 			ValidJobs: 1,
 			Issues: []check.Issue{
 				{
-					Type:       "info",
+					Severity:   check.SeverityInfo,
+					Code:       "",
 					LineNumber: 1,
 					Expression: "0 0 * * *",
 					Message:    "Info message",

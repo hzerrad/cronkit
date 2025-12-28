@@ -99,7 +99,7 @@ func TestValidator_ValidateExpression(t *testing.T) {
 		assert.Equal(t, 0, result.ValidJobs)
 		assert.Equal(t, 1, result.InvalidJobs)
 		require.Len(t, result.Issues, 1)
-		assert.Equal(t, "error", result.Issues[0].Type)
+		assert.Equal(t, SeverityError, result.Issues[0].Severity)
 		assert.Contains(t, result.Issues[0].Message, "Invalid cron expression")
 	})
 
@@ -108,8 +108,10 @@ func TestValidator_ValidateExpression(t *testing.T) {
 		assert.True(t, result.Valid, "Should be valid (cron allows it)")
 		assert.Equal(t, 1, result.ValidJobs)
 		require.Len(t, result.Issues, 1)
-		assert.Equal(t, "warning", result.Issues[0].Type)
+		assert.Equal(t, SeverityWarn, result.Issues[0].Severity)
+		assert.Equal(t, CodeDOMDOWConflict, result.Issues[0].Code)
 		assert.Contains(t, result.Issues[0].Message, "Both day-of-month and day-of-week")
+		assert.NotEmpty(t, result.Issues[0].Hint)
 	})
 
 	t.Run("empty expression", func(t *testing.T) {
@@ -117,7 +119,7 @@ func TestValidator_ValidateExpression(t *testing.T) {
 		assert.False(t, result.Valid)
 		assert.Equal(t, 1, result.InvalidJobs)
 		require.Len(t, result.Issues, 1)
-		assert.Equal(t, "error", result.Issues[0].Type)
+		assert.Equal(t, SeverityError, result.Issues[0].Severity)
 	})
 
 	t.Run("alias expression", func(t *testing.T) {
@@ -144,7 +146,7 @@ func TestValidator_ValidateExpression(t *testing.T) {
 		// Should have warning for DOM/DOW conflict
 		hasWarning := false
 		for _, issue := range result.Issues {
-			if issue.Type == "warning" {
+			if issue.Severity == SeverityWarn {
 				hasWarning = true
 				break
 			}
@@ -158,7 +160,7 @@ func TestValidator_ValidateExpression(t *testing.T) {
 		result := validator.ValidateExpression("invalid")
 		assert.False(t, result.Valid)
 		assert.Equal(t, 1, len(result.Issues))
-		assert.Equal(t, "error", result.Issues[0].Type)
+		assert.Equal(t, SeverityError, result.Issues[0].Severity)
 	})
 
 	t.Run("warning case", func(t *testing.T) {
@@ -166,7 +168,7 @@ func TestValidator_ValidateExpression(t *testing.T) {
 		assert.True(t, result.Valid)
 		hasWarning := false
 		for _, issue := range result.Issues {
-			if issue.Type == "warning" {
+			if issue.Severity == SeverityWarn {
 				hasWarning = true
 				break
 			}
@@ -196,7 +198,7 @@ func TestValidator_ValidateExpression(t *testing.T) {
 		assert.Equal(t, 0, result.ValidJobs)
 		hasEmptyError := false
 		for _, issue := range result.Issues {
-			if issue.Type == "error" && issue.Message == "Schedule never runs (empty schedule)" {
+			if issue.Severity == SeverityError && issue.Code == CodeEmptySchedule && issue.Message == "Schedule never runs (empty schedule)" {
 				hasEmptyError = true
 				break
 			}
@@ -246,7 +248,7 @@ func TestValidator_ValidateCrontab(t *testing.T) {
 		// Should have at least one error
 		hasError := false
 		for _, issue := range result.Issues {
-			if issue.Type == "error" {
+			if issue.Severity == SeverityError {
 				hasError = true
 				break
 			}
@@ -258,7 +260,7 @@ func TestValidator_ValidateCrontab(t *testing.T) {
 		result := validator.ValidateCrontab(reader, "../../testdata/crontab/nonexistent.cron")
 		assert.False(t, result.Valid)
 		require.Len(t, result.Issues, 1)
-		assert.Equal(t, "error", result.Issues[0].Type)
+		assert.Equal(t, SeverityError, result.Issues[0].Severity)
 		assert.Contains(t, result.Issues[0].Message, "Failed to read crontab file")
 	})
 
@@ -281,7 +283,7 @@ func TestValidator_ValidateCrontab(t *testing.T) {
 		assert.True(t, result.Valid)
 		hasWarning := false
 		for _, issue := range result.Issues {
-			if issue.Type == "warning" {
+			if issue.Severity == SeverityWarn {
 				hasWarning = true
 				assert.Contains(t, issue.Message, "day-of-month and day-of-week")
 				break
@@ -321,7 +323,7 @@ func TestValidator_ValidateCrontab(t *testing.T) {
 		// Should have errors
 		hasErrors := false
 		for _, issue := range result.Issues {
-			if issue.Type == "error" {
+			if issue.Severity == SeverityError {
 				hasErrors = true
 				break
 			}
@@ -379,7 +381,7 @@ func TestValidator_ValidateCrontab(t *testing.T) {
 		assert.True(t, result.Valid)
 		hasWarning := false
 		for _, issue := range result.Issues {
-			if issue.Type == "warning" {
+			if issue.Severity == SeverityWarn {
 				hasWarning = true
 				break
 			}
@@ -407,7 +409,7 @@ func TestValidator_ValidateCrontab(t *testing.T) {
 		assert.False(t, result.Valid)
 		hasEmptyError := false
 		for _, issue := range result.Issues {
-			if issue.Type == "error" && issue.Message == "Schedule never runs (empty schedule)" {
+			if issue.Severity == SeverityError && issue.Code == CodeEmptySchedule && issue.Message == "Schedule never runs (empty schedule)" {
 				hasEmptyError = true
 				break
 			}
@@ -473,7 +475,7 @@ func TestValidator_ValidateUserCrontab(t *testing.T) {
 		result := validator.ValidateUserCrontab(mockReader)
 		assert.False(t, result.Valid)
 		require.Len(t, result.Issues, 1)
-		assert.Equal(t, "error", result.Issues[0].Type)
+		assert.Equal(t, SeverityError, result.Issues[0].Severity)
 		assert.Contains(t, result.Issues[0].Message, "Failed to read user crontab")
 	})
 
@@ -513,7 +515,7 @@ func TestValidator_ValidateUserCrontab(t *testing.T) {
 		assert.Equal(t, 0, result.ValidJobs)
 		assert.Equal(t, 1, result.InvalidJobs)
 		require.Len(t, result.Issues, 1)
-		assert.Equal(t, "error", result.Issues[0].Type)
+		assert.Equal(t, SeverityError, result.Issues[0].Severity)
 		assert.Contains(t, result.Issues[0].Message, "Invalid cron expression")
 	})
 
@@ -532,7 +534,7 @@ func TestValidator_ValidateUserCrontab(t *testing.T) {
 		assert.True(t, result.Valid)
 		hasWarning := false
 		for _, issue := range result.Issues {
-			if issue.Type == "warning" {
+			if issue.Severity == SeverityWarn {
 				hasWarning = true
 				assert.Contains(t, issue.Message, "day-of-month and day-of-week")
 				break
@@ -559,7 +561,7 @@ func TestValidator_ValidateUserCrontab(t *testing.T) {
 		assert.False(t, result.Valid)
 		hasParseError := false
 		for _, issue := range result.Issues {
-			if issue.Type == "error" && issue.Message != "" {
+			if issue.Severity == SeverityError && issue.Message != "" {
 				hasParseError = true
 				break
 			}
@@ -641,7 +643,7 @@ func TestValidator_ValidateUserCrontab(t *testing.T) {
 		// If there are issues, they should be about reading, not parsing
 		if len(result.Issues) > 0 {
 			for _, issue := range result.Issues {
-				if issue.Type == "error" {
+				if issue.Severity == SeverityError {
 					// Error should be about reading, not parsing
 					assert.Contains(t, issue.Message, "Failed to read user crontab")
 				}

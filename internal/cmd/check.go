@@ -113,20 +113,31 @@ func (cc *CheckCommand) outputText(result check.ValidationResult) error {
 		}
 
 		prefix := ""
-		switch issue.Type {
-		case "error":
+		switch issue.Severity {
+		case check.SeverityError:
 			prefix = "✗ ERROR: "
-		case "warning":
+		case check.SeverityWarn:
 			prefix = "⚠ WARNING: "
-		case "info":
+		case check.SeverityInfo:
 			prefix = "ℹ INFO: "
 		}
 
+		// Display diagnostic code if available
+		codeInfo := ""
+		if issue.Code != "" {
+			codeInfo = fmt.Sprintf(" [%s]", issue.Code)
+		}
+
 		if issue.Expression != "" {
-			_, _ = fmt.Fprintf(cc.OutOrStdout(), "%s%s%s\n", lineInfo, prefix, issue.Message)
+			_, _ = fmt.Fprintf(cc.OutOrStdout(), "%s%s%s%s\n", lineInfo, prefix, issue.Message, codeInfo)
 			_, _ = fmt.Fprintf(cc.OutOrStdout(), "  Expression: %s\n", issue.Expression)
 		} else {
-			_, _ = fmt.Fprintf(cc.OutOrStdout(), "%s%s%s\n", lineInfo, prefix, issue.Message)
+			_, _ = fmt.Fprintf(cc.OutOrStdout(), "%s%s%s%s\n", lineInfo, prefix, issue.Message, codeInfo)
+		}
+
+		// Display hint if available
+		if issue.Hint != "" {
+			_, _ = fmt.Fprintf(cc.OutOrStdout(), "  Hint: %s\n", issue.Hint)
 		}
 	}
 
@@ -144,12 +155,29 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult) error {
 	// Filter issues based on verbose flag
 	issuesToShow := cc.filterIssues(result.Issues)
 
+	// Convert issues to JSON format with all fields
+	jsonIssues := make([]map[string]interface{}, len(issuesToShow))
+	for i, issue := range issuesToShow {
+		jsonIssue := map[string]interface{}{
+			"severity":   issue.Severity.String(),
+			"code":       issue.Code,
+			"lineNumber": issue.LineNumber,
+			"expression": issue.Expression,
+			"message":    issue.Message,
+			"type":       issue.Type(), // Deprecated: for backward compatibility
+		}
+		if issue.Hint != "" {
+			jsonIssue["hint"] = issue.Hint
+		}
+		jsonIssues[i] = jsonIssue
+	}
+
 	output := map[string]interface{}{
 		"valid":       result.Valid && len(issuesToShow) == 0,
 		"totalJobs":   result.TotalJobs,
 		"validJobs":   result.ValidJobs,
 		"invalidJobs": result.InvalidJobs,
-		"issues":      issuesToShow,
+		"issues":      jsonIssues,
 	}
 
 	encoder := json.NewEncoder(cc.OutOrStdout())
@@ -179,7 +207,7 @@ func (cc *CheckCommand) filterIssues(issues []check.Issue) []check.Issue {
 	// Only show errors if not verbose
 	filtered := []check.Issue{}
 	for _, issue := range issues {
-		if issue.Type == "error" {
+		if issue.Severity == check.SeverityError {
 			filtered = append(filtered, issue)
 		}
 	}

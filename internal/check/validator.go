@@ -10,10 +10,18 @@ import (
 
 // Issue represents a validation issue found in a cron expression or crontab
 type Issue struct {
-	Type       string // "error", "warning", "info"
-	LineNumber int    // 0 for single expression checks
-	Expression string // The cron expression (if applicable)
-	Message    string // Human-readable issue description
+	Severity   Severity // Severity level (info, warn, error)
+	Code       string   // Diagnostic code (e.g., "CRON-001")
+	LineNumber int      // 0 for single expression checks
+	Expression string   // The cron expression (if applicable)
+	Message    string   // Human-readable issue description
+	Hint       string   // Optional fix suggestion
+}
+
+// Type returns the severity as a string for backward compatibility (deprecated)
+// Deprecated: Use Severity field instead
+func (i Issue) Type() string {
+	return i.Severity.String()
 }
 
 // ValidationResult contains the results of validating a cron expression or crontab
@@ -55,10 +63,12 @@ func (v *Validator) ValidateExpression(expression string) ValidationResult {
 		result.Valid = false
 		result.InvalidJobs = 1
 		result.Issues = append(result.Issues, Issue{
-			Type:       "error",
+			Severity:   SeverityError,
+			Code:       CodeParseError,
 			LineNumber: 0,
 			Expression: expression,
 			Message:    fmt.Sprintf("Invalid cron expression: %s", err.Error()),
+			Hint:       GetCodeHint(CodeParseError),
 		})
 		return result
 	}
@@ -69,10 +79,12 @@ func (v *Validator) ValidateExpression(expression string) ValidationResult {
 	// Check for DOM/DOW conflict
 	if detectDOMDOWConflict(schedule) {
 		result.Issues = append(result.Issues, Issue{
-			Type:       "warning",
+			Severity:   SeverityWarn,
+			Code:       CodeDOMDOWConflict,
 			LineNumber: 0,
 			Expression: expression,
 			Message:    "Both day-of-month and day-of-week specified (runs if either condition is met)",
+			Hint:       GetCodeHint(CodeDOMDOWConflict),
 		})
 	}
 
@@ -82,10 +94,12 @@ func (v *Validator) ValidateExpression(expression string) ValidationResult {
 		result.InvalidJobs = 1
 		result.ValidJobs = 0
 		result.Issues = append(result.Issues, Issue{
-			Type:       "error",
+			Severity:   SeverityError,
+			Code:       CodeEmptySchedule,
 			LineNumber: 0,
 			Expression: expression,
 			Message:    "Schedule never runs (empty schedule)",
+			Hint:       GetCodeHint(CodeEmptySchedule),
 		})
 	}
 
@@ -106,10 +120,12 @@ func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) Validati
 	if err != nil {
 		result.Valid = false
 		result.Issues = append(result.Issues, Issue{
-			Type:       "error",
+			Severity:   SeverityError,
+			Code:       CodeFileReadError,
 			LineNumber: 0,
 			Expression: "",
 			Message:    fmt.Sprintf("Failed to read crontab file: %s", err.Error()),
+			Hint:       GetCodeHint(CodeFileReadError),
 		})
 		return result
 	}
@@ -127,10 +143,12 @@ func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) Validati
 			result.Valid = false
 			result.InvalidJobs++
 			result.Issues = append(result.Issues, Issue{
-				Type:       "error",
+				Severity:   SeverityError,
+				Code:       CodeParseError,
 				LineNumber: entry.Job.LineNumber,
 				Expression: entry.Job.Expression,
 				Message:    fmt.Sprintf("Invalid cron expression: %s", entry.Job.Error),
+				Hint:       GetCodeHint(CodeParseError),
 			})
 			continue
 		}
@@ -143,10 +161,12 @@ func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) Validati
 			result.InvalidJobs++
 			result.ValidJobs--
 			result.Issues = append(result.Issues, Issue{
-				Type:       "error",
+				Severity:   SeverityError,
+				Code:       CodeParseError,
 				LineNumber: entry.Job.LineNumber,
 				Expression: entry.Job.Expression,
 				Message:    fmt.Sprintf("Failed to parse expression: %s", err.Error()),
+				Hint:       GetCodeHint(CodeParseError),
 			})
 			continue
 		}
@@ -156,10 +176,12 @@ func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) Validati
 		// Check for DOM/DOW conflict
 		if detectDOMDOWConflict(schedule) {
 			result.Issues = append(result.Issues, Issue{
-				Type:       "warning",
+				Severity:   SeverityWarn,
+				Code:       CodeDOMDOWConflict,
 				LineNumber: entry.Job.LineNumber,
 				Expression: entry.Job.Expression,
 				Message:    "Both day-of-month and day-of-week specified (runs if either condition is met)",
+				Hint:       GetCodeHint(CodeDOMDOWConflict),
 			})
 		}
 
@@ -169,10 +191,12 @@ func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) Validati
 			result.InvalidJobs++
 			result.ValidJobs--
 			result.Issues = append(result.Issues, Issue{
-				Type:       "error",
+				Severity:   SeverityError,
+				Code:       CodeEmptySchedule,
 				LineNumber: entry.Job.LineNumber,
 				Expression: entry.Job.Expression,
 				Message:    "Schedule never runs (empty schedule)",
+				Hint:       GetCodeHint(CodeEmptySchedule),
 			})
 		}
 	}
@@ -194,10 +218,12 @@ func (v *Validator) ValidateUserCrontab(reader crontab.Reader) ValidationResult 
 	if err != nil {
 		result.Valid = false
 		result.Issues = append(result.Issues, Issue{
-			Type:       "error",
+			Severity:   SeverityError,
+			Code:       CodeFileReadError,
 			LineNumber: 0,
 			Expression: "",
 			Message:    fmt.Sprintf("Failed to read user crontab: %s", err.Error()),
+			Hint:       GetCodeHint(CodeFileReadError),
 		})
 		return result
 	}
@@ -210,10 +236,12 @@ func (v *Validator) ValidateUserCrontab(reader crontab.Reader) ValidationResult 
 			result.Valid = false
 			result.InvalidJobs++
 			result.Issues = append(result.Issues, Issue{
-				Type:       "error",
+				Severity:   SeverityError,
+				Code:       CodeParseError,
 				LineNumber: job.LineNumber,
 				Expression: job.Expression,
 				Message:    fmt.Sprintf("Invalid cron expression: %s", job.Error),
+				Hint:       GetCodeHint(CodeParseError),
 			})
 			continue
 		}
@@ -225,10 +253,12 @@ func (v *Validator) ValidateUserCrontab(reader crontab.Reader) ValidationResult 
 			result.InvalidJobs++
 			result.ValidJobs--
 			result.Issues = append(result.Issues, Issue{
-				Type:       "error",
+				Severity:   SeverityError,
+				Code:       CodeParseError,
 				LineNumber: job.LineNumber,
 				Expression: job.Expression,
 				Message:    fmt.Sprintf("Failed to parse expression: %s", err.Error()),
+				Hint:       GetCodeHint(CodeParseError),
 			})
 			continue
 		}
@@ -238,10 +268,12 @@ func (v *Validator) ValidateUserCrontab(reader crontab.Reader) ValidationResult 
 		// Check for DOM/DOW conflict
 		if detectDOMDOWConflict(schedule) {
 			result.Issues = append(result.Issues, Issue{
-				Type:       "warning",
+				Severity:   SeverityWarn,
+				Code:       CodeDOMDOWConflict,
 				LineNumber: job.LineNumber,
 				Expression: job.Expression,
 				Message:    "Both day-of-month and day-of-week specified (runs if either condition is met)",
+				Hint:       GetCodeHint(CodeDOMDOWConflict),
 			})
 		}
 
@@ -251,10 +283,12 @@ func (v *Validator) ValidateUserCrontab(reader crontab.Reader) ValidationResult 
 			result.InvalidJobs++
 			result.ValidJobs--
 			result.Issues = append(result.Issues, Issue{
-				Type:       "error",
+				Severity:   SeverityError,
+				Code:       CodeEmptySchedule,
 				LineNumber: job.LineNumber,
 				Expression: job.Expression,
 				Message:    "Schedule never runs (empty schedule)",
+				Hint:       GetCodeHint(CodeEmptySchedule),
 			})
 		}
 	}

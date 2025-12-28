@@ -46,7 +46,7 @@ func TestValidateCrontab_EmptySchedulePath(t *testing.T) {
 	assert.False(t, result.Valid)
 	hasEmptyError := false
 	for _, issue := range result.Issues {
-		if issue.Type == "error" && issue.Message == "Schedule never runs (empty schedule)" {
+		if issue.Severity == SeverityError && issue.Code == CodeEmptySchedule && issue.Message == "Schedule never runs (empty schedule)" {
 			hasEmptyError = true
 			break
 		}

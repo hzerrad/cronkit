@@ -75,10 +75,12 @@ func TestCheckCommand_OutputJSON_ExitCode2(t *testing.T) {
 		ValidJobs: 1,
 		Issues: []check.Issue{
 			{
-				Type:       "warning",
+				Severity:   check.SeverityWarn,
+				Code:       check.CodeDOMDOWConflict,
 				LineNumber: 0,
 				Expression: "0 0 1 * 1",
 				Message:    "Both day-of-month and day-of-week specified",
+				Hint:       check.GetCodeHint(check.CodeDOMDOWConflict),
 			},
 		},
 	}
@@ -108,10 +110,12 @@ func TestCheckCommand_OutputJSON_WithWarningsButNotVerbose(t *testing.T) {
 		ValidJobs: 1,
 		Issues: []check.Issue{
 			{
-				Type:       "warning",
+				Severity:   check.SeverityWarn,
+				Code:       check.CodeDOMDOWConflict,
 				LineNumber: 0,
 				Expression: "0 0 1 * 1",
 				Message:    "Both day-of-month and day-of-week specified",
+				Hint:       check.GetCodeHint(check.CodeDOMDOWConflict),
 			},
 		},
 	}
@@ -177,10 +181,12 @@ func TestCheckCommand_OutputJSON_InvalidResult(t *testing.T) {
 		InvalidJobs: 1,
 		Issues: []check.Issue{
 			{
-				Type:       "error",
+				Severity:   check.SeverityError,
+				Code:       check.CodeParseError,
 				LineNumber: 1,
 				Expression: "invalid",
 				Message:    "Invalid cron expression",
+				Hint:       check.GetCodeHint(check.CodeParseError),
 			},
 		},
 	}
