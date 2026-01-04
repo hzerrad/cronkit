@@ -134,8 +134,23 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 	// Filter issues based on verbose flag
 	issuesToShow := cc.filterIssues(result.Issues)
 
+	// Separate errors, warnings, and info for display
+	errors := []check.Issue{}
+	warnings := []check.Issue{}
+	info := []check.Issue{}
+	for _, issue := range issuesToShow {
+		switch issue.Severity {
+		case check.SeverityError:
+			errors = append(errors, issue)
+		case check.SeverityWarn:
+			warnings = append(warnings, issue)
+		case check.SeverityInfo:
+			info = append(info, issue)
+		}
+	}
+
 	// Print summary
-	if result.Valid && len(issuesToShow) == 0 {
+	if len(errors) == 0 && len(warnings) == 0 && len(info) == 0 {
 		cc.Printf("✓ All valid\n")
 		if result.TotalJobs > 0 {
 			cc.Printf("  %d job(s) validated\n", result.TotalJobs)
@@ -144,10 +159,21 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 	}
 
 	// Print error summary
-	if !result.Valid {
-		cc.Printf("✗ Found %d issue(s)\n", len(issuesToShow))
-	} else {
-		cc.Printf("⚠ Found %d warning(s)\n", len(issuesToShow))
+	if len(errors) > 0 {
+		cc.Printf("✗ Found %d error(s)\n", len(errors))
+		if len(warnings) > 0 {
+			cc.Printf("⚠ Found %d warning(s)\n", len(warnings))
+		}
+		if len(info) > 0 {
+			cc.Printf("ℹ Found %d info message(s)\n", len(info))
+		}
+	} else if len(warnings) > 0 {
+		cc.Printf("⚠ Found %d warning(s)\n", len(warnings))
+		if len(info) > 0 {
+			cc.Printf("ℹ Found %d info message(s)\n", len(info))
+		}
+	} else if len(info) > 0 {
+		cc.Printf("ℹ Found %d info message(s)\n", len(info))
 	}
 
 	if result.TotalJobs > 0 {
@@ -158,18 +184,50 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 
 	cc.Println()
 
-	// Group and print issues
-	groupMode := parseGroupBy(cc.groupBy)
-	if groupMode == GroupByNone {
-		// Flat display (default behavior)
-		cc.printIssuesFlat(issuesToShow)
-	} else {
-		// Grouped display
-		cc.printIssuesGrouped(issuesToShow, groupMode)
+	// Print errors (always full format)
+	if len(errors) > 0 {
+		groupMode := parseGroupBy(cc.groupBy)
+		if groupMode == GroupByNone {
+			cc.printIssuesFlat(errors)
+		} else {
+			cc.printIssuesGrouped(errors, groupMode)
+		}
+		if len(warnings) > 0 {
+			cc.Println()
+		}
+	}
+
+	// Print warnings (compact if not verbose, full if verbose)
+	if len(warnings) > 0 {
+		if cc.verbose {
+			// Full format for warnings when verbose
+			groupMode := parseGroupBy(cc.groupBy)
+			if groupMode == GroupByNone {
+				cc.printIssuesFlat(warnings)
+			} else {
+				cc.printIssuesGrouped(warnings, groupMode)
+			}
+		} else {
+			// Compact format for warnings when not verbose
+			cc.printWarningsCompact(warnings)
+		}
+		if len(info) > 0 {
+			cc.Println()
+		}
+	}
+
+	// Print info (only when verbose, always full format)
+	if len(info) > 0 && cc.verbose {
+		groupMode := parseGroupBy(cc.groupBy)
+		if groupMode == GroupByNone {
+			cc.printIssuesFlat(info)
+		} else {
+			cc.printIssuesGrouped(info, groupMode)
+		}
 	}
 
 	// Set exit code based on result and fail-on threshold
-	exitCode := calculateExitCode(result, issuesToShow, failOn, cc.verbose)
+	exitCode := calculateExitCode(result, issuesToShow, failOn)
 	if exitCode != 0 {
 		osExit(exitCode)
 	}
@@ -213,7 +271,7 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.S
 	}
 
 	// Set exit code based on result and fail-on threshold
-	exitCode := calculateExitCode(result, issuesToShow, failOn, cc.verbose)
+	exitCode := calculateExitCode(result, issuesToShow, failOn)
 	if exitCode != 0 {
 		osExit(exitCode)
 	}
@@ -225,12 +283,12 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.S
 var osExit = os.Exit
 
 // calculateExitCode determines the appropriate exit code based on validation result,
-// issues shown, fail-on threshold, and verbose flag.
+// issues shown, and fail-on threshold.
 // Returns:
 //   - 0: No issues, or only issues below the fail-on threshold
 //   - 1: Errors present (or configured severity level reached)
-//   - 2: Warnings present (only if fail-on is warn or info, or if verbose is set for backward compatibility)
-func calculateExitCode(result check.ValidationResult, issuesToShow []check.Issue, failOn check.Severity, verbose bool) int {
+//   - 2: Warnings present (only if fail-on is warn or info)
+func calculateExitCode(result check.ValidationResult, issuesToShow []check.Issue, failOn check.Severity) int {
 	if len(issuesToShow) == 0 {
 		return 0
 	}
@@ -241,12 +299,6 @@ func calculateExitCode(result check.ValidationResult, issuesToShow []check.Issue
 		if issue.Severity > highestSeverity {
 			highestSeverity = issue.Severity
 		}
-	}
-
-	// Backward compatibility: if verbose is set and we have warnings, exit with code 2
-	// This maintains the old behavior where --verbose would cause exit 2 for warnings
-	if verbose && highestSeverity == check.SeverityWarn && failOn == check.SeverityError {
-		return 2
 	}
 
 	// If highest severity is below the fail-on threshold, return 0
@@ -269,13 +321,12 @@ func calculateExitCode(result check.ValidationResult, issuesToShow []check.Issue
 
 // filterIssues filters issues based on the verbose flag
 func (cc *CheckCommand) filterIssues(issues []check.Issue) []check.Issue {
-	if cc.verbose {
-		return issues
-	}
-	// Only show errors if not verbose
+	// Always show errors and warnings, filter info only if not verbose
 	filtered := []check.Issue{}
 	for _, issue := range issues {
-		if issue.Severity == check.SeverityError {
+		if issue.Severity == check.SeverityError || issue.Severity == check.SeverityWarn {
+			filtered = append(filtered, issue)
+		} else if issue.Severity == check.SeverityInfo && cc.verbose {
 			filtered = append(filtered, issue)
 		}
 	}
@@ -463,5 +514,26 @@ func (cc *CheckCommand) printIssue(issue check.Issue) {
 	// Display hint if available
 	if issue.Hint != "" {
 		cc.Printf("    Hint: %s\n", issue.Hint)
+	}
+}
+
+// printWarningsCompact prints warnings in a compact format (one line per warning)
+func (cc *CheckCommand) printWarningsCompact(warnings []check.Issue) {
+	for _, issue := range warnings {
+		lineInfo := ""
+		if issue.LineNumber > 0 {
+			lineInfo = fmt.Sprintf("Line %d: ", issue.LineNumber)
+		}
+
+		codeInfo := ""
+		if issue.Code != "" {
+			codeInfo = fmt.Sprintf(" [%s]", issue.Code)
+		}
+
+		if issue.Expression != "" {
+			cc.Printf("  ⚠ %s%s%s - %s\n", lineInfo, issue.Message, codeInfo, issue.Expression)
+		} else {
+			cc.Printf("  ⚠ %s%s%s\n", lineInfo, issue.Message, codeInfo)
+		}
 	}
 }

@@ -59,9 +59,9 @@ func TestCheckCommand(t *testing.T) {
 		err := cc.Execute()
 		// os.Exit should have been called with code 1
 		assert.Equal(t, 1, exitCode, "Should exit with code 1 for errors")
-		// Output should contain issue information
+		// Output should contain error information
 		output := buf.String()
-		assert.Contains(t, output, "issue", "Should show issues in output")
+		assert.Contains(t, output, "error", "Should show errors in output")
 		// Error should be nil because os.Exit was called
 		assert.NoError(t, err)
 	})
@@ -79,9 +79,9 @@ func TestCheckCommand(t *testing.T) {
 
 		err := cc.Execute()
 		require.NoError(t, err)
-		// Without verbose, warnings shouldn't show
+		// Warnings are now shown by default (compact format)
 		output := buf.String()
-		assert.Contains(t, output, "All valid")
+		assert.Contains(t, output, "warning")
 	})
 
 	t.Run("check expression with DOM/DOW conflict verbose", func(t *testing.T) {
@@ -166,7 +166,7 @@ func TestCheckCommand(t *testing.T) {
 		if err == nil {
 			assert.Equal(t, 1, exitCode, "Should exit with code 1 for errors")
 		}
-		assert.Contains(t, buf.String(), "issue")
+		assert.Contains(t, buf.String(), "error")
 	})
 
 	t.Run("check non-existent file", func(t *testing.T) {
@@ -248,8 +248,8 @@ func TestCheckCommand(t *testing.T) {
 
 		err := cc.Execute()
 		require.NoError(t, err)
-		// Should exit with code 2 for warnings with --verbose (backward compatibility)
-		assert.Equal(t, 2, exitCode, "Should exit with code 2 for warnings with --verbose (backward compatibility)")
+		// Warnings should not cause exit code unless --fail-on is set
+		assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
 
 		var result map[string]interface{}
 		err = json.Unmarshal(buf.Bytes(), &result)
@@ -291,8 +291,8 @@ func TestCheckCommand(t *testing.T) {
 
 		err := cc.Execute()
 		require.NoError(t, err)
-		// Should exit with code 2 for warnings with --verbose (backward compatibility)
-		assert.Equal(t, 2, exitCode, "Should exit with code 2 for warnings with --verbose (backward compatibility)")
+		// Warnings should not cause exit code unless --fail-on is set
+		assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
 		assert.Contains(t, buf.String(), "warning")
 	})
 
@@ -312,7 +312,7 @@ func TestCheckCommand(t *testing.T) {
 		_ = cc.Execute()
 		// Should exit with code 1 for errors
 		assert.Equal(t, 1, exitCode, "Should exit with code 1 for errors")
-		assert.Contains(t, buf.String(), "issue")
+		assert.Contains(t, buf.String(), "error")
 	})
 
 	t.Run("check text output with valid result and jobs", func(t *testing.T) {
@@ -363,7 +363,7 @@ func TestCheckCommand(t *testing.T) {
 		err := cc.outputText(result, check.SeverityError)
 		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "warning")
-		assert.Equal(t, 2, exitCode, "Should exit with code 2 for warnings with --verbose (backward compatibility)")
+		assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
 	})
 
 	t.Run("check text output with no jobs", func(t *testing.T) {
@@ -486,6 +486,7 @@ func TestCheckCommand(t *testing.T) {
 
 		err := cc.outputText(result, check.SeverityError)
 		require.NoError(t, err)
+		// Info issues are only shown when verbose
 		assert.Contains(t, buf.String(), "INFO")
 		assert.Contains(t, buf.String(), "Info message")
 	})
@@ -531,7 +532,8 @@ func TestCheckCommand(t *testing.T) {
 		require.NoError(t, err)
 		// With default --fail-on error, warnings don't cause exit
 		assert.Equal(t, 0, exitCode, "Should exit with code 0 for warnings with default --fail-on error")
-		assert.Contains(t, buf.String(), "All valid")
+		// Warnings are now shown by default (compact format)
+		assert.Contains(t, buf.String(), "warning")
 	})
 
 	t.Run("check with --fail-on warn", func(t *testing.T) {
@@ -590,7 +592,7 @@ func TestCheckCommand(t *testing.T) {
 
 	t.Run("calculateExitCode with no issues", func(t *testing.T) {
 		result := check.ValidationResult{Valid: true, Issues: []check.Issue{}}
-		exitCode := calculateExitCode(result, []check.Issue{}, check.SeverityError, false)
+		exitCode := calculateExitCode(result, []check.Issue{}, check.SeverityError)
 		assert.Equal(t, 0, exitCode)
 	})
 
@@ -601,7 +603,7 @@ func TestCheckCommand(t *testing.T) {
 				{Severity: check.SeverityError, Code: check.CodeParseError},
 			},
 		}
-		exitCode := calculateExitCode(result, result.Issues, check.SeverityError, false)
+		exitCode := calculateExitCode(result, result.Issues, check.SeverityError)
 		assert.Equal(t, 1, exitCode)
 	})
 
@@ -612,7 +614,7 @@ func TestCheckCommand(t *testing.T) {
 				{Severity: check.SeverityWarn, Code: check.CodeDOMDOWConflict},
 			},
 		}
-		exitCode := calculateExitCode(result, result.Issues, check.SeverityError, false)
+		exitCode := calculateExitCode(result, result.Issues, check.SeverityError)
 		assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
 	})
 
@@ -623,19 +625,19 @@ func TestCheckCommand(t *testing.T) {
 				{Severity: check.SeverityWarn, Code: check.CodeDOMDOWConflict},
 			},
 		}
-		exitCode := calculateExitCode(result, result.Issues, check.SeverityWarn, false)
+		exitCode := calculateExitCode(result, result.Issues, check.SeverityWarn)
 		assert.Equal(t, 2, exitCode)
 	})
 
-	t.Run("calculateExitCode with warnings and verbose (backward compatibility)", func(t *testing.T) {
+	t.Run("calculateExitCode with warnings and fail-on error (should not exit)", func(t *testing.T) {
 		result := check.ValidationResult{
 			Valid: true,
 			Issues: []check.Issue{
 				{Severity: check.SeverityWarn, Code: check.CodeDOMDOWConflict},
 			},
 		}
-		exitCode := calculateExitCode(result, result.Issues, check.SeverityError, true)
-		assert.Equal(t, 2, exitCode, "Should exit with code 2 for warnings with --verbose (backward compatibility)")
+		exitCode := calculateExitCode(result, result.Issues, check.SeverityError)
+		assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
 	})
 
 	t.Run("calculateExitCode with errors and fail-on warn", func(t *testing.T) {
@@ -645,7 +647,7 @@ func TestCheckCommand(t *testing.T) {
 				{Severity: check.SeverityError, Code: check.CodeParseError},
 			},
 		}
-		exitCode := calculateExitCode(result, result.Issues, check.SeverityWarn, false)
+		exitCode := calculateExitCode(result, result.Issues, check.SeverityWarn)
 		assert.Equal(t, 1, exitCode, "Errors should cause exit code 1 even with --fail-on warn")
 	})
 
@@ -656,7 +658,7 @@ func TestCheckCommand(t *testing.T) {
 				{Severity: check.SeverityInfo, Code: ""},
 			},
 		}
-		exitCode := calculateExitCode(result, result.Issues, check.SeverityInfo, false)
+		exitCode := calculateExitCode(result, result.Issues, check.SeverityInfo)
 		assert.Equal(t, 2, exitCode)
 	})
 
@@ -668,7 +670,7 @@ func TestCheckCommand(t *testing.T) {
 				{Severity: check.SeverityError, Code: check.CodeParseError},
 			},
 		}
-		exitCode := calculateExitCode(result, result.Issues, check.SeverityError, false)
+		exitCode := calculateExitCode(result, result.Issues, check.SeverityError)
 		assert.Equal(t, 1, exitCode, "Should return 1 for errors when mixed with warnings")
 	})
 
@@ -679,7 +681,7 @@ func TestCheckCommand(t *testing.T) {
 				{Severity: check.Severity(999), Code: ""}, // Invalid severity
 			},
 		}
-		exitCode := calculateExitCode(result, result.Issues, check.SeverityError, false)
+		exitCode := calculateExitCode(result, result.Issues, check.SeverityError)
 		assert.Equal(t, 0, exitCode, "Should return 0 for invalid severity")
 	})
 
@@ -943,8 +945,8 @@ func TestCheckCommand_OutputJSON_ExitCode2(t *testing.T) {
 
 	err := cc.outputJSON(result, check.SeverityError)
 	require.NoError(t, err)
-	// Should exit with code 2 for warnings with --verbose (backward compatibility)
-	assert.Equal(t, 2, exitCode, "Should exit with code 2 for warnings with --verbose (backward compatibility)")
+	// Warnings should not cause exit code unless --fail-on is set
+	assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
 }
 
 func TestCheckCommand_OutputJSON_WithWarningsButNotVerbose(t *testing.T) {
@@ -978,15 +980,15 @@ func TestCheckCommand_OutputJSON_WithWarningsButNotVerbose(t *testing.T) {
 
 	err := cc.outputJSON(result, check.SeverityError)
 	require.NoError(t, err)
-	// Should not exit with code 2 when not verbose (warnings filtered out)
-	assert.Equal(t, 0, exitCode, "Should not exit with code 2 when not verbose")
+	// Warnings should not cause exit code unless --fail-on is set
+	assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
 
 	var output map[string]interface{}
 	err = json.Unmarshal(buf.Bytes(), &output)
 	require.NoError(t, err)
-	// Issues should be filtered out
+	// Warnings are now shown by default (not filtered out)
 	issues := output["issues"].([]interface{})
-	assert.Equal(t, 0, len(issues), "Warnings should be filtered out when not verbose")
+	assert.Equal(t, 1, len(issues), "Warnings should be shown by default")
 }
 
 func TestCheckCommand_OutputJSON_ValidWithNoIssues(t *testing.T) {
@@ -1276,7 +1278,7 @@ func TestCheckCommand_PrintIssues(t *testing.T) {
 		err := cc.outputText(result, check.SeverityError)
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "issue")
+		assert.Contains(t, output, "error")
 	})
 
 	t.Run("should handle printIssue with all fields", func(t *testing.T) {
@@ -1409,7 +1411,7 @@ func TestCheckCommand_Stdin(t *testing.T) {
 		err = cc.Execute()
 		require.NoError(t, err)
 		assert.Equal(t, 1, exitCode)
-		assert.Contains(t, buf.String(), "issue")
+		assert.Contains(t, buf.String(), "error")
 	})
 
 	t.Run("check with --stdin flag and JSON output", func(t *testing.T) {
