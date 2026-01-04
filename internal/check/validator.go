@@ -18,12 +18,6 @@ type Issue struct {
 	Hint       string   // Optional fix suggestion
 }
 
-// Type returns the severity as a string for backward compatibility (deprecated)
-// Deprecated: Use Severity field instead
-func (i Issue) Type() string {
-	return i.Severity.String()
-}
-
 // ValidationResult contains the results of validating a cron expression or crontab
 type ValidationResult struct {
 	Valid       bool

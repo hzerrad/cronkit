@@ -215,7 +215,6 @@ func TestCheckCommand(t *testing.T) {
 			assert.Equal(t, "warn", issue["severity"])
 			assert.Equal(t, check.CodeDOMDOWConflict, issue["code"])
 			assert.Contains(t, issue, "hint")
-			assert.Contains(t, issue, "type") // Backward compatibility
 		}
 	})
 

@@ -330,8 +330,6 @@ $ echo "0 2 * * * /usr/bin/backup.sh" | cronic list --json
 }
 ```
 
-The `type` field is deprecated but maintained for backward compatibility. Use `severity` instead.
-
 ## Safety
 
 **Cronic is read-only by design.** It never executes or modifies crontabs. It's safe to use on production systems for auditing and documentation purposes.

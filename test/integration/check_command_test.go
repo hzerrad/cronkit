@@ -129,7 +129,6 @@ var _ = Describe("Check Command", func() {
 			Expect(output).To(ContainSubstring(`"code"`))
 			Expect(output).To(ContainSubstring(`"CRON-001"`))
 			Expect(output).To(ContainSubstring(`"hint"`))
-			Expect(output).To(ContainSubstring(`"type"`)) // Backward compatibility
 		})
 	})
 

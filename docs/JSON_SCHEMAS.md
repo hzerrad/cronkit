@@ -158,8 +158,7 @@ All JSON outputs may include:
       "lineNumber": "integer",
       "expression": "string",
       "message": "string",
-      "hint": "string (optional)",
-      "type": "string (deprecated, use severity)"
+      "hint": "string (optional)"
     }
   ]
 }
@@ -177,7 +176,6 @@ All JSON outputs may include:
   - `expression` - Cron expression (if applicable)
   - `message` - Human-readable issue description
   - `hint` - Actionable suggestion for fixing the issue
-  - `type` - Deprecated field, maintained for backward compatibility
 
 **Example:**
 ```json
@@ -305,7 +303,6 @@ All JSON outputs may include:
 
 ### Deprecated Fields
 
-- `type` in `check` command issues - Use `severity` instead
 - `next_runs` in `next` command - Changed to `nextRuns` in v0.2.0
 
 ### Version History

@@ -163,7 +163,6 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.S
 			"lineNumber": issue.LineNumber,
 			"expression": issue.Expression,
 			"message":    issue.Message,
-			"type":       issue.Type(), // Deprecated: for backward compatibility
 		}
 		if issue.Hint != "" {
 			jsonIssue["hint"] = issue.Hint
