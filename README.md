@@ -8,6 +8,13 @@
 [![Go Version](https://img.shields.io/badge/go-1.25.2%2B-blue.svg)](https://golang.org/)
 [![codecov](https://codecov.io/gh/hzerrad/cronic/branch/main/graph/badge.svg)](https://codecov.io/gh/hzerrad/cronic)
 
+## Why Cronic?
+
+- **Works offline** - No internet connection required. Perfect for isolated environments, air-gapped systems, and CI/CD pipelines where external services aren't accessible.
+- **CI/CD ready** - Machine-readable JSON output, deterministic exit codes, and comprehensive validation make it ideal for automated checks in pre-commit hooks, PR pipelines, and deployment workflows.
+- **Visual timelines** - ASCII timeline visualizations help you understand schedule density, identify overlaps, and spot resource contention at a glance.
+- **Enterprise-grade auditing** - Advanced linting with severity levels, diagnostic codes, frequency analysis, command hygiene checks, and concurrency budget analysis for production-ready validation.
+
 ## Features
 
 - **Explain** - Convert cron expressions to plain English

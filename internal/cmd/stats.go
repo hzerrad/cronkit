@@ -106,42 +106,41 @@ func (sc *StatsCommand) outputJSON(metrics *stats.Metrics) error {
 }
 
 func (sc *StatsCommand) outputText(metrics *stats.Metrics, calculator *stats.Calculator, jobs []*crontab.Job) error {
-	out := sc.OutOrStdout()
-	_, _ = fmt.Fprintln(out, "Crontab Statistics")
-	_, _ = fmt.Fprintln(out, strings.Repeat("=", 50))
+	sc.Println("Crontab Statistics")
+	sc.Println(strings.Repeat("=", 50))
 
 	// Summary
-	_, _ = fmt.Fprintf(out, "\nSummary:\n")
-	_, _ = fmt.Fprintf(out, "  Total Jobs: %d\n", len(jobs))
-	_, _ = fmt.Fprintf(out, "  Total Runs per Day: %d\n", metrics.TotalRunsPerDay)
-	_, _ = fmt.Fprintf(out, "  Total Runs per Hour: %d\n", metrics.TotalRunsPerHour)
+	sc.Printf("\nSummary:\n")
+	sc.Printf("  Total Jobs: %d\n", len(jobs))
+	sc.Printf("  Total Runs per Day: %d\n", metrics.TotalRunsPerDay)
+	sc.Printf("  Total Runs per Hour: %d\n", metrics.TotalRunsPerHour)
 
 	// Most frequent jobs
 	mostFrequent := calculator.IdentifyMostFrequent(jobs, sc.top)
 	if len(mostFrequent) > 0 {
-		_, _ = fmt.Fprintf(out, "\nTop %d Most Frequent Jobs:\n", sc.top)
+		sc.Printf("\nTop %d Most Frequent Jobs:\n", sc.top)
 		for i, freq := range mostFrequent {
-			_, _ = fmt.Fprintf(out, "  %d. %s (%d runs/day, %d runs/hour)\n",
+			sc.Printf("  %d. %s (%d runs/day, %d runs/hour)\n",
 				i+1, freq.Expression, freq.RunsPerDay, freq.RunsPerHour)
 		}
 	}
 
 	// Hour histogram
 	if sc.verbose {
-		_, _ = fmt.Fprintf(out, "\n%s\n", stats.GenerateHistogram(metrics.HourHistogram, 40))
+		sc.Printf("\n%s\n", stats.GenerateHistogram(metrics.HourHistogram, 40))
 	}
 
 	// Collision stats
 	if sc.verbose && len(metrics.Collisions.BusiestHours) > 0 {
-		_, _ = fmt.Fprintf(out, "\nBusiest Hours:\n")
+		sc.Printf("\nBusiest Hours:\n")
 		for i, hour := range metrics.Collisions.BusiestHours {
 			if i >= sc.top {
 				break
 			}
-			_, _ = fmt.Fprintf(out, "  %02d:00 - %d runs\n", hour.Hour, hour.RunCount)
+			sc.Printf("  %02d:00 - %d runs\n", hour.Hour, hour.RunCount)
 		}
-		_, _ = fmt.Fprintf(out, "\nCollision Frequency: %.2f%%\n", metrics.Collisions.CollisionFrequency)
-		_, _ = fmt.Fprintf(out, "Max Concurrent Jobs: %d\n", metrics.Collisions.MaxConcurrent)
+		sc.Printf("\nCollision Frequency: %.2f%%\n", metrics.Collisions.CollisionFrequency)
+		sc.Printf("Max Concurrent Jobs: %d\n", metrics.Collisions.MaxConcurrent)
 	}
 
 	return nil

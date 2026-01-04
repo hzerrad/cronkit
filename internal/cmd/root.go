@@ -15,10 +15,24 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "cronic",
-	Short: "cronic - a CLI application",
-	Long: `cronic is a command-line interface application built with Go.
+	Short: "Make cron human again",
+	Long: `Cronic is a command-line tool that makes cron jobs human-readable, auditable, and visual.
 
-Add your application description here.`,
+It converts confusing cron syntax into plain English, generates upcoming run schedules,
+provides ASCII timeline visualizations, and validates crontabs with severity levels
+and diagnostic codes.
+
+Features:
+  - Explain cron expressions in plain English
+  - Show next scheduled run times
+  - List and summarize crontab jobs
+  - Visualize job schedules with ASCII timelines
+  - Validate crontabs with advanced linting
+  - Generate documentation (Markdown, HTML, JSON)
+  - Calculate statistics and analyze concurrency budgets
+  - Compare crontabs semantically
+
+Read-only and safe by design - never executes or modifies crontabs.`,
 	Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Default behavior when no subcommand is specified

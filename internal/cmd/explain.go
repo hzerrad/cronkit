@@ -61,7 +61,7 @@ func (ec *ExplainCommand) runExplain(_ *cobra.Command, args []string) error {
 		return ec.outputJSON(expression, description)
 	}
 
-	_, _ = fmt.Fprintln(ec.OutOrStdout(), description)
+	ec.Println(description)
 	return nil
 }
 

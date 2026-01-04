@@ -267,10 +267,10 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to export timeline: %w", err)
 		}
 		// Also print to stdout when exporting
-		_, _ = fmt.Fprint(tc.OutOrStdout(), output)
+		tc.Print(output)
 	} else {
 		// Normal output
-		_, _ = fmt.Fprint(tc.OutOrStdout(), output)
+		tc.Print(output)
 	}
 
 	return nil

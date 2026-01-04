@@ -127,13 +127,13 @@ func (nc *NextCommand) outputNextText(expression, description string, times []ti
 	if len(times) == 1 {
 		runWord = "run"
 	}
-	_, _ = fmt.Fprintf(nc.OutOrStdout(), "Next %d %s for \"%s\" (%s):\n\n",
+	nc.Printf("Next %d %s for \"%s\" (%s):\n\n",
 		len(times), runWord, expression, description)
 
 	// List each run with timestamp in the specified timezone
 	for i, t := range times {
 		tInLoc := t.In(loc)
-		_, _ = fmt.Fprintf(nc.OutOrStdout(), "%d. %s\n",
+		nc.Printf("%d. %s\n",
 			i+1, tInLoc.Format("2006-01-02 15:04:05 MST"))
 	}
 

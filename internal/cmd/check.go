@@ -136,27 +136,27 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 
 	// Print summary
 	if result.Valid && len(issuesToShow) == 0 {
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "✓ All valid\n")
+		cc.Printf("✓ All valid\n")
 		if result.TotalJobs > 0 {
-			_, _ = fmt.Fprintf(cc.OutOrStdout(), "  %d job(s) validated\n", result.TotalJobs)
+			cc.Printf("  %d job(s) validated\n", result.TotalJobs)
 		}
 		return nil
 	}
 
 	// Print error summary
 	if !result.Valid {
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "✗ Found %d issue(s)\n", len(issuesToShow))
+		cc.Printf("✗ Found %d issue(s)\n", len(issuesToShow))
 	} else {
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "⚠ Found %d warning(s)\n", len(issuesToShow))
+		cc.Printf("⚠ Found %d warning(s)\n", len(issuesToShow))
 	}
 
 	if result.TotalJobs > 0 {
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "  Total jobs: %d\n", result.TotalJobs)
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "  Valid: %d\n", result.ValidJobs)
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "  Invalid: %d\n", result.InvalidJobs)
+		cc.Printf("  Total jobs: %d\n", result.TotalJobs)
+		cc.Printf("  Valid: %d\n", result.ValidJobs)
+		cc.Printf("  Invalid: %d\n", result.InvalidJobs)
 	}
 
-	_, _ = fmt.Fprintln(cc.OutOrStdout())
+	cc.Println()
 
 	// Group and print issues
 	groupMode := parseGroupBy(cc.groupBy)
@@ -370,7 +370,7 @@ func (cc *CheckCommand) printIssuesGrouped(issues []check.Issue, mode GroupByMod
 				for _, issue := range severityIssues {
 					cc.printIssue(issue)
 				}
-				_, _ = fmt.Fprintln(cc.OutOrStdout())
+				cc.Println()
 			}
 		}
 	case GroupByLine:
@@ -407,7 +407,7 @@ func (cc *CheckCommand) printIssuesGrouped(issues []check.Issue, mode GroupByMod
 			for _, issue := range lineIssues {
 				cc.printIssue(issue)
 			}
-			_, _ = fmt.Fprintln(cc.OutOrStdout())
+			cc.Println()
 		}
 	case GroupByJob:
 		// Print groups by expression
@@ -420,14 +420,14 @@ func (cc *CheckCommand) printIssuesGrouped(issues []check.Issue, mode GroupByMod
 			for _, issue := range groupIssues {
 				cc.printIssue(issue)
 			}
-			_, _ = fmt.Fprintln(cc.OutOrStdout())
+			cc.Println()
 		}
 	}
 }
 
 // printGroupHeader prints a header for a group of issues
 func (cc *CheckCommand) printGroupHeader(title string, count int) {
-	_, _ = fmt.Fprintf(cc.OutOrStdout(), "━━━ %s (%d issue(s)) ━━━\n", title, count)
+	cc.Printf("━━━ %s (%d issue(s)) ━━━\n", title, count)
 }
 
 // printIssue prints a single issue with all its details
@@ -454,14 +454,14 @@ func (cc *CheckCommand) printIssue(issue check.Issue) {
 	}
 
 	if issue.Expression != "" {
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "  %s%s%s%s\n", lineInfo, prefix, issue.Message, codeInfo)
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "    Expression: %s\n", issue.Expression)
+		cc.Printf("  %s%s%s%s\n", lineInfo, prefix, issue.Message, codeInfo)
+		cc.Printf("    Expression: %s\n", issue.Expression)
 	} else {
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "  %s%s%s%s\n", lineInfo, prefix, issue.Message, codeInfo)
+		cc.Printf("  %s%s%s%s\n", lineInfo, prefix, issue.Message, codeInfo)
 	}
 
 	// Display hint if available
 	if issue.Hint != "" {
-		_, _ = fmt.Fprintf(cc.OutOrStdout(), "    Hint: %s\n", issue.Hint)
+		cc.Printf("    Hint: %s\n", issue.Hint)
 	}
 }
