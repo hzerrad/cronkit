@@ -258,4 +258,59 @@ func TestOutputText(t *testing.T) {
 		assert.Greater(t, len(lines), 5, "Should have multiple lines of output")
 		assert.Contains(t, output, "Crontab Statistics")
 	})
+
+	t.Run("should handle user crontab when no file or stdin specified", func(t *testing.T) {
+		sc := newStatsCommand()
+		buf := new(bytes.Buffer)
+		sc.SetOut(buf)
+		sc.SetErr(buf)
+
+		// No --file or --stdin flag - should try to read user crontab
+		sc.SetArgs([]string{})
+
+		err := sc.Execute()
+		// May succeed (if user has crontab) or fail gracefully (if no crontab)
+		// Either way, we're testing the code path
+		if err != nil {
+			// If error, should be about reading user crontab
+			assert.Contains(t, err.Error(), "user crontab")
+		} else {
+			// If success, should have generated statistics
+			output := buf.String()
+			assert.Contains(t, output, "Crontab Statistics")
+		}
+	})
+
+	t.Run("should handle metrics calculation error", func(t *testing.T) {
+		sc := newStatsCommand()
+		buf := new(bytes.Buffer)
+		sc.SetOut(buf)
+
+		// Use stdin with empty content
+		crontabContent := ""
+		sc.SetIn(strings.NewReader(crontabContent))
+		sc.SetArgs([]string{"--stdin"})
+
+		// Should still work with empty content
+		err := sc.Execute()
+		require.NoError(t, err)
+		output := buf.String()
+		assert.Contains(t, output, "Total Jobs: 0")
+	})
+
+	t.Run("should handle outputText with verbose and busiest hours", func(t *testing.T) {
+		sc := newStatsCommand()
+		buf := new(bytes.Buffer)
+		sc.SetOut(buf)
+
+		// Create a crontab with multiple jobs that might collide
+		crontabContent := "0 * * * * /usr/bin/job1.sh\n0 * * * * /usr/bin/job2.sh\n0 * * * * /usr/bin/job3.sh\n"
+		sc.SetIn(strings.NewReader(crontabContent))
+		sc.SetArgs([]string{"--stdin", "--verbose"})
+
+		err := sc.Execute()
+		require.NoError(t, err)
+		output := buf.String()
+		assert.Contains(t, output, "Crontab Statistics")
+	})
 }

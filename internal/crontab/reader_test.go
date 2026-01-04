@@ -169,6 +169,33 @@ func TestReadUser(t *testing.T) {
 	}
 }
 
+// TestReadUser_ErrorPaths tests error handling in ReadUser
+// Note: This is difficult to test without mocking exec.Command, but we can
+// at least verify the function handles the exit code 1 case (no crontab)
+func TestReadUser_ErrorPaths(t *testing.T) {
+	reader := NewReader()
+
+	// Test that ReadUser handles the case where crontab -l returns exit code 1
+	// (no crontab exists). This should return empty list, not an error.
+	// We can't easily mock exec.Command in Go without using interfaces,
+	// so we rely on the actual system behavior.
+
+	// If the user has no crontab, this should return empty list
+	// If the user has a crontab, this should return jobs
+	// Either way, it shouldn't error (unless there's a real system error)
+	jobs, err := reader.ReadUser()
+
+	// The function should handle exit code 1 gracefully
+	// (returning empty list instead of error)
+	if err != nil {
+		// If there's an error, it should be a real system error, not exit code 1
+		assert.NotContains(t, err.Error(), "exit status 1")
+	}
+
+	// Jobs should always be non-nil (even if empty)
+	assert.NotNil(t, jobs)
+}
+
 // TestReadStdin_ValidContent tests reading valid crontab content from stdin
 func TestReadStdin_ValidContent(t *testing.T) {
 	reader := NewReader()

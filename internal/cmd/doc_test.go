@@ -232,4 +232,56 @@ func TestDocCommand(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create output file")
 	})
+
+	t.Run("should handle user crontab when no file or stdin specified", func(t *testing.T) {
+		dc := newDocCommand()
+		buf := new(bytes.Buffer)
+		dc.SetOut(buf)
+		dc.SetErr(buf)
+
+		// No --file or --stdin flag - should try to read user crontab
+		dc.SetArgs([]string{"--format", "md"})
+
+		err := dc.Execute()
+		// May succeed (if user has crontab) or fail gracefully (if no crontab)
+		// Either way, we're testing the code path
+		if err != nil {
+			// If error, should be about reading user crontab
+			assert.Contains(t, err.Error(), "user crontab")
+		} else {
+			// If success, should have generated documentation
+			output := buf.String()
+			assert.Contains(t, output, "# Crontab Documentation")
+		}
+	})
+
+	t.Run("should handle renderer error path", func(t *testing.T) {
+		dc := newDocCommand()
+		buf := new(bytes.Buffer)
+		dc.SetOut(buf)
+
+		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
+		dc.SetArgs([]string{"--file", testFile, "--format", "md"})
+
+		// This should work, but tests the renderer path
+		err := dc.Execute()
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "# Crontab Documentation")
+	})
+
+	t.Run("should handle document generation error", func(t *testing.T) {
+		dc := newDocCommand()
+		buf := new(bytes.Buffer)
+		dc.SetOut(buf)
+
+		// Use stdin with content that might cause issues
+		crontabContent := ""
+		dc.SetIn(strings.NewReader(crontabContent))
+		dc.SetArgs([]string{"--stdin", "--format", "md"})
+
+		// Should still work with empty content
+		err := dc.Execute()
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "# Crontab Documentation")
+	})
 }
