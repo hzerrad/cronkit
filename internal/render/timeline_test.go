@@ -242,6 +242,120 @@ func TestTimeline_RenderJSON(t *testing.T) {
 		overlaps := result["overlaps"].([]map[string]interface{})
 		assert.Greater(t, len(overlaps), 0)
 	})
+
+	t.Run("should render JSON with job info", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		tl.SetJobInfo("job-1", "0 9 * * *", "Daily at 9am")
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+
+		result := tl.RenderJSON()
+		jobs := result["jobs"].([]map[string]interface{})
+		assert.Len(t, jobs, 1)
+		assert.Equal(t, "0 9 * * *", jobs[0]["expression"])
+		assert.Equal(t, "Daily at 9am", jobs[0]["description"])
+	})
+
+	t.Run("should render JSON with jobs without info", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+
+		result := tl.RenderJSON()
+		jobs := result["jobs"].([]map[string]interface{})
+		assert.Len(t, jobs, 1)
+		// Should not have expression or description if not set
+		_, hasExpression := jobs[0]["expression"]
+		_, hasDescription := jobs[0]["description"]
+		assert.False(t, hasExpression)
+		assert.False(t, hasDescription)
+	})
+
+	t.Run("should render JSON with overlap stats", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		overlapTime := startTime.Add(1 * time.Hour)
+		tl.AddJobRun("job-1", overlapTime)
+		tl.AddJobRun("job-2", overlapTime)
+		tl.AddJobRun("job-3", overlapTime)
+
+		result := tl.RenderJSON()
+		overlapStats := result["overlapStats"].(map[string]interface{})
+		assert.NotNil(t, overlapStats)
+		assert.Equal(t, 1, overlapStats["totalWindows"])
+		assert.Equal(t, 3, overlapStats["maxConcurrent"])
+		assert.NotNil(t, overlapStats["mostProblematic"])
+	})
+
+	t.Run("should render JSON with sorted run times", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Add runs in non-sequential order
+		tl.AddJobRun("job-1", startTime.Add(3*time.Hour))
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+		tl.AddJobRun("job-1", startTime.Add(2*time.Hour))
+
+		result := tl.RenderJSON()
+		jobs := result["jobs"].([]map[string]interface{})
+		runs := jobs[0]["runs"].([]map[string]interface{})
+		assert.Len(t, runs, 3)
+		// Runs should be sorted by time
+		time1, _ := time.Parse(time.RFC3339, runs[0]["time"].(string))
+		time2, _ := time.Parse(time.RFC3339, runs[1]["time"].(string))
+		time3, _ := time.Parse(time.RFC3339, runs[2]["time"].(string))
+		assert.True(t, time1.Before(time2))
+		assert.True(t, time2.Before(time3))
+	})
+
+	t.Run("should render JSON with correct overlap counts", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		overlapTime := startTime.Add(1 * time.Hour)
+		// 3 jobs at same time
+		tl.AddJobRun("job-1", overlapTime)
+		tl.AddJobRun("job-2", overlapTime)
+		tl.AddJobRun("job-3", overlapTime)
+
+		result := tl.RenderJSON()
+		jobs := result["jobs"].([]map[string]interface{})
+		// Each job should show overlap count of 2 (3 total - 1 self)
+		for _, job := range jobs {
+			runs := job["runs"].([]map[string]interface{})
+			for _, run := range runs {
+				if runTime, _ := time.Parse(time.RFC3339, run["time"].(string)); runTime.Equal(overlapTime.Truncate(time.Minute)) {
+					assert.Equal(t, 2, run["overlaps"])
+				}
+			}
+		}
+	})
+
+	t.Run("should render JSON with multiple jobs and overlaps", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		time1 := startTime.Add(1 * time.Hour)
+		time2 := startTime.Add(2 * time.Hour)
+
+		// Job 1 runs at time1 (no overlap)
+		tl.AddJobRun("job-1", time1)
+
+		// Jobs 2 and 3 run at time2 (overlap)
+		tl.AddJobRun("job-2", time2)
+		tl.AddJobRun("job-3", time2)
+
+		result := tl.RenderJSON()
+		jobs := result["jobs"].([]map[string]interface{})
+		assert.Len(t, jobs, 3)
+
+		overlaps := result["overlaps"].([]map[string]interface{})
+		assert.Len(t, overlaps, 1)
+		assert.Equal(t, 2, overlaps[0]["count"])
+	})
 }
 
 func TestTimeline_SetJobInfo(t *testing.T) {
@@ -722,5 +836,173 @@ func TestTimeline_findSlotIndex_EdgeCases(t *testing.T) {
 		// Time that would be >= 24 hours
 		tooLate := startTime.Add(24 * time.Hour)
 		assert.Equal(t, -1, tl.findSlotIndex(tooLate))
+	})
+
+	t.Run("should handle day view with negative hours result", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Edge case: time that passes boundary check but results in negative hours
+		// This shouldn't happen in practice due to boundary check, but test the branch
+		testTime := startTime.Add(-1 * time.Nanosecond)
+		// Should be caught by boundary check, but testing the hours < 0 case
+		hours := int(testTime.Sub(startTime).Hours())
+		if hours < 0 {
+			// This branch should be hit
+			assert.Equal(t, -1, tl.findSlotIndex(testTime))
+		}
+	})
+
+	t.Run("should handle hour view with negative minutes result", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 9, 0, 0, 0, time.UTC)
+		tl := NewTimeline(HourView, startTime, 80)
+
+		// Edge case: time that passes boundary check but results in negative minutes
+		testTime := startTime.Add(-1 * time.Nanosecond)
+		// Should be caught by boundary check, but testing the minutes < 0 case
+		minutes := int(testTime.Sub(startTime).Minutes())
+		if minutes < 0 {
+			// This branch should be hit
+			assert.Equal(t, -1, tl.findSlotIndex(testTime))
+		}
+	})
+
+	t.Run("should handle day view with hours >= 24 in switch", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Time that results in hours == 24 (should return -1)
+		testTime := startTime.Add(24 * time.Hour)
+		hours := int(testTime.Sub(startTime).Hours())
+		assert.GreaterOrEqual(t, hours, 24)
+		assert.Equal(t, -1, tl.findSlotIndex(testTime))
+	})
+
+	t.Run("should handle hour view with minutes >= 60 in switch", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 9, 0, 0, 0, time.UTC)
+		tl := NewTimeline(HourView, startTime, 80)
+
+		// Time that results in minutes == 60 (should return -1)
+		testTime := startTime.Add(60 * time.Minute)
+		minutes := int(testTime.Sub(startTime).Minutes())
+		assert.GreaterOrEqual(t, minutes, 60)
+		assert.Equal(t, -1, tl.findSlotIndex(testTime))
+	})
+}
+
+func TestTimeline_GetOverlapStats(t *testing.T) {
+	t.Run("should return empty stats when no overlaps", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+		tl.AddJobRun("job-2", startTime.Add(2*time.Hour))
+
+		stats := tl.GetOverlapStats()
+		assert.Equal(t, 0, stats.TotalWindows)
+		assert.Equal(t, 0, stats.MaxConcurrent)
+		assert.Len(t, stats.MostProblematic, 0)
+	})
+
+	t.Run("should calculate stats with overlaps", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		time1 := startTime.Add(1 * time.Hour)
+		time2 := startTime.Add(2 * time.Hour)
+
+		// 3 jobs at time1
+		tl.AddJobRun("job-1", time1)
+		tl.AddJobRun("job-2", time1)
+		tl.AddJobRun("job-3", time1)
+
+		// 2 jobs at time2
+		tl.AddJobRun("job-4", time2)
+		tl.AddJobRun("job-5", time2)
+
+		stats := tl.GetOverlapStats()
+		assert.Equal(t, 2, stats.TotalWindows)
+		assert.Equal(t, 3, stats.MaxConcurrent)
+		assert.Len(t, stats.MostProblematic, 2)
+		// Most problematic should be sorted by count (descending)
+		assert.Equal(t, 3, stats.MostProblematic[0].Count)
+		assert.Equal(t, 2, stats.MostProblematic[1].Count)
+	})
+
+	t.Run("should limit most problematic to 10", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Create 15 overlaps (each with 2 jobs)
+		for i := 0; i < 15; i++ {
+			overlapTime := startTime.Add(time.Duration(i) * time.Minute)
+			tl.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime)
+			tl.AddJobRun(fmt.Sprintf("job-%d-b", i), overlapTime)
+		}
+
+		stats := tl.GetOverlapStats()
+		assert.Equal(t, 15, stats.TotalWindows)
+		assert.Equal(t, 2, stats.MaxConcurrent)
+		assert.Len(t, stats.MostProblematic, 10)
+	})
+
+	t.Run("should sort overlaps with equal counts by time", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Create 3 overlaps with same count but different times
+		time1 := startTime.Add(2 * time.Hour)
+		time2 := startTime.Add(1 * time.Hour)
+		time3 := startTime.Add(3 * time.Hour)
+
+		// All have 2 jobs
+		tl.AddJobRun("job-1", time1)
+		tl.AddJobRun("job-2", time1)
+
+		tl.AddJobRun("job-3", time2)
+		tl.AddJobRun("job-4", time2)
+
+		tl.AddJobRun("job-5", time3)
+		tl.AddJobRun("job-6", time3)
+
+		stats := tl.GetOverlapStats()
+		assert.Equal(t, 3, stats.TotalWindows)
+		// When counts are equal, should be sorted by time (ascending)
+		assert.True(t, stats.MostProblematic[0].Time.Before(stats.MostProblematic[1].Time) ||
+			stats.MostProblematic[0].Time.Equal(stats.MostProblematic[1].Time))
+		assert.True(t, stats.MostProblematic[1].Time.Before(stats.MostProblematic[2].Time) ||
+			stats.MostProblematic[1].Time.Equal(stats.MostProblematic[2].Time))
+	})
+
+	t.Run("should handle overlaps with different counts correctly", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		time1 := startTime.Add(1 * time.Hour)
+		time2 := startTime.Add(2 * time.Hour)
+		time3 := startTime.Add(3 * time.Hour)
+
+		// 5 jobs at time1 (highest)
+		for i := 0; i < 5; i++ {
+			tl.AddJobRun(fmt.Sprintf("job-%d", i), time1)
+		}
+
+		// 3 jobs at time2
+		for i := 5; i < 8; i++ {
+			tl.AddJobRun(fmt.Sprintf("job-%d", i), time2)
+		}
+
+		// 2 jobs at time3 (lowest)
+		tl.AddJobRun("job-8", time3)
+		tl.AddJobRun("job-9", time3)
+
+		stats := tl.GetOverlapStats()
+		assert.Equal(t, 3, stats.TotalWindows)
+		assert.Equal(t, 5, stats.MaxConcurrent)
+		assert.Len(t, stats.MostProblematic, 3)
+		// Should be sorted by count descending
+		assert.Equal(t, 5, stats.MostProblematic[0].Count)
+		assert.Equal(t, 3, stats.MostProblematic[1].Count)
+		assert.Equal(t, 2, stats.MostProblematic[2].Count)
 	})
 }

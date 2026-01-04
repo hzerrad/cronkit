@@ -1,0 +1,329 @@
+# JSON Output Schemas
+
+This document describes the JSON output format for all Cronic commands. All JSON outputs use camelCase for field names and include a `locale` field where applicable.
+
+## Version
+
+**Current Version**: v0.2.0
+
+## Common Fields
+
+All JSON outputs may include:
+- `locale` (string) - Locale used for parsing (e.g., "en", "fr")
+
+## Command Schemas
+
+### `explain` Command
+
+**Command:** `cronic explain <expression> --json`
+
+**Schema:**
+```json
+{
+  "expression": "string",
+  "description": "string",
+  "locale": "string"
+}
+```
+
+**Example:**
+```json
+{
+  "expression": "*/15 * * * *",
+  "description": "Every 15 minutes",
+  "locale": "en"
+}
+```
+
+### `next` Command
+
+**Command:** `cronic next <expression> --json [--timezone <zone>]`
+
+**Schema:**
+```json
+{
+  "expression": "string",
+  "description": "string",
+  "timezone": "string",
+  "locale": "string",
+  "nextRuns": [
+    {
+      "number": "integer",
+      "timestamp": "string (RFC3339)",
+      "relative": "string"
+    }
+  ]
+}
+```
+
+**Fields:**
+- `timezone` - IANA timezone name (e.g., "UTC", "America/New_York")
+- `nextRuns` - Array of scheduled run times
+  - `number` - Sequential run number (1-based)
+  - `timestamp` - ISO 8601 / RFC3339 formatted time
+  - `relative` - Human-readable relative time (e.g., "in 2 hours")
+
+**Example:**
+```json
+{
+  "expression": "@daily",
+  "description": "At midnight every day",
+  "timezone": "UTC",
+  "locale": "en",
+  "nextRuns": [
+    {
+      "number": 1,
+      "timestamp": "2025-12-29T00:00:00Z",
+      "relative": "in 6 hours"
+    },
+    {
+      "number": 2,
+      "timestamp": "2025-12-30T00:00:00Z",
+      "relative": "in 1 day"
+    }
+  ]
+}
+```
+
+### `list` Command
+
+**Command:** `cronic list --json [--all]`
+
+**Schema (jobs only):**
+```json
+{
+  "jobs": [
+    {
+      "lineNumber": "integer",
+      "expression": "string",
+      "command": "string",
+      "comment": "string (optional)",
+      "description": "string (optional)"
+    }
+  ],
+  "locale": "string"
+}
+```
+
+**Schema (with --all flag):**
+```json
+{
+  "entries": [
+    {
+      "lineNumber": "integer",
+      "type": "string (JOB|COMMENT|ENV|EMPTY|INVALID)",
+      "raw": "string",
+      "job": {
+        "expression": "string",
+        "command": "string",
+        "comment": "string (optional)"
+      }
+    }
+  ],
+  "locale": "string"
+}
+```
+
+**Example:**
+```json
+{
+  "jobs": [
+    {
+      "lineNumber": 1,
+      "expression": "0 2 * * *",
+      "command": "/usr/local/bin/backup.sh",
+      "description": "At 02:00 daily"
+    }
+  ],
+  "locale": "en"
+}
+```
+
+### `check` Command
+
+**Command:** `cronic check [expression|--file <path>] --json [--verbose]`
+
+**Schema:**
+```json
+{
+  "valid": "boolean",
+  "totalJobs": "integer",
+  "validJobs": "integer",
+  "invalidJobs": "integer",
+  "locale": "string",
+  "issues": [
+    {
+      "severity": "string (error|warn|info)",
+      "code": "string (e.g., CRON-001)",
+      "lineNumber": "integer",
+      "expression": "string",
+      "message": "string",
+      "hint": "string (optional)",
+      "type": "string (deprecated, use severity)"
+    }
+  ]
+}
+```
+
+**Fields:**
+- `valid` - `true` if no errors found (warnings don't affect this)
+- `totalJobs` - Total number of jobs validated
+- `validJobs` - Number of valid jobs
+- `invalidJobs` - Number of invalid jobs
+- `issues` - Array of validation issues
+  - `severity` - Issue severity level
+  - `code` - Diagnostic code (e.g., "CRON-001")
+  - `lineNumber` - Line number in crontab (0 for single expression)
+  - `expression` - Cron expression (if applicable)
+  - `message` - Human-readable issue description
+  - `hint` - Actionable suggestion for fixing the issue
+  - `type` - Deprecated field, maintained for backward compatibility
+
+**Example:**
+```json
+{
+  "valid": true,
+  "totalJobs": 1,
+  "validJobs": 1,
+  "invalidJobs": 0,
+  "locale": "en",
+  "issues": [
+    {
+      "severity": "warn",
+      "code": "CRON-001",
+      "lineNumber": 0,
+      "expression": "0 0 1 * 1",
+      "message": "Both day-of-month and day-of-week specified (runs if either condition is met)",
+      "hint": "Consider using only day-of-month OR day-of-week, not both. Cron uses OR logic (runs if either condition is met).",
+      "type": "warn"
+    }
+  ]
+}
+```
+
+### `timeline` Command
+
+**Command:** `cronic timeline [expression|--file <path>] --json [--timezone <zone>]`
+
+**Schema:**
+```json
+{
+  "view": "string (day|hour)",
+  "startTime": "string (RFC3339)",
+  "endTime": "string (RFC3339)",
+  "width": "integer",
+  "timezone": "string",
+  "locale": "string",
+  "jobs": [
+    {
+      "id": "string",
+      "expression": "string",
+      "description": "string",
+      "runs": [
+        {
+          "time": "string (RFC3339)",
+          "overlaps": "integer"
+        }
+      ]
+    }
+  ],
+  "overlaps": [
+    {
+      "time": "string (RFC3339)",
+      "count": "integer",
+      "jobs": ["string"]
+    }
+  ],
+  "overlapStats": {
+    "totalWindows": "integer",
+    "maxConcurrent": "integer",
+    "mostProblematic": [
+      {
+        "time": "string (RFC3339)",
+        "count": "integer",
+        "jobs": ["string"]
+      }
+    ]
+  }
+}
+```
+
+**Fields:**
+- `view` - Timeline view type ("day" or "hour")
+- `startTime` - Start time of timeline (RFC3339)
+- `endTime` - End time of timeline (RFC3339)
+- `width` - Terminal width used for rendering
+- `timezone` - IANA timezone name
+- `jobs` - Array of jobs with their scheduled runs
+  - `id` - Job identifier
+  - `expression` - Cron expression
+  - `description` - Human-readable description
+  - `runs` - Array of scheduled run times
+    - `time` - Run time (RFC3339)
+    - `overlaps` - Number of other jobs running at the same time
+- `overlaps` - Array of overlap windows
+  - `time` - Time of overlap (RFC3339)
+  - `count` - Number of concurrent jobs
+  - `jobs` - Array of job IDs running at this time
+- `overlapStats` - Overlap statistics
+  - `totalWindows` - Total number of overlap windows
+  - `maxConcurrent` - Maximum number of concurrent jobs
+  - `mostProblematic` - Most problematic overlap windows
+
+**Example:**
+```json
+{
+  "view": "day",
+  "startTime": "2025-12-28T00:00:00Z",
+  "endTime": "2025-12-29T00:00:00Z",
+  "width": 80,
+  "timezone": "UTC",
+  "locale": "en",
+  "jobs": [
+    {
+      "id": "job-1",
+      "expression": "0 * * * *",
+      "description": "At the start of every hour",
+      "runs": [
+        {
+          "time": "2025-12-28T00:00:00Z",
+          "overlaps": 0
+        }
+      ]
+    }
+  ],
+  "overlaps": [],
+  "overlapStats": {
+    "totalWindows": 0,
+    "maxConcurrent": 1,
+    "mostProblematic": []
+  }
+}
+```
+
+## Backward Compatibility
+
+### Deprecated Fields
+
+- `type` in `check` command issues - Use `severity` instead
+- `next_runs` in `next` command - Changed to `nextRuns` in v0.2.0
+
+### Version History
+
+- **v0.2.0**: Added `locale` field to all outputs, standardized field naming (camelCase), added `timezone` to timeline output
+- **v0.1.0**: Initial JSON schema
+
+## Error Responses
+
+All commands return JSON error responses in a consistent format:
+
+```json
+{
+  "error": "string",
+  "message": "string"
+}
+```
+
+However, most commands output errors to stderr in plain text format for better CLI usability.
+
+

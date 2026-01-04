@@ -3,17 +3,20 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/hzerrad/cronic/internal/crontab"
 	"github.com/hzerrad/cronic/internal/cronx"
 	"github.com/hzerrad/cronic/internal/human"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
-	listFile string
-	listAll  bool
-	listJSON bool
+	listFile  string
+	listAll   bool
+	listJSON  bool
+	listStdin bool
 )
 
 // listCmd represents the list command
@@ -37,6 +40,7 @@ func init() {
 	listCmd.Flags().StringVarP(&listFile, "file", "f", "", "Path to crontab file (defaults to user's crontab)")
 	listCmd.Flags().BoolVarP(&listAll, "all", "a", false, "Show all entries including comments and environment variables")
 	listCmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output as JSON")
+	listCmd.Flags().BoolVar(&listStdin, "stdin", false, "Read crontab from standard input")
 }
 
 // newListCommand creates a new list command for testing
@@ -58,6 +62,7 @@ Examples:
 	cmd.Flags().StringVarP(&listFile, "file", "f", "", "Path to crontab file (defaults to user's crontab)")
 	cmd.Flags().BoolVarP(&listAll, "all", "a", false, "Show all entries including comments and environment variables")
 	cmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output as JSON")
+	cmd.Flags().BoolVar(&listStdin, "stdin", false, "Read crontab from standard input")
 
 	return cmd
 }
@@ -69,17 +74,44 @@ func runList(cmd *cobra.Command, args []string) error {
 	var entries []*crontab.Entry
 	var err error
 
-	// Read from file or user's crontab
+	// Priority: --file > --stdin > user crontab
 	if listFile != "" {
 		if listAll {
 			entries, err = reader.ParseFile(listFile)
 		} else {
 			jobs, err = reader.ReadFile(listFile)
 		}
-	} else {
-		jobs, err = reader.ReadUser()
 		if err != nil {
-			return fmt.Errorf("failed to read user crontab: %w", err)
+			return fmt.Errorf("failed to read crontab file %s: %w", listFile, err)
+		}
+	} else if listStdin {
+		// Read from stdin
+		if listAll {
+			entries, err = reader.ParseStdin()
+		} else {
+			jobs, err = reader.ReadStdin()
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read crontab from stdin: %w", err)
+		}
+	} else {
+		// Check if stdin is available (not a terminal)
+		if isStdinAvailable() {
+			// Read from stdin automatically
+			if listAll {
+				entries, err = reader.ParseStdin()
+			} else {
+				jobs, err = reader.ReadStdin()
+			}
+			if err != nil {
+				return fmt.Errorf("failed to read crontab from stdin: %w", err)
+			}
+		} else {
+			// Fall back to user's crontab
+			jobs, err = reader.ReadUser()
+			if err != nil {
+				return fmt.Errorf("failed to read user crontab: %w", err)
+			}
 		}
 	}
 
@@ -139,7 +171,10 @@ func outputJobsJSON(cmd *cobra.Command, jobs []*crontab.Job) error {
 		output = append(output, jo)
 	}
 
-	return outputJSON(cmd, map[string]interface{}{"jobs": output})
+	return outputJSON(cmd, map[string]interface{}{
+		"jobs":   output,
+		"locale": GetLocale(),
+	})
 }
 
 func outputAllEntries(cmd *cobra.Command, entries []*crontab.Entry) error {
@@ -178,7 +213,10 @@ func outputAllEntries(cmd *cobra.Command, entries []*crontab.Entry) error {
 			output = append(output, eo)
 		}
 
-		return outputJSON(cmd, map[string]interface{}{"entries": output})
+		return outputJSON(cmd, map[string]interface{}{
+			"entries": output,
+			"locale":  GetLocale(),
+		})
 	}
 
 	// Table output for all entries
@@ -245,4 +283,9 @@ func outputJSON(cmd *cobra.Command, data interface{}) error {
 	encoder := json.NewEncoder(cmd.OutOrStdout())
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(data)
+}
+
+// isStdinAvailable checks if stdin is available (not a terminal)
+func isStdinAvailable() bool {
+	return !term.IsTerminal(int(os.Stdin.Fd()))
 }

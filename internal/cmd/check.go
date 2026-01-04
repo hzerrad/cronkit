@@ -17,6 +17,7 @@ type CheckCommand struct {
 	verbose bool
 	failOn  string
 	groupBy string
+	stdin   bool
 }
 
 func newCheckCommand() *CheckCommand {
@@ -47,6 +48,7 @@ Examples:
 	cc.Flags().BoolVarP(&cc.verbose, "verbose", "v", false, "Show warnings (DOM/DOW conflicts) as well as errors")
 	cc.Flags().StringVar(&cc.failOn, "fail-on", "error", "Severity level to fail on: error (default), warn, or info")
 	cc.Flags().StringVar(&cc.groupBy, "group-by", "none", "Group issues by: none (default), severity, line, or job")
+	cc.Flags().BoolVar(&cc.stdin, "stdin", false, "Read crontab from standard input")
 
 	return cc
 }
@@ -67,13 +69,27 @@ func (cc *CheckCommand) runCheck(_ *cobra.Command, args []string) error {
 
 	var result check.ValidationResult
 
-	// Determine what to validate
+	// Priority: expression arg > --file > --stdin > user crontab
 	if len(args) == 1 {
 		// Single expression validation
 		result = validator.ValidateExpression(args[0])
 	} else if cc.file != "" {
 		// File validation
 		result = validator.ValidateCrontab(reader, cc.file)
+	} else if cc.stdin {
+		// Stdin validation (explicit flag)
+		entries, err := reader.ParseStdin()
+		if err != nil {
+			return fmt.Errorf("failed to read crontab from stdin: %w", err)
+		}
+		result = validator.ValidateEntries(entries)
+	} else if isStdinAvailable() {
+		// Stdin validation (automatic detection)
+		entries, err := reader.ParseStdin()
+		if err != nil {
+			return fmt.Errorf("failed to read crontab from stdin: %w", err)
+		}
+		result = validator.ValidateEntries(entries)
 	} else {
 		// User crontab validation
 		result = validator.ValidateUserCrontab(reader)
@@ -161,6 +177,7 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.S
 		"validJobs":   result.ValidJobs,
 		"invalidJobs": result.InvalidJobs,
 		"issues":      jsonIssues,
+		"locale":      GetLocale(),
 	}
 
 	encoder := json.NewEncoder(cc.OutOrStdout())

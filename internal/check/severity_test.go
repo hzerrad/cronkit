@@ -252,6 +252,18 @@ func TestSeverity_UnmarshalJSON(t *testing.T) {
 			expected: 0,
 			wantErr:  true,
 		},
+		{
+			name:     "non-string JSON",
+			input:    `123`,
+			expected: 0,
+			wantErr:  true,
+		},
+		{
+			name:     "empty string",
+			input:    `""`,
+			expected: 0,
+			wantErr:  true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -266,6 +278,35 @@ func TestSeverity_UnmarshalJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIssue_Type(t *testing.T) {
+	t.Run("should return severity as string", func(t *testing.T) {
+		issue := Issue{
+			Severity: SeverityError,
+			Code:     CodeParseError,
+			Message:  "Test error",
+		}
+		assert.Equal(t, "error", issue.Type())
+	})
+
+	t.Run("should return warn for warning severity", func(t *testing.T) {
+		issue := Issue{
+			Severity: SeverityWarn,
+			Code:     CodeDOMDOWConflict,
+			Message:  "Test warning",
+		}
+		assert.Equal(t, "warn", issue.Type())
+	})
+
+	t.Run("should return info for info severity", func(t *testing.T) {
+		issue := Issue{
+			Severity: SeverityInfo,
+			Code:     "TEST-001",
+			Message:  "Test info",
+		}
+		assert.Equal(t, "info", issue.Type())
+	})
 }
 
 func TestParseFailOnLevel(t *testing.T) {

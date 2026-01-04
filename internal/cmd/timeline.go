@@ -229,6 +229,10 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	var output string
 	if tc.json {
 		result := timeline.RenderJSON()
+		// Add timezone and locale to JSON output
+		result["timezone"] = loc.String()
+		result["locale"] = locale
+
 		// If exporting JSON, write to file, otherwise to stdout
 		if tc.export != "" {
 			file, err := os.Create(tc.export)

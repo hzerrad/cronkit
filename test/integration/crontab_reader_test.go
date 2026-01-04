@@ -17,7 +17,7 @@ var _ = Describe("Crontab Reader", func() {
 	Describe("Reading crontab files", func() {
 		Context("when reading a valid crontab file", func() {
 			It("should parse all job entries correctly", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/sample.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(jobs).NotTo(BeEmpty())
@@ -35,7 +35,7 @@ var _ = Describe("Crontab Reader", func() {
 			})
 
 			It("should correctly parse job expressions", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/sample.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -60,7 +60,7 @@ var _ = Describe("Crontab Reader", func() {
 			})
 
 			It("should handle cron aliases", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/sample.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -79,7 +79,7 @@ var _ = Describe("Crontab Reader", func() {
 			})
 
 			It("should preserve inline comments", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/sample.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -99,7 +99,7 @@ var _ = Describe("Crontab Reader", func() {
 
 		Context("when reading a crontab with invalid entries", func() {
 			It("should parse valid entries and mark invalid ones", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/invalid.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/invalid/invalid.cron")
 
 				Expect(err).NotTo(HaveOccurred(), "Reading should not fail even with invalid entries")
 				Expect(jobs).NotTo(BeEmpty())
@@ -120,7 +120,7 @@ var _ = Describe("Crontab Reader", func() {
 			})
 
 			It("should provide error details for invalid entries", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/invalid.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/invalid/invalid.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -141,7 +141,7 @@ var _ = Describe("Crontab Reader", func() {
 
 		Context("when reading an empty crontab", func() {
 			It("should return an empty job list", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/empty.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/valid/empty.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(jobs).To(BeEmpty())
@@ -161,7 +161,7 @@ var _ = Describe("Crontab Reader", func() {
 	Describe("Parsing crontab entries", func() {
 		Context("when parsing a file with various entry types", func() {
 			It("should identify all entry types correctly", func() {
-				entries, err := reader.ParseFile("../../testdata/crontab/sample.cron")
+				entries, err := reader.ParseFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(entries).NotTo(BeEmpty())
@@ -179,7 +179,7 @@ var _ = Describe("Crontab Reader", func() {
 			})
 
 			It("should preserve line numbers for all entries", func() {
-				entries, err := reader.ParseFile("../../testdata/crontab/sample.cron")
+				entries, err := reader.ParseFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -190,7 +190,7 @@ var _ = Describe("Crontab Reader", func() {
 			})
 
 			It("should preserve raw content for all entries", func() {
-				entries, err := reader.ParseFile("../../testdata/crontab/sample.cron")
+				entries, err := reader.ParseFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -204,7 +204,7 @@ var _ = Describe("Crontab Reader", func() {
 	Describe("Edge cases", func() {
 		Context("when handling complex cron commands", func() {
 			It("should preserve command with pipes and redirects", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/sample.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -224,7 +224,7 @@ var _ = Describe("Crontab Reader", func() {
 			})
 
 			It("should handle commands with arguments", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/sample.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -245,7 +245,7 @@ var _ = Describe("Crontab Reader", func() {
 
 		Context("when handling different time specifications", func() {
 			It("should handle time ranges", func() {
-				jobs, err := reader.ReadFile("../../testdata/crontab/sample.cron")
+				jobs, err := reader.ReadFile("../../testdata/crontab/valid/sample.cron")
 
 				Expect(err).NotTo(HaveOccurred())
 
