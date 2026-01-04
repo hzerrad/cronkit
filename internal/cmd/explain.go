@@ -66,9 +66,10 @@ func (ec *ExplainCommand) runExplain(_ *cobra.Command, args []string) error {
 }
 
 func (ec *ExplainCommand) outputJSON(expression, description string) error {
-	result := map[string]string{
+	result := map[string]interface{}{
 		"expression":  expression,
 		"description": description,
+		"locale":      GetLocale(),
 	}
 
 	encoder := json.NewEncoder(ec.OutOrStdout())

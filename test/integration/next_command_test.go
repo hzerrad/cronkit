@@ -183,7 +183,7 @@ var _ = Describe("Next Command", func() {
 				Expect(result).To(HaveKey("expression"))
 				Expect(result).To(HaveKey("description"))
 				Expect(result).To(HaveKey("timezone"))
-				Expect(result).To(HaveKey("next_runs"))
+				Expect(result).To(HaveKey("nextRuns"))
 
 				Expect(result["expression"]).To(Equal("@daily"))
 				Expect(result["description"]).To(ContainSubstring("midnight"))
@@ -200,7 +200,7 @@ var _ = Describe("Next Command", func() {
 				err = json.Unmarshal(session.Out.Contents(), &result)
 				Expect(err).NotTo(HaveOccurred())
 
-				nextRuns := result["next_runs"].([]interface{})
+				nextRuns := result["nextRuns"].([]interface{})
 				Expect(len(nextRuns)).To(Equal(5))
 			})
 
@@ -215,7 +215,7 @@ var _ = Describe("Next Command", func() {
 				err = json.Unmarshal(session.Out.Contents(), &result)
 				Expect(err).NotTo(HaveOccurred())
 
-				nextRuns := result["next_runs"].([]interface{})
+				nextRuns := result["nextRuns"].([]interface{})
 				firstRun := nextRuns[0].(map[string]interface{})
 
 				Expect(firstRun).To(HaveKey("number"))
@@ -245,7 +245,7 @@ var _ = Describe("Next Command", func() {
 				err = json.Unmarshal(session.Out.Contents(), &result)
 				Expect(err).NotTo(HaveOccurred())
 
-				nextRuns := result["next_runs"].([]interface{})
+				nextRuns := result["nextRuns"].([]interface{})
 				for i, run := range nextRuns {
 					runMap := run.(map[string]interface{})
 					Expect(runMap["number"]).To(BeNumerically("==", i+1))
@@ -371,6 +371,109 @@ var _ = Describe("Next Command", func() {
 		})
 	})
 
+	Describe("Timezone Support", func() {
+		Context("when user specifies timezone", func() {
+			It("should work with UTC timezone", func() {
+				command := exec.Command(pathToCLI, "next", "0 * * * *", "--timezone", "UTC", "-c", "3")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("UTC"))
+			})
+
+			It("should work with America/New_York timezone", func() {
+				command := exec.Command(pathToCLI, "next", "0 * * * *", "--timezone", "America/New_York", "-c", "2")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				// Should contain timezone abbreviation (EST or EDT)
+				Expect(output).To(Or(ContainSubstring("EST"), ContainSubstring("EDT")))
+			})
+
+			It("should work with Europe/London timezone", func() {
+				command := exec.Command(pathToCLI, "next", "@hourly", "--timezone", "Europe/London", "-c", "2")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				// Should contain timezone abbreviation (GMT or BST)
+				Expect(output).To(Or(ContainSubstring("GMT"), ContainSubstring("BST")))
+			})
+
+			It("should reject invalid timezone", func() {
+				command := exec.Command(pathToCLI, "next", "0 * * * *", "--timezone", "Invalid/Timezone")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(1))
+				Expect(session.Err).To(gbytes.Say("invalid timezone"))
+			})
+
+			It("should include timezone in JSON output", func() {
+				command := exec.Command(pathToCLI, "next", "@daily", "--timezone", "UTC", "--json", "-c", "2")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+
+				var result map[string]interface{}
+				err = json.Unmarshal(session.Out.Contents(), &result)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(result["timezone"]).To(Equal("UTC"))
+			})
+
+			It("should work with timezone and count flag", func() {
+				command := exec.Command(pathToCLI, "next", "*/15 * * * *", "--timezone", "UTC", "--count", "5")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("Next 5 runs"))
+				Expect(output).To(ContainSubstring("UTC"))
+			})
+
+			It("should show different times in different timezones", func() {
+				By("getting times in UTC")
+				commandUTC := exec.Command(pathToCLI, "next", "0 12 * * *", "--timezone", "UTC", "-c", "1", "--json")
+				sessionUTC, err := gexec.Start(commandUTC, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(sessionUTC).Should(gexec.Exit(0))
+
+				var resultUTC map[string]interface{}
+				err = json.Unmarshal(sessionUTC.Out.Contents(), &resultUTC)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("getting times in America/New_York")
+				commandNY := exec.Command(pathToCLI, "next", "0 12 * * *", "--timezone", "America/New_York", "-c", "1", "--json")
+				sessionNY, err := gexec.Start(commandNY, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(sessionNY).Should(gexec.Exit(0))
+
+				var resultNY map[string]interface{}
+				err = json.Unmarshal(sessionNY.Out.Contents(), &resultNY)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Times should be different (accounting for timezone offset)
+				nextRunsUTC := resultUTC["next_runs"].([]interface{})
+				nextRunsNY := resultNY["next_runs"].([]interface{})
+				Expect(len(nextRunsUTC)).To(Equal(1))
+				Expect(len(nextRunsNY)).To(Equal(1))
+
+				runUTC := nextRunsUTC[0].(map[string]interface{})
+				runNY := nextRunsNY[0].(map[string]interface{})
+				// Timestamps should be different (not equal)
+				Expect(runUTC["timestamp"]).NotTo(Equal(runNY["timestamp"]))
+			})
+		})
+	})
+
 	Describe("Help Documentation", func() {
 		Context("when user needs help", func() {
 			It("should provide help with long flag", func() {
@@ -476,7 +579,7 @@ var _ = Describe("Next Command", func() {
 				err = json.Unmarshal(session.Out.Contents(), &result)
 				Expect(err).NotTo(HaveOccurred())
 
-				nextRuns := result["next_runs"].([]interface{})
+				nextRuns := result["nextRuns"].([]interface{})
 				Expect(len(nextRuns)).To(Equal(4))
 			})
 		})

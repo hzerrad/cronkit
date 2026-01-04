@@ -1,0 +1,11 @@
+# Simple crontab example
+# Daily backup at 2am
+0 2 * * * /usr/local/bin/backup.sh
+
+# Check disk space every 15 minutes
+*/15 * * * * /usr/local/bin/check-disk.sh
+
+# Weekly report on Mondays at 9am
+0 9 * * 1 /usr/local/bin/weekly-report.sh
+
+

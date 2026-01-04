@@ -63,6 +63,14 @@ Next 5 runs for "0 9 * * *" (At 09:00 daily):
 3. 2025-12-31 09:00:00 UTC
 4. 2026-01-01 09:00:00 UTC
 5. 2026-01-02 09:00:00 UTC
+
+# With timezone support
+$ cronic next "0 9 * * *" --timezone America/New_York --count 3
+Next 3 runs for "0 9 * * *" (At 09:00 daily):
+
+1. 2025-12-29 09:00:00 EST
+2. 2025-12-30 09:00:00 EST
+3. 2025-12-31 09:00:00 EST
 ```
 
 ### List Crontab Jobs
@@ -73,6 +81,11 @@ LINE  EXPRESSION        DESCRIPTION                          COMMAND
 ────  ────────────────  ───────────────────────────────────  ────────────────────────
 1     0 2 * * *         At 02:00 daily                       /usr/bin/backup.sh
 2     */15 * * * *      Every 15 minutes                     /usr/bin/check-disk.sh
+
+# Read from stdin
+$ cat /etc/crontab | cronic list
+# or
+$ cronic list --stdin < /etc/crontab
 ```
 
 ### Visualize Timeline
@@ -142,6 +155,7 @@ cronic next "0 14 * * *" --json          # JSON output
 
 **Flags:**
 - `-c, --count <number>` - Number of runs to show (1-100, default: 10)
+- `--timezone <zone>` - Timezone for calculations (e.g., 'America/New_York', 'UTC', defaults to local timezone)
 - `-j, --json` - Output as JSON
 
 ### `list`
@@ -158,6 +172,7 @@ cronic list --json                       # JSON output
 
 **Flags:**
 - `-f, --file <path>` - Path to crontab file
+- `--stdin` - Read crontab from standard input (automatic if stdin is not a terminal)
 - `-a, --all` - Show all entries including comments and environment variables
 - `-j, --json` - Output as JSON
 
@@ -177,6 +192,10 @@ cronic timeline --file jobs.cron --json     # JSON output
 - `-f, --file <path>` - Path to crontab file (defaults to user's crontab)
 - `--view <type>` - Timeline view: `day` (24 hours) or `hour` (60 minutes, default: `day`)
 - `--from <time>` - Start time for timeline (RFC3339 format, defaults to current time)
+- `--timezone <zone>` - Timezone for timeline (e.g., 'America/New_York', 'UTC', defaults to local timezone)
+- `--width <cols>` - Terminal width (0 = auto-detect, defaults to 80 if detection fails)
+- `--export <path>` - Export timeline to file (format determined by extension: .txt, .json)
+- `--show-overlaps` - Show detailed overlap information in output
 - `-j, --json` - Output as JSON
 
 ### `check`
@@ -193,7 +212,10 @@ cronic check --file jobs.cron --json     # JSON output
 
 **Flags:**
 - `-f, --file <path>` - Path to crontab file
+- `--stdin` - Read crontab from standard input (automatic if stdin is not a terminal)
 - `-v, --verbose` - Show warnings (DOM/DOW conflicts, etc.) with diagnostic codes and hints
+- `--fail-on <level>` - Severity level to fail on: `error` (default), `warn`, or `info`
+- `--group-by <mode>` - Group issues by: `none` (default), `severity`, `line`, or `job`
 - `-j, --json` - Output as JSON
 
 **Severity Levels:**
@@ -220,7 +242,8 @@ Each diagnostic includes a **hint** with actionable suggestions for fixing the i
 All commands support these global flags:
 
 - `--locale <LANG>` - Locale for parsing day/month names (default: `en`)
-- `--json, -j` - Output as JSON (machine-readable)
+
+**Note:** The `--locale` flag affects parsing of day/month names in cron expressions. It's also included in JSON output for reference.
 
 ## Supported Cron Dialect
 
@@ -240,7 +263,31 @@ All commands support `--json` flag for machine-readable output. The JSON schema 
 $ cronic explain "*/15 * * * *" --json
 {
   "expression": "*/15 * * * *",
-  "description": "Every 15 minutes"
+  "description": "Every 15 minutes",
+  "locale": "en"
+}
+```
+
+**Example - Next (with timezone):**
+```bash
+$ cronic next "@daily" --timezone UTC --json -c 2
+{
+  "expression": "@daily",
+  "description": "At midnight every day",
+  "timezone": "UTC",
+  "locale": "en",
+  "nextRuns": [
+    {
+      "number": 1,
+      "timestamp": "2025-12-29T00:00:00Z",
+      "relative": "in 6 hours"
+    },
+    {
+      "number": 2,
+      "timestamp": "2025-12-30T00:00:00Z",
+      "relative": "in 1 day"
+    }
+  ]
 }
 ```
 
@@ -252,6 +299,7 @@ $ cronic check "0 0 1 * 1" --json --verbose
   "totalJobs": 1,
   "validJobs": 1,
   "invalidJobs": 0,
+  "locale": "en",
   "issues": [
     {
       "severity": "warn",
@@ -263,6 +311,22 @@ $ cronic check "0 0 1 * 1" --json --verbose
       "type": "warning"
     }
   ]
+}
+```
+
+**Example - List (with stdin):**
+```bash
+$ echo "0 2 * * * /usr/bin/backup.sh" | cronic list --json
+{
+  "jobs": [
+    {
+      "lineNumber": 1,
+      "expression": "0 2 * * *",
+      "command": "/usr/bin/backup.sh",
+      "description": "At 02:00 daily"
+    }
+  ],
+  "locale": "en"
 }
 ```
 
@@ -303,6 +367,7 @@ make test-unit      # Unit tests only
 make test-integration  # Integration tests
 make test-e2e       # E2E tests
 make test-coverage  # Generate coverage report
+make benchmark      # Run performance benchmarks
 ```
 
 **Documentation:**

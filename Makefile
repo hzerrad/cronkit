@@ -1,4 +1,4 @@
-.PHONY: help build install clean test test-unit test-integration test-e2e test-bdd test-coverage test-watch lint fmt run dev build-all setup-hooks vet
+.PHONY: help build install clean test test-unit test-integration test-e2e test-bdd test-coverage test-watch lint fmt run dev build-all setup-hooks vet benchmark benchmark-compare test-large profile examples docs dev-setup
 
 # Variables
 BINARY_NAME=cronic
@@ -73,6 +73,17 @@ test-watch: ## Run tests in watch mode (requires ginkgo)
 	@echo "Running tests in watch mode..."
 	@which ginkgo > /dev/null || (echo "Installing ginkgo..." && go install github.com/onsi/ginkgo/v2/ginkgo@latest)
 	ginkgo watch -r ./...
+
+benchmark: ## Run all benchmarks
+	@echo "Running benchmarks..."
+	go test -bench=. -benchmem ./internal/...
+
+benchmark-compare: ## Compare benchmark results (requires benchstat)
+	@echo "Running benchmarks for comparison..."
+	@which benchstat > /dev/null || (echo "Installing benchstat..." && go install golang.org/x/perf/cmd/benchstat@latest)
+	go test -bench=. -benchmem ./internal/... > /tmp/bench-current.txt 2>&1
+	@echo "Benchmark results saved to /tmp/bench-current.txt"
+	@echo "Use 'benchstat old.txt /tmp/bench-current.txt' to compare"
 
 lint: ## Run linter (requires golangci-lint)
 	@echo "Running linter..."
@@ -166,7 +177,47 @@ run: build ## Build and run the application
 	@$(BUILD_DIR)/$(BINARY_NAME)
 
 dev: ## Run the application without building (go run)
-	go run $(MAIN_PATH)
+	go run $(MAIN_PATH) $(ARGS)
+
+test-large: ## Test with large crontabs (100+ jobs)
+	@echo "Creating large test crontab..."
+	@cat /dev/null > /tmp/large-test.cron
+	@for i in $$(seq 1 100); do \
+		echo "0 * * * * /usr/bin/job$$i.sh" >> /tmp/large-test.cron; \
+	done
+	@echo "Testing with large crontab..."
+	@./bin/cronic check --file /tmp/large-test.cron
+	@./bin/cronic list --file /tmp/large-test.cron --json > /dev/null
+	@rm -f /tmp/large-test.cron
+	@echo "Large crontab tests passed"
+
+profile: ## Generate performance profiles
+	@echo "Generating CPU profile..."
+	@go test -bench=. -cpuprofile=$(BUILD_DIR)/cpu.prof ./internal/crontab
+	@echo "Generating memory profile..."
+	@go test -bench=. -memprofile=$(BUILD_DIR)/mem.prof ./internal/crontab
+	@echo "Profiles generated in $(BUILD_DIR)/"
+	@echo "View with: go tool pprof $(BUILD_DIR)/cpu.prof"
+
+examples: ## Validate example crontabs
+	@echo "Validating example crontabs..."
+	@for file in examples/crontabs/*.cron; do \
+		echo "Checking $$file..."; \
+		./bin/cronic check --file $$file || exit 1; \
+	done
+	@echo "All example crontabs are valid"
+
+docs: ## Generate documentation (placeholder for future doc generation)
+	@echo "Documentation is in docs/ directory"
+	@echo "Available docs:"
+	@ls -1 docs/*.md
+
+dev-setup: ## Complete development environment setup
+	@echo "Setting up development environment..."
+	@$(MAKE) setup-hooks
+	@go mod download
+	@echo "Development environment ready!"
+	@echo "Run 'make test' to verify setup"
 
 build-all: ## Build for multiple platforms
 	@echo "Building for multiple platforms..."

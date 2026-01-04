@@ -1,0 +1,39 @@
+# Example crontab with extensive comments
+# This demonstrates how to document cron jobs
+
+# ============================================
+# System Maintenance Jobs
+# ============================================
+
+# Daily backup - runs at 2am every day
+# Backs up all user data and system configurations
+0 2 * * * /usr/local/bin/backup.sh
+
+# Disk space check - runs every 15 minutes
+# Monitors disk usage and sends alerts if > 90%
+*/15 * * * * /usr/local/bin/check-disk.sh # Disk monitoring
+
+# ============================================
+# Application Jobs
+# ============================================
+
+# Weekly report generation
+# Runs every Monday at 9am
+0 9 * * 1 /usr/local/bin/weekly-report.sh
+
+# Database cleanup
+# Runs on the 1st of every month at midnight
+0 0 1 * * /usr/local/bin/db-cleanup.sh
+
+# ============================================
+# Monitoring Jobs
+# ============================================
+
+# Health check - runs every hour
+@hourly /usr/local/bin/health-check.sh
+
+# System metrics collection
+# Runs every 5 minutes during business hours (9am-5pm, weekdays)
+*/5 9-17 * * 1-5 /usr/local/bin/collect-metrics.sh
+
+

@@ -1,0 +1,29 @@
+# Complex crontab example with various patterns
+
+# Environment variables
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+MAILTO=admin@example.com
+
+# Business hours monitoring (every 5 minutes, 9am-5pm, weekdays)
+*/5 9-17 * * 1-5 /usr/local/bin/monitor.sh
+
+# Monthly cleanup on the 1st at midnight
+0 0 1 * * /usr/local/bin/cleanup.sh
+
+# Hourly health check
+@hourly /usr/local/bin/health-check.sh
+
+# Daily backup at 2am
+@daily /usr/local/bin/backup.sh
+
+# Weekly maintenance on Sundays at 3am
+0 3 * * 0 /usr/local/bin/maintenance.sh
+
+# Complex command with pipes and redirection
+0 3 * * * cd /var/log && find . -name "*.log" -mtime +30 -delete >> /var/log/cleanup.log 2>&1
+
+# Job with arguments
+30 14 * * * /usr/local/bin/process.sh --config=/etc/app.conf --verbose
+
+

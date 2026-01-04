@@ -18,6 +18,12 @@ type Reader interface {
 
 	// ParseFile reads all entries (including comments, env vars) from a file
 	ParseFile(path string) ([]*Entry, error)
+
+	// ReadStdin reads and parses cron jobs from standard input
+	ReadStdin() ([]*Job, error)
+
+	// ParseStdin reads all entries (including comments, env vars) from standard input
+	ParseStdin() ([]*Entry, error)
 }
 
 // reader implements the Reader interface
@@ -100,6 +106,43 @@ func (r *reader) ParseFile(path string) (entries []*Entry, err error) {
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+
+	return entries, nil
+}
+
+// ReadStdin reads and parses cron jobs from standard input
+func (r *reader) ReadStdin() ([]*Job, error) {
+	entries, err := r.ParseStdin()
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract only job entries
+	var jobs []*Job
+	for _, entry := range entries {
+		if entry.Type == EntryTypeJob && entry.Job != nil {
+			jobs = append(jobs, entry.Job)
+		}
+	}
+
+	return jobs, nil
+}
+
+// ParseStdin reads all entries from standard input
+func (r *reader) ParseStdin() (entries []*Entry, err error) {
+	scanner := bufio.NewScanner(os.Stdin)
+	lineNumber := 0
+
+	for scanner.Scan() {
+		lineNumber++
+		line := scanner.Text()
+		entry := ParseLine(line, lineNumber)
+		entries = append(entries, entry)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading stdin: %w", err)
 	}
 
 	return entries, nil

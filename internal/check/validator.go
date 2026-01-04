@@ -204,6 +204,88 @@ func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) Validati
 	return result
 }
 
+// ValidateEntries validates a slice of crontab entries (e.g., from stdin)
+func (v *Validator) ValidateEntries(entries []*crontab.Entry) ValidationResult {
+	result := ValidationResult{
+		Valid:     true,
+		Issues:    []Issue{},
+		TotalJobs: 0,
+		ValidJobs: 0,
+	}
+
+	// Validate each job entry
+	for _, entry := range entries {
+		if entry.Type != crontab.EntryTypeJob || entry.Job == nil {
+			continue
+		}
+
+		result.TotalJobs++
+
+		if !entry.Job.Valid {
+			result.Valid = false
+			result.InvalidJobs++
+			result.Issues = append(result.Issues, Issue{
+				Severity:   SeverityError,
+				Code:       CodeParseError,
+				LineNumber: entry.Job.LineNumber,
+				Expression: entry.Job.Expression,
+				Message:    fmt.Sprintf("Invalid cron expression: %s", entry.Job.Error),
+				Hint:       GetCodeHint(CodeParseError),
+			})
+			continue
+		}
+
+		// Parse the schedule for additional checks
+		schedule, err := v.parser.Parse(entry.Job.Expression)
+		if err != nil {
+			// This shouldn't happen if Valid is true, but handle it anyway
+			result.Valid = false
+			result.InvalidJobs++
+			result.ValidJobs--
+			result.Issues = append(result.Issues, Issue{
+				Severity:   SeverityError,
+				Code:       CodeParseError,
+				LineNumber: entry.Job.LineNumber,
+				Expression: entry.Job.Expression,
+				Message:    fmt.Sprintf("Failed to parse expression: %s", err.Error()),
+				Hint:       GetCodeHint(CodeParseError),
+			})
+			continue
+		}
+
+		result.ValidJobs++
+
+		// Check for DOM/DOW conflict
+		if detectDOMDOWConflict(schedule) {
+			result.Issues = append(result.Issues, Issue{
+				Severity:   SeverityWarn,
+				Code:       CodeDOMDOWConflict,
+				LineNumber: entry.Job.LineNumber,
+				Expression: entry.Job.Expression,
+				Message:    "Both day-of-month and day-of-week specified (runs if either condition is met)",
+				Hint:       GetCodeHint(CodeDOMDOWConflict),
+			})
+		}
+
+		// Check for empty schedule
+		if detectEmptySchedule(entry.Job.Expression, v.scheduler) {
+			result.Valid = false
+			result.InvalidJobs++
+			result.ValidJobs--
+			result.Issues = append(result.Issues, Issue{
+				Severity:   SeverityError,
+				Code:       CodeEmptySchedule,
+				LineNumber: entry.Job.LineNumber,
+				Expression: entry.Job.Expression,
+				Message:    "Schedule never runs (empty schedule)",
+				Hint:       GetCodeHint(CodeEmptySchedule),
+			})
+		}
+	}
+
+	return result
+}
+
 // ValidateUserCrontab validates the current user's crontab
 func (v *Validator) ValidateUserCrontab(reader crontab.Reader) ValidationResult {
 	result := ValidationResult{

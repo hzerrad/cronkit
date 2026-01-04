@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -181,5 +182,92 @@ func TestNextCommand(t *testing.T) {
 		assert.Contains(t, output, "Next 1 run", "Should use singular 'run' for count of 1")
 		assert.Contains(t, output, "1.")
 		assert.NotContains(t, output, "2.")
+	})
+
+	t.Run("next with --timezone UTC", func(t *testing.T) {
+		nc := newNextCommand()
+		buf := new(bytes.Buffer)
+		nc.SetOut(buf)
+		nc.SetArgs([]string{"0 * * * *", "--timezone", "UTC", "--count", "3"})
+
+		err := nc.Execute()
+		require.NoError(t, err)
+
+		output := buf.String()
+		// Verify timestamps are in UTC
+		assert.Contains(t, output, "UTC")
+	})
+
+	t.Run("next with --timezone America/New_York", func(t *testing.T) {
+		nc := newNextCommand()
+		buf := new(bytes.Buffer)
+		nc.SetOut(buf)
+		nc.SetArgs([]string{"0 * * * *", "--timezone", "America/New_York", "--count", "3"})
+
+		err := nc.Execute()
+		require.NoError(t, err)
+
+		output := buf.String()
+		// Should contain timezone abbreviation (EST or EDT) or timezone name
+		assert.True(t, strings.Contains(output, "EST") || strings.Contains(output, "EDT") || strings.Contains(output, "America/New_York"))
+	})
+
+	t.Run("next with invalid timezone", func(t *testing.T) {
+		nc := newNextCommand()
+		nc.SetArgs([]string{"0 * * * *", "--timezone", "Invalid/Timezone"})
+
+		err := nc.Execute()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid timezone")
+	})
+
+	t.Run("next with timezone and --json", func(t *testing.T) {
+		nc := newNextCommand()
+		buf := new(bytes.Buffer)
+		nc.SetOut(buf)
+		nc.SetArgs([]string{"@hourly", "--timezone", "UTC", "--json", "-c", "2"})
+
+		err := nc.Execute()
+		require.NoError(t, err)
+
+		var result NextResult
+		err = json.Unmarshal(buf.Bytes(), &result)
+		require.NoError(t, err)
+
+		assert.Equal(t, "UTC", result.Timezone)
+		assert.Len(t, result.NextRuns, 2)
+	})
+
+	t.Run("next with timezone and various cron expressions", func(t *testing.T) {
+		expressions := []string{"*/15 * * * *", "@daily", "0 9 * * 1-5", "0 0 1 * *"}
+
+		for _, expr := range expressions {
+			t.Run(expr, func(t *testing.T) {
+				nc := newNextCommand()
+				buf := new(bytes.Buffer)
+				nc.SetOut(buf)
+				nc.SetArgs([]string{expr, "--timezone", "Europe/London", "--count", "1"})
+
+				err := nc.Execute()
+				require.NoError(t, err)
+
+				output := buf.String()
+				assert.Contains(t, output, expr)
+			})
+		}
+	})
+
+	t.Run("next default behavior (local timezone when not specified)", func(t *testing.T) {
+		nc := newNextCommand()
+		buf := new(bytes.Buffer)
+		nc.SetOut(buf)
+		nc.SetArgs([]string{"0 * * * *", "--count", "1"})
+
+		err := nc.Execute()
+		require.NoError(t, err)
+
+		output := buf.String()
+		// Should not error and should produce output
+		assert.Contains(t, output, "Next 1 run")
 	})
 }

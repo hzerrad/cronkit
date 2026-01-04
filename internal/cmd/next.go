@@ -13,8 +13,9 @@ import (
 // NextCommand wraps cobra.Command with next-specific functionality
 type NextCommand struct {
 	*cobra.Command
-	count int
-	json  bool
+	count    int
+	json     bool
+	timezone string
 }
 
 // NextRun represents a single scheduled run time
@@ -29,7 +30,8 @@ type NextResult struct {
 	Expression  string    `json:"expression"`
 	Description string    `json:"description"`
 	Timezone    string    `json:"timezone"`
-	NextRuns    []NextRun `json:"next_runs"`
+	Locale      string    `json:"locale"`
+	NextRuns    []NextRun `json:"nextRuns"`
 }
 
 func init() {
@@ -66,6 +68,7 @@ Examples:
 
 	nc.Command.Flags().IntVarP(&nc.count, "count", "c", 10, "Number of runs to show (1-100)")
 	nc.Command.Flags().BoolVarP(&nc.json, "json", "j", false, "Output as JSON")
+	nc.Command.Flags().StringVar(&nc.timezone, "timezone", "", "Timezone for calculations (e.g., 'America/New_York', 'UTC', defaults to local timezone)")
 
 	return nc
 }
@@ -81,9 +84,19 @@ func (nc *NextCommand) runNext(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("count must be at most 100")
 	}
 
+	// Determine timezone
+	loc := time.Local
+	if nc.timezone != "" {
+		parsedLoc, err := time.LoadLocation(nc.timezone)
+		if err != nil {
+			return fmt.Errorf("invalid timezone: %w (use IANA timezone name like 'America/New_York' or 'UTC')", err)
+		}
+		loc = parsedLoc
+	}
+
 	// Create scheduler and calculate next runs
 	scheduler := cronx.NewScheduler()
-	now := time.Now()
+	now := time.Now().In(loc)
 
 	times, err := scheduler.Next(expression, now, nc.count)
 	if err != nil {
@@ -102,13 +115,13 @@ func (nc *NextCommand) runNext(_ *cobra.Command, args []string) error {
 
 	// Output based on format
 	if nc.json {
-		return nc.outputNextJSON(expression, description, times, now)
+		return nc.outputNextJSON(expression, description, times, now, loc)
 	}
 
-	return nc.outputNextText(expression, description, times)
+	return nc.outputNextText(expression, description, times, loc)
 }
 
-func (nc *NextCommand) outputNextText(expression, description string, times []time.Time) error {
+func (nc *NextCommand) outputNextText(expression, description string, times []time.Time, loc *time.Location) error {
 	// Header with count
 	runWord := "runs"
 	if len(times) == 1 {
@@ -117,22 +130,24 @@ func (nc *NextCommand) outputNextText(expression, description string, times []ti
 	_, _ = fmt.Fprintf(nc.OutOrStdout(), "Next %d %s for \"%s\" (%s):\n\n",
 		len(times), runWord, expression, description)
 
-	// List each run with timestamp
+	// List each run with timestamp in the specified timezone
 	for i, t := range times {
+		tInLoc := t.In(loc)
 		_, _ = fmt.Fprintf(nc.OutOrStdout(), "%d. %s\n",
-			i+1, t.Format("2006-01-02 15:04:05 MST"))
+			i+1, tInLoc.Format("2006-01-02 15:04:05 MST"))
 	}
 
 	return nil
 }
 
-func (nc *NextCommand) outputNextJSON(expression, description string, times []time.Time, now time.Time) error {
+func (nc *NextCommand) outputNextJSON(expression, description string, times []time.Time, now time.Time, loc *time.Location) error {
 	// Build next runs array
 	runs := make([]NextRun, len(times))
 	for i, t := range times {
+		tInLoc := t.In(loc)
 		runs[i] = NextRun{
 			Number:    i + 1,
-			Timestamp: t.Format(time.RFC3339),
+			Timestamp: tInLoc.Format(time.RFC3339),
 			Relative:  formatRelativeTime(now, t),
 		}
 	}
@@ -141,7 +156,8 @@ func (nc *NextCommand) outputNextJSON(expression, description string, times []ti
 	result := NextResult{
 		Expression:  expression,
 		Description: description,
-		Timezone:    times[0].Location().String(),
+		Timezone:    loc.String(),
+		Locale:      GetLocale(),
 		NextRuns:    runs,
 	}
 
