@@ -92,7 +92,7 @@ var _ = Describe("Timeline Command", func() {
 
 	Context("when running 'cronic timeline' with --file flag", func() {
 		It("should read from crontab file", func() {
-			testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "timeline", "--file", testFile)
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -102,7 +102,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 
 		It("should output JSON for crontab file", func() {
-			testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "timeline", "--file", testFile, "--json")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -196,7 +196,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 
 		It("should show overlaps with multiple jobs", func() {
-			testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "timeline", "--file", testFile, "--show-overlaps")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -284,7 +284,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 
 		It("should work with timezone and crontab file", func() {
-			testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "timeline", "--file", testFile, "--timezone", "UTC")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())

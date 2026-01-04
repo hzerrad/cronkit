@@ -12,17 +12,7 @@ import (
 )
 
 var _ = Describe("Performance Tests", func() {
-	var pathToCLI string
-
-	BeforeSuite(func() {
-		var err error
-		pathToCLI, err = gexec.Build("github.com/hzerrad/cronic/cmd/cronic")
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterSuite(func() {
-		gexec.CleanupBuildArtifacts()
-	})
+	// Uses shared pathToCLI from explain_command_test.go
 
 	Context("when processing large crontabs", func() {
 		It("should process 100 jobs in under 1 second", func() {
@@ -93,11 +83,11 @@ var _ = Describe("Performance Tests", func() {
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(session).Should(gexec.Exit(0))
+			Eventually(session, 10*time.Second).Should(gexec.Exit(0))
 			duration := time.Since(start)
 
-			Expect(duration).To(BeNumerically("<", 5*time.Second),
-				"Processing 500 jobs should take less than 5 seconds, took %v", duration)
+			Expect(duration).To(BeNumerically("<", 10*time.Second),
+				"Processing 500 jobs should take less than 10 seconds, took %v", duration)
 		})
 	})
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/hzerrad/cronic/internal/check"
 	"github.com/hzerrad/cronic/internal/crontab"
@@ -12,12 +13,17 @@ import (
 
 type CheckCommand struct {
 	*cobra.Command
-	file    string
-	json    bool
-	verbose bool
-	failOn  string
-	groupBy string
-	stdin   bool
+	file            string
+	json            bool
+	verbose         bool
+	failOn          string
+	groupBy         string
+	stdin           bool
+	enableFrequency bool
+	maxRunsPerDay   int
+	enableHygiene   bool
+	warnOnOverlap   bool
+	overlapWindow   string
 }
 
 func newCheckCommand() *CheckCommand {
@@ -32,6 +38,8 @@ This command checks for:
   - DOM/DOW conflicts (when both day-of-month and day-of-week are specified)
   - Empty schedules (expressions that never run)
   - Invalid crontab file structure
+  - Redundant patterns (e.g., */1 instead of *)
+  - Excessive run counts (configurable threshold)
 
 Examples:
   cronic check "0 0 * * *"              # Validate a single expression
@@ -49,6 +57,11 @@ Examples:
 	cc.Flags().StringVar(&cc.failOn, "fail-on", "error", "Severity level to fail on: 'error' (default), 'warn', or 'info'")
 	cc.Flags().StringVar(&cc.groupBy, "group-by", "none", "Group issues by: 'none' (default), 'severity', 'line', or 'job'")
 	cc.Flags().BoolVar(&cc.stdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
+	cc.Flags().BoolVar(&cc.enableFrequency, "enable-frequency-checks", true, "Enable frequency analysis (redundant patterns, excessive runs)")
+	cc.Flags().IntVar(&cc.maxRunsPerDay, "max-runs-per-day", 1000, "Threshold for excessive runs warning (default: 1000)")
+	cc.Flags().BoolVar(&cc.enableHygiene, "enable-hygiene-checks", false, "Enable command hygiene checks (absolute paths, redirections, %, quoting)")
+	cc.Flags().BoolVar(&cc.warnOnOverlap, "warn-on-overlap", false, "Enable overlap warnings (multiple jobs running simultaneously)")
+	cc.Flags().StringVar(&cc.overlapWindow, "overlap-window", "24h", "Time window for overlap analysis (default: 24h, e.g., 1h, 24h, 48h)")
 
 	return cc
 }
@@ -65,6 +78,20 @@ func (cc *CheckCommand) runCheck(_ *cobra.Command, args []string) error {
 	}
 
 	validator := check.NewValidator(GetLocale())
+	validator.SetFrequencyChecks(cc.enableFrequency)
+	validator.SetMaxRunsPerDay(cc.maxRunsPerDay)
+	validator.SetHygieneChecks(cc.enableHygiene)
+
+	// Parse overlap window duration
+	if cc.warnOnOverlap {
+		overlapDuration, err := time.ParseDuration(cc.overlapWindow)
+		if err != nil {
+			return fmt.Errorf("invalid overlap-window duration: %w", err)
+		}
+		validator.SetOverlapWindow(overlapDuration)
+		validator.SetWarnOnOverlap(true)
+	}
+
 	reader := crontab.NewReader()
 
 	var result check.ValidationResult

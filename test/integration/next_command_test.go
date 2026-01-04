@@ -461,8 +461,11 @@ var _ = Describe("Next Command", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Times should be different (accounting for timezone offset)
-				nextRunsUTC := resultUTC["next_runs"].([]interface{})
-				nextRunsNY := resultNY["next_runs"].([]interface{})
+				// JSON uses camelCase: "nextRuns" not "next_runs"
+				nextRunsUTC, ok := resultUTC["nextRuns"].([]interface{})
+				Expect(ok).To(BeTrue(), "nextRuns should be present in UTC result")
+				nextRunsNY, ok := resultNY["nextRuns"].([]interface{})
+				Expect(ok).To(BeTrue(), "nextRuns should be present in NY result")
 				Expect(len(nextRunsUTC)).To(Equal(1))
 				Expect(len(nextRunsNY)).To(Equal(1))
 

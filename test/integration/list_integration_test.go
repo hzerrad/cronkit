@@ -15,7 +15,7 @@ var _ = Describe("List Command", func() {
 	var testDataDir string
 
 	BeforeEach(func() {
-		testDataDir = filepath.Join("..", "..", "testdata", "crontab")
+		testDataDir = filepath.Join("..", "..", "testdata", "crontab", "valid")
 	})
 
 	Describe("Listing crontab files", func() {
@@ -206,7 +206,7 @@ var _ = Describe("List Command", func() {
 
 		Context("when listing with invalid cron entries", func() {
 			It("should skip invalid entries and show valid ones", func() {
-				invalidFile := filepath.Join(testDataDir, "invalid.cron")
+				invalidFile := filepath.Join("..", "..", "testdata", "crontab", "invalid", "invalid.cron")
 				command := exec.Command(pathToCLI, "list", "--file", invalidFile)
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())

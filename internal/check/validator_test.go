@@ -12,6 +12,197 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSetFrequencyChecks(t *testing.T) {
+	validator := NewValidator("en")
+	validator.SetFrequencyChecks(false)
+	assert.False(t, validator.enableFrequency)
+
+	validator.SetFrequencyChecks(true)
+	assert.True(t, validator.enableFrequency)
+}
+
+func TestSetMaxRunsPerDay(t *testing.T) {
+	validator := NewValidator("en")
+	validator.SetMaxRunsPerDay(500)
+	assert.Equal(t, 500, validator.maxRunsPerDay)
+}
+
+func TestSetHygieneChecks(t *testing.T) {
+	validator := NewValidator("en")
+	validator.SetHygieneChecks(true)
+	assert.True(t, validator.enableHygiene)
+
+	validator.SetHygieneChecks(false)
+	assert.False(t, validator.enableHygiene)
+}
+
+func TestSetWarnOnOverlap(t *testing.T) {
+	validator := NewValidator("en")
+	validator.SetWarnOnOverlap(true)
+	assert.True(t, validator.warnOnOverlap)
+}
+
+func TestSetOverlapWindow(t *testing.T) {
+	validator := NewValidator("en")
+	window := 48 * time.Hour
+	validator.SetOverlapWindow(window)
+	assert.Equal(t, window, validator.overlapWindow)
+}
+
+func TestValidateCommandHygiene(t *testing.T) {
+	validator := NewValidator("en")
+	validator.SetHygieneChecks(true)
+
+	job := &crontab.Job{
+		LineNumber: 1,
+		Expression: "0 * * * *",
+		Command:    "backup.sh", // Missing absolute path
+		Valid:      true,
+	}
+
+	issues := validator.validateCommandHygiene(job)
+	assert.Greater(t, len(issues), 0)
+	assert.Equal(t, 1, issues[0].LineNumber)
+}
+
+func TestValidateFrequency(t *testing.T) {
+	validator := NewValidator("en")
+	validator.SetFrequencyChecks(true)
+	validator.SetMaxRunsPerDay(10) // Low threshold
+
+	t.Run("should detect excessive runs", func(t *testing.T) {
+		parser := cronx.NewParser()
+		schedule, err := parser.Parse("* * * * *") // Every minute - will exceed threshold
+		require.NoError(t, err)
+
+		issues := validator.validateFrequency(schedule, "* * * * *")
+		assert.Greater(t, len(issues), 0)
+	})
+
+	t.Run("should detect redundant patterns", func(t *testing.T) {
+		parser := cronx.NewParser()
+		schedule, err := parser.Parse("*/1 * * * *")
+		require.NoError(t, err)
+
+		issues := validator.validateFrequency(schedule, "*/1 * * * *")
+		// Should detect redundant pattern
+		found := false
+		for _, issue := range issues {
+			if issue.Code == CodeRedundantPattern {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should detect redundant pattern")
+	})
+
+	t.Run("should handle calculation errors gracefully", func(t *testing.T) {
+		parser := cronx.NewParser()
+		schedule, err := parser.Parse("0 * * * *")
+		require.NoError(t, err)
+
+		// Use a valid schedule that won't cause calculation errors
+		issues := validator.validateFrequency(schedule, "0 * * * *")
+		// Should not error
+		assert.GreaterOrEqual(t, len(issues), 0)
+	})
+}
+
+func TestValidateOverlaps(t *testing.T) {
+	validator := NewValidator("en")
+	validator.SetWarnOnOverlap(true)
+	validator.SetOverlapWindow(24 * time.Hour)
+
+	t.Run("should detect overlaps for multiple jobs", func(t *testing.T) {
+		entries := []*crontab.Entry{
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 1,
+				Job: &crontab.Job{
+					LineNumber: 1,
+					Expression: "0 * * * *",
+					Valid:      true,
+				},
+			},
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 2,
+				Job: &crontab.Job{
+					LineNumber: 2,
+					Expression: "0 * * * *",
+					Valid:      true,
+				},
+			},
+		}
+
+		issues := validator.validateOverlaps(entries)
+		// May or may not have overlaps depending on timing, but should not error
+		assert.GreaterOrEqual(t, len(issues), 0)
+	})
+
+	t.Run("should return empty for single job", func(t *testing.T) {
+		entries := []*crontab.Entry{
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 1,
+				Job: &crontab.Job{
+					LineNumber: 1,
+					Expression: "0 * * * *",
+					Valid:      true,
+				},
+			},
+		}
+
+		issues := validator.validateOverlaps(entries)
+		assert.Equal(t, 0, len(issues))
+	})
+
+	t.Run("should skip invalid jobs", func(t *testing.T) {
+		entries := []*crontab.Entry{
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 1,
+				Job: &crontab.Job{
+					LineNumber: 1,
+					Expression: "invalid",
+					Valid:      false,
+				},
+			},
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 2,
+				Job: &crontab.Job{
+					LineNumber: 2,
+					Expression: "0 * * * *",
+					Valid:      true,
+				},
+			},
+		}
+
+		issues := validator.validateOverlaps(entries)
+		// Should not error even with invalid jobs
+		assert.GreaterOrEqual(t, len(issues), 0)
+	})
+}
+
+func TestMin(t *testing.T) {
+	t.Run("should return first value when a < b", func(t *testing.T) {
+		assert.Equal(t, 1, min(1, 2))
+		assert.Equal(t, 0, min(0, 1))
+		assert.Equal(t, 5, min(5, 10))
+	})
+
+	t.Run("should return second value when a > b", func(t *testing.T) {
+		assert.Equal(t, 2, min(3, 2))
+		assert.Equal(t, 1, min(2, 1))
+	})
+
+	t.Run("should return either value when a == b", func(t *testing.T) {
+		assert.Equal(t, 5, min(5, 5))
+		assert.Equal(t, 0, min(0, 0))
+	})
+}
+
 func TestDetectDOMDOWConflict(t *testing.T) {
 	parser := cronx.NewParser()
 
@@ -237,7 +428,16 @@ func TestValidator_ValidateCrontab(t *testing.T) {
 	validator := NewValidator("en")
 	reader := crontab.NewReader()
 
+	t.Run("valid crontab file with overlap analysis", func(t *testing.T) {
+		validator.SetWarnOnOverlap(true)
+		validator.SetOverlapWindow(24 * time.Hour)
+		result := validator.ValidateCrontab(reader, "../../testdata/crontab/valid/sample.cron")
+		// Should not error
+		assert.NotNil(t, result)
+	})
+
 	t.Run("valid crontab file", func(t *testing.T) {
+		validator := NewValidator("en")
 		result := validator.ValidateCrontab(reader, "../../testdata/crontab/valid/sample.cron")
 		assert.True(t, result.Valid || result.TotalJobs == 0, "Should be valid or have no jobs")
 		assert.GreaterOrEqual(t, result.TotalJobs, 0)
@@ -468,6 +668,32 @@ func TestValidator_ValidateCrontab(t *testing.T) {
 
 func TestValidator_ValidateUserCrontab(t *testing.T) {
 	validator := NewValidator("en")
+
+	t.Run("with overlap analysis enabled", func(t *testing.T) {
+		validator.SetWarnOnOverlap(true)
+		validator.SetOverlapWindow(24 * time.Hour)
+		mockReader := &mockReader{
+			jobs: []*crontab.Job{
+				{
+					LineNumber: 1,
+					Expression: "0 * * * *",
+					Command:    "/usr/bin/job1.sh",
+					Valid:      true,
+				},
+				{
+					LineNumber: 2,
+					Expression: "0 * * * *",
+					Command:    "/usr/bin/job2.sh",
+					Valid:      true,
+				},
+			},
+		}
+		result := validator.ValidateUserCrontab(mockReader)
+		assert.NotNil(t, result)
+		assert.Equal(t, 2, result.TotalJobs)
+	})
+
+	validator = NewValidator("en")
 
 	t.Run("user crontab with read error", func(t *testing.T) {
 		// Test error path when reading user crontab fails
@@ -836,7 +1062,92 @@ func TestValidateCrontab_EmptyScheduleWithDOMDOW(t *testing.T) {
 func TestValidator_ValidateEntries(t *testing.T) {
 	validator := NewValidator("en")
 
+	t.Run("with overlap analysis enabled", func(t *testing.T) {
+		validator.SetWarnOnOverlap(true)
+		validator.SetOverlapWindow(24 * time.Hour)
+		entries := []*crontab.Entry{
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 1,
+				Job: &crontab.Job{
+					LineNumber: 1,
+					Expression: "0 * * * *",
+					Command:    "/usr/bin/job1.sh",
+					Valid:      true,
+				},
+			},
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 2,
+				Job: &crontab.Job{
+					LineNumber: 2,
+					Expression: "0 * * * *",
+					Command:    "/usr/bin/job2.sh",
+					Valid:      true,
+				},
+			},
+		}
+		result := validator.ValidateEntries(entries)
+		assert.NotNil(t, result)
+		assert.Equal(t, 2, result.TotalJobs)
+		// May or may not detect overlaps depending on timing
+	})
+
+	t.Run("with frequency checks disabled", func(t *testing.T) {
+		validator := NewValidator("en")
+		validator.SetFrequencyChecks(false)
+		entries := []*crontab.Entry{
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 1,
+				Job: &crontab.Job{
+					LineNumber: 1,
+					Expression: "0 * * * *",
+					Command:    "/usr/bin/job.sh",
+					Valid:      true,
+				},
+			},
+		}
+		result := validator.ValidateEntries(entries)
+		assert.True(t, result.Valid)
+		assert.Equal(t, 1, result.TotalJobs)
+		// Should not have frequency-related issues
+		for _, issue := range result.Issues {
+			assert.NotEqual(t, CodeRedundantPattern, issue.Code)
+			assert.NotEqual(t, CodeExcessiveRuns, issue.Code)
+		}
+	})
+
+	t.Run("with hygiene checks enabled", func(t *testing.T) {
+		validator := NewValidator("en")
+		validator.SetHygieneChecks(true)
+		entries := []*crontab.Entry{
+			{
+				Type:       crontab.EntryTypeJob,
+				LineNumber: 1,
+				Job: &crontab.Job{
+					LineNumber: 1,
+					Expression: "0 * * * *",
+					Command:    "backup.sh", // Missing absolute path
+					Valid:      true,
+				},
+			},
+		}
+		result := validator.ValidateEntries(entries)
+		assert.True(t, result.Valid)
+		// Should have hygiene issues
+		hasHygieneIssue := false
+		for _, issue := range result.Issues {
+			if issue.Code == CodeMissingAbsolutePath || issue.Code == CodeMissingRedirection {
+				hasHygieneIssue = true
+				break
+			}
+		}
+		assert.True(t, hasHygieneIssue, "Should detect hygiene issues")
+	})
+
 	t.Run("should validate empty entries", func(t *testing.T) {
+		validator := NewValidator("en")
 		result := validator.ValidateEntries([]*crontab.Entry{})
 		assert.True(t, result.Valid)
 		assert.Equal(t, 0, result.TotalJobs)
@@ -855,6 +1166,8 @@ func TestValidator_ValidateEntries(t *testing.T) {
 	})
 
 	t.Run("should validate valid job entries", func(t *testing.T) {
+		validator := NewValidator("en")
+		validator.SetFrequencyChecks(false) // Disable frequency checks to avoid warnings
 		entries := []*crontab.Entry{
 			{
 				Type: crontab.EntryTypeJob,

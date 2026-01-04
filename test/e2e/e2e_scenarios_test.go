@@ -149,7 +149,7 @@ var _ = Describe("E2E Scenarios", func() {
 
 			It("should help DevOps engineer validate crontab before deployment", func() {
 				By("validating a crontab file")
-				testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 				command := exec.Command(pathToCLI, "check", "--file", testFile)
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
@@ -294,7 +294,7 @@ var _ = Describe("E2E Scenarios", func() {
 
 			It("should help identify job overlaps and conflicts", func() {
 				By("creating a timeline from crontab file")
-				testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 				command := exec.Command(pathToCLI, "timeline", "--file", testFile)
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
@@ -385,7 +385,7 @@ var _ = Describe("E2E Scenarios", func() {
 			})
 
 			It("should support list -> timeline workflow for crontab analysis", func() {
-				testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 
 				By("listing jobs in crontab")
 				command := exec.Command(pathToCLI, "list", "--file", testFile)

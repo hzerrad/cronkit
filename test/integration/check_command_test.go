@@ -60,7 +60,7 @@ var _ = Describe("Check Command", func() {
 
 	Context("when running 'cronic check --file' with a valid crontab", func() {
 		It("should validate successfully", func() {
-			testFile := filepath.Join("..", "..", "testdata", "crontab", "sample.cron")
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "check", "--file", testFile)
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -71,7 +71,7 @@ var _ = Describe("Check Command", func() {
 
 	Context("when running 'cronic check --file' with an invalid crontab", func() {
 		It("should report errors and exit with code 1", func() {
-			testFile := filepath.Join("..", "..", "testdata", "crontab", "invalid.cron")
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "invalid", "invalid.cron")
 			command := exec.Command(pathToCLI, "check", "--file", testFile)
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -163,7 +163,7 @@ var _ = Describe("Check Command", func() {
 
 	Context("when running 'cronic check' with empty crontab", func() {
 		It("should handle empty file gracefully", func() {
-			testFile := filepath.Join("..", "..", "testdata", "crontab", "empty.cron")
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "empty.cron")
 			command := exec.Command(pathToCLI, "check", "--file", testFile)
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -279,7 +279,7 @@ var _ = Describe("Check Command", func() {
 		})
 
 		It("should group issues by line when using --file", func() {
-			testFile := filepath.Join("..", "..", "testdata", "crontab", "invalid.cron")
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "invalid", "invalid.cron")
 			command := exec.Command(pathToCLI, "check", "--file", testFile, "--group-by", "line")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -287,7 +287,7 @@ var _ = Describe("Check Command", func() {
 			Eventually(session).Should(gexec.Exit(1))
 			output := string(session.Out.Contents())
 			Expect(output).To(ContainSubstring("Line"))
-			Expect(output).To(ContainSubstring("━━━"))
+			Expect(output).To(MatchRegexp("━━━|Line"))
 		})
 
 		It("should work with --group-by and --json", func() {

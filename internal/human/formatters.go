@@ -59,7 +59,9 @@ func formatMonth(month int) string {
 
 // ordinalSuffix returns the ordinal suffix for a day number (1st, 2nd, 3rd, etc.)
 func ordinalSuffix(day int) string {
-	if day >= 11 && day <= 13 {
+	// Numbers ending in 11, 12, or 13 always use "th" (e.g., 11th, 12th, 13th, 111th, 112th, 113th)
+	lastTwoDigits := day % 100
+	if lastTwoDigits >= 11 && lastTwoDigits <= 13 {
 		return "th"
 	}
 	switch day % 10 {
