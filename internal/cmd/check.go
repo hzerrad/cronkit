@@ -43,12 +43,12 @@ Examples:
 		Args: cobra.MaximumNArgs(1),
 	}
 
-	cc.Flags().StringVarP(&cc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab)")
-	cc.Flags().BoolVarP(&cc.json, "json", "j", false, "Output as JSON")
+	cc.Flags().StringVarP(&cc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
+	cc.Flags().BoolVarP(&cc.json, "json", "j", false, "Output in JSON format")
 	cc.Flags().BoolVarP(&cc.verbose, "verbose", "v", false, "Show warnings (DOM/DOW conflicts) as well as errors")
-	cc.Flags().StringVar(&cc.failOn, "fail-on", "error", "Severity level to fail on: error (default), warn, or info")
-	cc.Flags().StringVar(&cc.groupBy, "group-by", "none", "Group issues by: none (default), severity, line, or job")
-	cc.Flags().BoolVar(&cc.stdin, "stdin", false, "Read crontab from standard input")
+	cc.Flags().StringVar(&cc.failOn, "fail-on", "error", "Severity level to fail on: 'error' (default), 'warn', or 'info'")
+	cc.Flags().StringVar(&cc.groupBy, "group-by", "none", "Group issues by: 'none' (default), 'severity', 'line', or 'job'")
+	cc.Flags().BoolVar(&cc.stdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
 
 	return cc
 }

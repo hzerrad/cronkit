@@ -37,10 +37,10 @@ Examples:
 func init() {
 	rootCmd.AddCommand(listCmd)
 
-	listCmd.Flags().StringVarP(&listFile, "file", "f", "", "Path to crontab file (defaults to user's crontab)")
+	listCmd.Flags().StringVarP(&listFile, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
 	listCmd.Flags().BoolVarP(&listAll, "all", "a", false, "Show all entries including comments and environment variables")
-	listCmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output as JSON")
-	listCmd.Flags().BoolVar(&listStdin, "stdin", false, "Read crontab from standard input")
+	listCmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output in JSON format")
+	listCmd.Flags().BoolVar(&listStdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
 }
 
 // newListCommand creates a new list command for testing
@@ -59,10 +59,10 @@ Examples:
 		RunE: runList,
 	}
 
-	cmd.Flags().StringVarP(&listFile, "file", "f", "", "Path to crontab file (defaults to user's crontab)")
+	cmd.Flags().StringVarP(&listFile, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
 	cmd.Flags().BoolVarP(&listAll, "all", "a", false, "Show all entries including comments and environment variables")
-	cmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output as JSON")
-	cmd.Flags().BoolVar(&listStdin, "stdin", false, "Read crontab from standard input")
+	cmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output in JSON format")
+	cmd.Flags().BoolVar(&listStdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
 
 	return cmd
 }

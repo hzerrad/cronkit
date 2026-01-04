@@ -185,16 +185,30 @@ $ cat file.cron | cronic list --stdin --all
 
 ## Performance Issues with Large Crontabs
 
+### Expected Performance Characteristics
+
+Cronic is optimized for performance with large crontabs. Expected performance:
+
+- **100 jobs**: < 1 second for most operations
+- **500 jobs**: < 5 seconds for most operations
+- **1000+ jobs**: May take longer, but should remain reasonable
+
+Performance is optimized through:
+- Expression parsing cache (repeated expressions are cached)
+- Efficient file reading and parsing
+- Optimized timeline rendering
+
 ### Slow Processing
 
 **Symptom:** Commands take a long time with large crontabs (100+ jobs).
 
-**Cause:** Large crontabs require more processing time.
+**Cause:** Large crontabs require more processing time, but should still be fast.
 
 **Solution:**
 - Use `--json` flag for faster output (no formatting)
 - Process specific files instead of user crontab
 - Consider splitting large crontabs into multiple files
+- Check if performance is within expected thresholds
 
 **Example:**
 ```bash
@@ -203,6 +217,24 @@ $ cronic list --file large.cron --json > output.json
 
 # Check specific file
 $ cronic check --file specific-jobs.cron
+
+# Time the operation to verify performance
+$ time cronic check --file large.cron
+```
+
+**Performance Profiling:**
+
+If performance is slower than expected, you can profile the application:
+
+```bash
+# Generate performance profiles
+$ make profile
+
+# View CPU profile
+$ go tool pprof bin/cpu.prof
+
+# View in web interface
+$ go tool pprof -http=:8080 bin/cpu.prof
 ```
 
 ### Memory Issues
@@ -215,6 +247,8 @@ $ cronic check --file specific-jobs.cron
 - Process crontabs in smaller chunks
 - Use streaming processing where possible
 - Report the issue if it persists
+
+**Note:** Cronic uses caching for parsed expressions, which may increase memory usage slightly but improves performance significantly for repeated expressions.
 
 ## JSON Parsing Errors
 
@@ -269,6 +303,105 @@ $ cronic check "0 0 1 * 1" --verbose
 
 # Check with specific fail-on level
 $ cronic check "0 0 1 * 1" --fail-on warn
+```
+
+## v0.2.0 Feature Troubleshooting
+
+### --fail-on Flag Issues
+
+**Symptom:** Exit code doesn't match expected behavior with `--fail-on`.
+
+**Cause:** Exit codes depend on both the severity of issues found and the `--fail-on` threshold.
+
+**Solution:**
+- Understand exit code logic:
+  - `0`: No issues, or all issues are below the `--fail-on` threshold
+  - `1`: Errors found (or severity >= `--fail-on` threshold)
+  - `2`: Warnings found (when `--fail-on warn` or `--fail-on info` is used)
+- Use `--verbose` to see all issues regardless of severity
+- Check the highest severity issue found
+
+**Example:**
+```bash
+# Default: only fail on errors
+$ cronic check --file jobs.cron
+# Exits 0 if only warnings, 1 if errors
+
+# Fail on warnings too
+$ cronic check --file jobs.cron --fail-on warn --verbose
+# Exits 2 if warnings found, 1 if errors found
+
+# Fail on info messages (future use)
+$ cronic check --file jobs.cron --fail-on info --verbose
+# Exits 2 if any issues found
+```
+
+### --group-by Flag Issues
+
+**Symptom:** Issues not grouped as expected.
+
+**Cause:** Grouping mode may not be set correctly, or no issues to group.
+
+**Solution:**
+- Verify grouping mode: `none`, `severity`, `line`, or `job`
+- Use `--verbose` to see all issues (including warnings)
+- Check that issues exist to group
+
+**Example:**
+```bash
+# Group by severity (recommended for many issues)
+$ cronic check --file jobs.cron --group-by severity --verbose
+
+# Group by line number (useful for file-based validation)
+$ cronic check --file jobs.cron --group-by line --verbose
+
+# Group by job/expression (useful for identifying problematic patterns)
+$ cronic check --file jobs.cron --group-by job --verbose
+
+# No grouping (default, flat list)
+$ cronic check --file jobs.cron --group-by none --verbose
+```
+
+### Overlap Detection Issues
+
+**Symptom:** Overlaps not shown in timeline, or overlap information is confusing.
+
+**Cause:** `--show-overlaps` flag not used, or no overlaps exist in the time window.
+
+**Solution:**
+- Use `--show-overlaps` flag to see detailed overlap information
+- Check that multiple jobs are scheduled to run at the same time
+- Review the timeline view window (day or hour)
+- Use JSON output for programmatic access to overlap data
+
+**Example:**
+```bash
+# Show overlaps in timeline
+$ cronic timeline --file jobs.cron --show-overlaps
+
+# Get overlap statistics in JSON
+$ cronic timeline --file jobs.cron --show-overlaps --json | jq '.overlapStats'
+
+# Check specific time window
+$ cronic timeline --file jobs.cron --from "2025-01-15T00:00:00Z" --show-overlaps
+```
+
+**Understanding Overlap Output:**
+
+- **Total overlap windows**: Number of distinct times when multiple jobs run
+- **Maximum concurrent jobs**: Highest number of jobs running at the same time
+- **Most problematic**: Top 10 overlap windows with the most concurrent jobs
+
+**Example Output:**
+```
+━━━ Overlap Summary ━━━
+Total overlap windows: 24
+Maximum concurrent jobs: 3
+
+Overlaps:
+  2025-01-15 00:00:00: 3 job(s) (job-1, job-2, job-3)
+  2025-01-15 01:00:00: 2 job(s) (job-1, job-4)
+  ...
 ```
 
 ### Empty Schedule Not Detected

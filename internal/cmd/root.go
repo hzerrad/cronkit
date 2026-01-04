@@ -33,7 +33,7 @@ func Execute() error {
 
 func init() {
 	// Global flags - these apply to all subcommands
-	rootCmd.PersistentFlags().StringVar(&locale, "locale", "en", "Locale for parsing day/month names (e.g., en, fr, es)")
+	rootCmd.PersistentFlags().StringVar(&locale, "locale", "en", "Locale for parsing day/month names (default: 'en', e.g., 'en', 'fr', 'es')")
 }
 
 // GetLocale returns the current locale setting

@@ -117,6 +117,18 @@ $ cronic check "0 0 1 * 1" --verbose
   Expression: 0 0 1 * 1
   Hint: Consider using only day-of-month OR day-of-week, not both. Cron uses OR logic (runs if either condition is met).
 
+# Group issues by severity
+$ cronic check --file jobs.cron --group-by severity --verbose
+━━━ Error Issues (2 issue(s)) ━━━
+  ...
+
+━━━ Warning Issues (1 issue(s)) ━━━
+  ...
+
+# Use in CI/CD with fail-on
+$ cronic check --file jobs.cron --fail-on warn --verbose
+# Exits with code 2 if warnings are found
+
 $ cronic check "60 0 * * *"
 ✗ Found 1 issue(s)
   Total jobs: 1
@@ -233,9 +245,11 @@ cronic check --file jobs.cron --json     # JSON output
 Each diagnostic includes a **hint** with actionable suggestions for fixing the issue.
 
 **Exit Codes:**
-- `0` - All valid (no errors or only info messages)
-- `1` - Errors found
-- `2` - Warnings found (only with `--verbose`)
+- `0` - All valid (no errors, or only issues below the `--fail-on` threshold)
+- `1` - Errors found (or configured severity level reached)
+- `2` - Warnings found (when `--fail-on warn` or `--fail-on info` is used, or with `--verbose` for backward compatibility)
+
+**Note:** Exit codes are determined by the highest severity issue found and the `--fail-on` threshold. Use `--fail-on warn` to fail on warnings in CI/CD pipelines.
 
 ## Global Flags
 

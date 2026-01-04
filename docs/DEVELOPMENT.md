@@ -339,15 +339,125 @@ go test -v ./internal/cmd -run TestNextCommand
 
 ### Profiling
 
-```bash
-# CPU profile
-go test -bench=. -cpuprofile=cpu.prof ./internal/crontab
-go tool pprof cpu.prof
+**Performance Profiling Workflow (v0.2.0):**
 
-# Memory profile
-go test -bench=. -memprofile=mem.prof ./internal/crontab
-go tool pprof mem.prof
+```bash
+# Generate performance profiles for all packages
+make profile
+
+# This generates profiles in bin/:
+# - cpu.prof, cpu-parser.prof, cpu-validator.prof
+# - mem.prof, mem-parser.prof, mem-validator.prof
+
+# View CPU profile interactively
+go tool pprof bin/cpu.prof
+
+# View in web interface (recommended)
+go tool pprof -http=:8080 bin/cpu.prof
+# Then open http://localhost:8080 in your browser
+
+# View memory profile
+go tool pprof bin/mem.prof
+
+# Compare profiles (if you have baseline)
+go tool pprof -base baseline.prof bin/cpu.prof
 ```
+
+**Profiling Specific Packages:**
+
+```bash
+# Profile crontab reader
+go test -bench=. -cpuprofile=bin/cpu-reader.prof ./internal/crontab
+go tool pprof bin/cpu-reader.prof
+
+# Profile parser
+go test -bench=. -cpuprofile=bin/cpu-parser.prof ./internal/cronx
+go tool pprof bin/cpu-parser.prof
+
+# Profile validator
+go test -bench=. -cpuprofile=bin/cpu-validator.prof ./internal/check
+go tool pprof bin/cpu-validator.prof
+```
+
+**Performance Testing with Large Crontabs:**
+
+```bash
+# Test with 100+ jobs (performance integration tests)
+make test-performance
+
+# Test with large crontab manually
+make test-large
+
+# Create custom large crontab for testing
+for i in {1..500}; do
+  echo "0 * * * * /usr/bin/job$i.sh" >> /tmp/large-test.cron
+done
+
+# Test performance
+time ./bin/cronic check --file /tmp/large-test.cron
+time ./bin/cronic list --file /tmp/large-test.cron --json
+```
+
+**Performance Optimization Tips:**
+
+1. **Use caching**: The parser now caches parsed expressions to avoid re-parsing
+2. **Profile first**: Always profile before optimizing to identify actual bottlenecks
+3. **Test with realistic data**: Use large crontabs (100+ jobs) for performance testing
+4. **Set thresholds**: Performance tests enforce thresholds (<1s for 100 jobs, <5s for 500 jobs)
+
+## v0.2.0 Development Workflows
+
+### Working with Severity Levels and Diagnostic Codes
+
+All validation issues must have:
+- **Severity**: `SeverityInfo`, `SeverityWarn`, or `SeverityError`
+- **Code**: Unique diagnostic code (e.g., `CRON-001`)
+- **Hint**: Actionable suggestion for fixing the issue
+
+**Example:**
+```go
+issue := Issue{
+    Severity:   SeverityWarn,
+    Code:       CodeDOMDOWConflict,
+    LineNumber: 1,
+    Expression: "0 0 1 * 1",
+    Message:    "Both day-of-month and day-of-week specified",
+    Hint:       GetCodeHint(CodeDOMDOWConflict),
+}
+```
+
+### Working with Exit Codes
+
+Exit codes are determined by:
+1. Highest severity issue found
+2. `--fail-on` threshold setting
+3. `--verbose` flag (for backward compatibility)
+
+**Logic:**
+- Exit `0`: No issues, or all issues below `--fail-on` threshold
+- Exit `1`: Errors found (or severity >= `--fail-on`)
+- Exit `2`: Warnings found (when `--fail-on warn` or `--fail-on info`)
+
+### Testing Large Crontabs
+
+**Performance Test Pattern:**
+```go
+It("should process 100 jobs in under 1 second", func() {
+    testFile := filepath.Join("..", "..", "testdata", "crontab", "performance", "large.cron")
+    start := time.Now()
+    command := exec.Command(pathToCLI, "check", "--file", testFile)
+    session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+    Expect(err).NotTo(HaveOccurred())
+    Eventually(session).Should(gexec.Exit(0))
+    duration := time.Since(start)
+    Expect(duration).To(BeNumerically("<", 1*time.Second))
+})
+```
+
+**Performance Thresholds:**
+- 100 jobs: < 1 second
+- 500 jobs: < 5 seconds
+- 1000+ jobs: Should remain reasonable (no hard limit, but monitor)
 
 ## Common Tasks
 
@@ -359,12 +469,76 @@ go tool pprof mem.prof
 4. Register in `internal/cmd/root.go`
 5. Update README.md
 
-### Adding a New Validation Rule
+### Adding a New Validation Rule (v0.2.0)
 
-1. Add diagnostic code: `internal/check/codes.go`
-2. Implement validation: `internal/check/validator.go`
-3. Add tests: `internal/check/validator_test.go`
-4. Update documentation
+1. **Add diagnostic code** in `internal/check/codes.go`:
+   ```go
+   const CodeNewIssue = "CRON-XXX" // Use next available number
+   
+   func GetCodeSeverity(code string) Severity {
+       switch code {
+       // ... existing cases ...
+       case CodeNewIssue:
+           return SeverityWarn // or SeverityError, SeverityInfo
+       }
+   }
+   
+   func GetCodeHint(code string) string {
+       switch code {
+       // ... existing cases ...
+       case CodeNewIssue:
+           return "Actionable hint for fixing the issue"
+       }
+   }
+   ```
+
+2. **Implement validation** in `internal/check/validator.go`:
+   ```go
+   func (v *Validator) validateNewRule(schedule *cronx.Schedule) []Issue {
+       var issues []Issue
+       // Check condition
+       if condition {
+           issues = append(issues, Issue{
+               Severity:   GetCodeSeverity(CodeNewIssue),
+               Code:       CodeNewIssue,
+               LineNumber: 0, // Set from context
+               Expression: schedule.Original,
+               Message:    "Human-readable message",
+               Hint:       GetCodeHint(CodeNewIssue),
+           })
+       }
+       return issues
+   }
+   ```
+
+3. **Add tests** in `internal/check/validator_test.go`:
+   ```go
+   func TestValidator_NewRule(t *testing.T) {
+       validator := NewValidator("en")
+       
+       t.Run("should detect new issue", func(t *testing.T) {
+           result := validator.ValidateExpression("problematic-expression")
+           require.Len(t, result.Issues, 1)
+           assert.Equal(t, CodeNewIssue, result.Issues[0].Code)
+       })
+   }
+   ```
+
+4. **Add integration tests** in `test/integration/check_command_test.go`:
+   ```go
+   It("should detect new issue with correct severity", func() {
+       command := exec.Command(pathToCLI, "check", "problematic-expression", "--verbose")
+       session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+       Expect(err).NotTo(HaveOccurred())
+       Eventually(session).Should(gexec.Exit(2)) // or 1 for errors
+       Expect(session.Out).To(gbytes.Say("CRON-XXX"))
+   })
+   ```
+
+5. **Update documentation**:
+   - Add diagnostic code to README.md
+   - Update `docs/TROUBLESHOOTING.md` if needed
+   - Update JSON schema documentation if output changes
 
 ### Updating JSON Schema
 

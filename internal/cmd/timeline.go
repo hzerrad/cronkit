@@ -60,9 +60,9 @@ Examples:
   cronic timeline                               # Timeline for user's crontab`,
 	}
 
-	tc.Command.Flags().StringVarP(&tc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab)")
-	tc.Command.Flags().BoolVarP(&tc.json, "json", "j", false, "Output as JSON")
-	tc.Command.Flags().StringVar(&tc.view, "view", "day", "Timeline view type: 'day' (24 hours) or 'hour' (60 minutes)")
+	tc.Command.Flags().StringVarP(&tc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
+	tc.Command.Flags().BoolVarP(&tc.json, "json", "j", false, "Output in JSON format")
+	tc.Command.Flags().StringVar(&tc.view, "view", "day", "Timeline view type: 'day' (24 hours) or 'hour' (60 minutes, default: 'day')")
 	tc.Command.Flags().StringVar(&tc.from, "from", "", "Start time for timeline (RFC3339 format, defaults to current time)")
 	tc.Command.Flags().IntVar(&tc.width, "width", 0, "Terminal width (0 = auto-detect, defaults to 80 if detection fails)")
 	tc.Command.Flags().StringVar(&tc.timezone, "timezone", "", "Timezone for timeline (e.g., 'America/New_York', 'UTC', defaults to local timezone)")

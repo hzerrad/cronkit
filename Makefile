@@ -179,25 +179,43 @@ run: build ## Build and run the application
 dev: ## Run the application without building (go run)
 	go run $(MAIN_PATH) $(ARGS)
 
-test-large: ## Test with large crontabs (100+ jobs)
+test-large: build ## Test with large crontabs (100+ jobs)
 	@echo "Creating large test crontab..."
 	@cat /dev/null > /tmp/large-test.cron
 	@for i in $$(seq 1 100); do \
 		echo "0 * * * * /usr/bin/job$$i.sh" >> /tmp/large-test.cron; \
 	done
 	@echo "Testing with large crontab..."
-	@./bin/cronic check --file /tmp/large-test.cron
-	@./bin/cronic list --file /tmp/large-test.cron --json > /dev/null
+	@time ./bin/cronic check --file /tmp/large-test.cron
+	@time ./bin/cronic list --file /tmp/large-test.cron --json > /dev/null
 	@rm -f /tmp/large-test.cron
 	@echo "Large crontab tests passed"
 
+test-performance: ## Run performance integration tests
+	@echo "Running performance tests..."
+	@which ginkgo > /dev/null || (echo "Installing ginkgo..." && go install github.com/onsi/ginkgo/v2/ginkgo@latest)
+	@ginkgo -v ./test/integration/performance_test.go
+
+docs-check: ## Verify documentation completeness
+	@echo "Checking documentation..."
+	@test -f README.md || (echo "ERROR: README.md missing" && exit 1)
+	@test -f docs/JSON_SCHEMAS.md || (echo "ERROR: docs/JSON_SCHEMAS.md missing" && exit 1)
+	@test -f docs/TROUBLESHOOTING.md || (echo "ERROR: docs/TROUBLESHOOTING.md missing" && exit 1)
+	@echo "✓ All required documentation files exist"
+
 profile: ## Generate performance profiles
 	@echo "Generating CPU profile..."
+	@mkdir -p $(BUILD_DIR)
 	@go test -bench=. -cpuprofile=$(BUILD_DIR)/cpu.prof ./internal/crontab
+	@go test -bench=. -cpuprofile=$(BUILD_DIR)/cpu-parser.prof ./internal/cronx
+	@go test -bench=. -cpuprofile=$(BUILD_DIR)/cpu-validator.prof ./internal/check
 	@echo "Generating memory profile..."
 	@go test -bench=. -memprofile=$(BUILD_DIR)/mem.prof ./internal/crontab
+	@go test -bench=. -memprofile=$(BUILD_DIR)/mem-parser.prof ./internal/cronx
+	@go test -bench=. -memprofile=$(BUILD_DIR)/mem-validator.prof ./internal/check
 	@echo "Profiles generated in $(BUILD_DIR)/"
 	@echo "View with: go tool pprof $(BUILD_DIR)/cpu.prof"
+	@echo "Or use: go tool pprof -http=:8080 $(BUILD_DIR)/cpu.prof"
 
 examples: ## Validate example crontabs
 	@echo "Validating example crontabs..."

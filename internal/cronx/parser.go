@@ -3,6 +3,7 @@ package cronx
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/robfig/cron/v3"
 )
@@ -26,6 +27,8 @@ type Parser interface {
 type parser struct {
 	cronParser cron.Parser
 	symbols    SymbolRegistry
+	cache      map[string]*Schedule
+	cacheMu    sync.RWMutex
 }
 
 // NewParser creates a new cron expression parser with English locale (default)
@@ -41,14 +44,24 @@ func NewParserWithLocale(locale string) Parser {
 			cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 		),
 		symbols: symbols,
+		cache:   make(map[string]*Schedule),
 	}
 }
 
 // Parse parses a cron expression (5-field format or @alias)
+// Results are cached to improve performance when parsing the same expression multiple times
 func (p *parser) Parse(expression string) (*Schedule, error) {
 	if expression == "" {
 		return nil, fmt.Errorf("empty expression")
 	}
+
+	// Check cache first (read lock)
+	p.cacheMu.RLock()
+	if cached, ok := p.cache[expression]; ok {
+		p.cacheMu.RUnlock()
+		return cached, nil
+	}
+	p.cacheMu.RUnlock()
 
 	// Store original for reference
 	original := expression
@@ -86,14 +99,21 @@ func (p *parser) Parse(expression string) (*Schedule, error) {
 		}
 	}
 
-	return &Schedule{
+	schedule := &Schedule{
 		Original:   original,
 		Minute:     parseField(fields[0], 0, 59, p.symbols),
 		Hour:       parseField(fields[1], 0, 23, p.symbols),
 		DayOfMonth: parseField(fields[2], 1, 31, p.symbols),
 		Month:      parseField(fields[3], 1, 12, p.symbols),
 		DayOfWeek:  parseField(fields[4], 0, 6, p.symbols),
-	}, nil
+	}
+
+	// Cache the result (write lock)
+	p.cacheMu.Lock()
+	p.cache[expression] = schedule
+	p.cacheMu.Unlock()
+
+	return schedule, nil
 }
 
 // aliasToFields converts cron aliases to field representation

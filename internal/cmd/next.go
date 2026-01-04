@@ -66,8 +66,8 @@ Examples:
   cronic next "*/5 9-17 * * 1-5" -c 20    # Business hours monitoring`,
 	}
 
-	nc.Command.Flags().IntVarP(&nc.count, "count", "c", 10, "Number of runs to show (1-100)")
-	nc.Command.Flags().BoolVarP(&nc.json, "json", "j", false, "Output as JSON")
+	nc.Command.Flags().IntVarP(&nc.count, "count", "c", 10, "Number of runs to show (1-100, default: 10)")
+	nc.Command.Flags().BoolVarP(&nc.json, "json", "j", false, "Output in JSON format")
 	nc.Command.Flags().StringVar(&nc.timezone, "timezone", "", "Timezone for calculations (e.g., 'America/New_York', 'UTC', defaults to local timezone)")
 
 	return nc

@@ -34,7 +34,7 @@ Examples:
   cronic explain "@daily" --json`,
 	}
 
-	ec.Flags().BoolVarP(&ec.json, "json", "j", false, "Output as JSON")
+	ec.Flags().BoolVarP(&ec.json, "json", "j", false, "Output in JSON format")
 	return ec
 }
 
