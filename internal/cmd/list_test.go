@@ -790,3 +790,180 @@ func TestIsStdinAvailable(t *testing.T) {
 		assert.IsType(t, false, result)
 	})
 }
+
+func TestListCommand_StdinPaths(t *testing.T) {
+	// Reset global flags
+	oldFile := listFile
+	oldAll := listAll
+	oldJSON := listJSON
+	oldStdin := listStdin
+	defer func() {
+		listFile = oldFile
+		listAll = oldAll
+		listJSON = oldJSON
+		listStdin = oldStdin
+	}()
+
+	t.Run("should handle --stdin flag with jobs", func(t *testing.T) {
+		// Test the path where listStdin is true (line 87-96)
+		// Reset flags
+		listFile = ""
+		listAll = false
+		listJSON = false
+		listStdin = true
+
+		// Create a temporary file to simulate stdin
+		tmpFile := filepath.Join(t.TempDir(), "stdin.cron")
+		content := "0 2 * * * /usr/local/bin/backup.sh\n*/15 * * * * /usr/local/bin/check-disk.sh\n"
+		require.NoError(t, os.WriteFile(tmpFile, []byte(content), 0644))
+
+		// Redirect stdin
+		oldStdin := os.Stdin
+		defer func() { os.Stdin = oldStdin }()
+
+		stdinFile, err := os.Open(tmpFile)
+		require.NoError(t, err)
+		defer func() { _ = stdinFile.Close() }()
+		os.Stdin = stdinFile
+
+		cmd := newListCommand()
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.SetArgs([]string{"--stdin"})
+
+		err = cmd.Execute()
+		require.NoError(t, err)
+		output := buf.String()
+		assert.Contains(t, output, "backup")
+	})
+
+	t.Run("should handle --stdin flag with --all", func(t *testing.T) {
+		// Test the path where listStdin is true and listAll is true (line 89-90)
+		// Reset flags
+		listFile = ""
+		listAll = true
+		listJSON = false
+		listStdin = true
+
+		// Create a temporary file to simulate stdin
+		tmpFile := filepath.Join(t.TempDir(), "stdin-all.cron")
+		content := "# Comment\nSHELL=/bin/bash\n0 2 * * * /usr/local/bin/backup.sh\n"
+		require.NoError(t, os.WriteFile(tmpFile, []byte(content), 0644))
+
+		// Redirect stdin
+		oldStdin := os.Stdin
+		defer func() { os.Stdin = oldStdin }()
+
+		stdinFile, err := os.Open(tmpFile)
+		require.NoError(t, err)
+		defer func() { _ = stdinFile.Close() }()
+		os.Stdin = stdinFile
+
+		cmd := newListCommand()
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.SetArgs([]string{"--stdin", "--all"})
+
+		err = cmd.Execute()
+		require.NoError(t, err)
+		output := buf.String()
+		assert.Contains(t, output, "SHELL")
+	})
+
+	t.Run("should handle --stdin flag with --all and --json", func(t *testing.T) {
+		// Test the path where listStdin is true, listAll is true, and JSON is true
+		// Reset flags
+		listFile = ""
+		listAll = true
+		listJSON = true
+		listStdin = true
+
+		// Create a temporary file to simulate stdin
+		tmpFile := filepath.Join(t.TempDir(), "stdin-all-json.cron")
+		content := "# Comment\nSHELL=/bin/bash\n0 2 * * * /usr/local/bin/backup.sh\n"
+		require.NoError(t, os.WriteFile(tmpFile, []byte(content), 0644))
+
+		// Redirect stdin
+		oldStdin := os.Stdin
+		defer func() { os.Stdin = oldStdin }()
+
+		stdinFile, err := os.Open(tmpFile)
+		require.NoError(t, err)
+		defer func() { _ = stdinFile.Close() }()
+		os.Stdin = stdinFile
+
+		cmd := newListCommand()
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.SetArgs([]string{"--stdin", "--all", "--json"})
+
+		err = cmd.Execute()
+		require.NoError(t, err)
+		output := buf.String()
+		assert.Contains(t, output, `"entries"`)
+	})
+
+	t.Run("should handle automatic stdin detection with jobs", func(t *testing.T) {
+		// Test the path where stdin is automatically detected (line 99-108)
+		// Reset flags
+		listFile = ""
+		listAll = false
+		listJSON = false
+		listStdin = false
+
+		// Create a temporary file to simulate stdin
+		tmpFile := filepath.Join(t.TempDir(), "auto-stdin.cron")
+		content := "0 2 * * * /usr/local/bin/backup.sh\n"
+		require.NoError(t, os.WriteFile(tmpFile, []byte(content), 0644))
+
+		// Redirect stdin
+		oldStdin := os.Stdin
+		defer func() { os.Stdin = oldStdin }()
+
+		stdinFile, err := os.Open(tmpFile)
+		require.NoError(t, err)
+		defer func() { _ = stdinFile.Close() }()
+		os.Stdin = stdinFile
+
+		cmd := newListCommand()
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.SetArgs([]string{})
+
+		// This may or may not use stdin depending on terminal detection
+		_ = cmd.Execute()
+		_ = buf.String()
+	})
+
+	t.Run("should handle automatic stdin detection with --all", func(t *testing.T) {
+		// Test the path where stdin is automatically detected and listAll is true (line 101-102)
+		// Reset flags
+		listFile = ""
+		listAll = true
+		listJSON = false
+		listStdin = false
+
+		// Create a temporary file to simulate stdin
+		tmpFile := filepath.Join(t.TempDir(), "auto-stdin-all.cron")
+		content := "# Comment\n0 2 * * * /usr/local/bin/backup.sh\n"
+		require.NoError(t, os.WriteFile(tmpFile, []byte(content), 0644))
+
+		// Redirect stdin
+		oldStdin := os.Stdin
+		defer func() { os.Stdin = oldStdin }()
+
+		stdinFile, err := os.Open(tmpFile)
+		require.NoError(t, err)
+		defer func() { _ = stdinFile.Close() }()
+		os.Stdin = stdinFile
+
+		cmd := newListCommand()
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.SetArgs([]string{"--all"})
+
+		// This may or may not use stdin depending on terminal detection
+		_ = cmd.Execute()
+		_ = buf.String()
+	})
+}

@@ -10,18 +10,6 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-var pathToCLI string
-
-var _ = BeforeSuite(func() {
-	var err error
-	pathToCLI, err = gexec.Build("github.com/hzerrad/cronic/cmd/cronic")
-	Expect(err).NotTo(HaveOccurred())
-})
-
-var _ = AfterSuite(func() {
-	gexec.CleanupBuildArtifacts()
-})
-
 var _ = Describe("Explain Command", func() {
 
 	Describe("Standard Cron Expressions", func() {

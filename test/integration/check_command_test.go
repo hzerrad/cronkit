@@ -30,7 +30,7 @@ var _ = Describe("Check Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(1))
-			Expect(session.Out).To(gbytes.Say("issue"))
+			Expect(session.Out).To(gbytes.Say("error"))
 			Expect(session.Out).To(gbytes.Say("ERROR"))
 			Expect(session.Out).To(gbytes.Say("CRON-003"))
 		})
@@ -43,7 +43,8 @@ var _ = Describe("Check Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("All valid"))
+			// Warnings are now shown by default in compact format
+			Expect(session.Out).To(gbytes.Say("warning"))
 		})
 
 		It("should show warnings with verbose flag", func() {
@@ -51,7 +52,8 @@ var _ = Describe("Check Command", func() {
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(session).Should(gexec.Exit(2))
+			// Warnings don't cause exit code unless --fail-on is set
+			Eventually(session).Should(gexec.Exit(0))
 			Expect(session.Out).To(gbytes.Say("warning"))
 			Expect(session.Out).To(gbytes.Say("CRON-001"))
 			Expect(session.Out).To(gbytes.Say("Hint:"))
@@ -77,7 +79,7 @@ var _ = Describe("Check Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(1))
-			Expect(session.Out).To(gbytes.Say("issue"))
+			Expect(session.Out).To(gbytes.Say("error"))
 		})
 	})
 
@@ -122,7 +124,8 @@ var _ = Describe("Check Command", func() {
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(session).Should(gexec.Exit(2))
+			// Warnings don't cause exit code unless --fail-on is set
+			Eventually(session).Should(gexec.Exit(0))
 			output := string(session.Out.Contents())
 			Expect(output).To(ContainSubstring(`"severity"`))
 			Expect(output).To(ContainSubstring(`"warn"`))
@@ -220,7 +223,8 @@ var _ = Describe("Check Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("All valid"))
+			// Warnings are now shown by default in compact format
+			Expect(session.Out).To(gbytes.Say("warning"))
 		})
 
 		It("should exit with code 2 for warnings with --fail-on warn", func() {
@@ -238,7 +242,7 @@ var _ = Describe("Check Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(1))
-			Expect(session.Out).To(gbytes.Say("issue"))
+			Expect(session.Out).To(gbytes.Say("error"))
 		})
 
 		It("should show error for invalid --fail-on value", func() {
@@ -272,7 +276,8 @@ var _ = Describe("Check Command", func() {
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 
-				Eventually(session).Should(gexec.Exit(2))
+				// Warnings don't cause exit code unless --fail-on is set
+				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
 				Expect(output).To(ContainSubstring("warn Issues"))
 			}
@@ -295,7 +300,8 @@ var _ = Describe("Check Command", func() {
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(session).Should(gexec.Exit(2))
+			// Warnings don't cause exit code unless --fail-on is set
+			Eventually(session).Should(gexec.Exit(0))
 			output := string(session.Out.Contents())
 			Expect(output).To(ContainSubstring(`"severity"`))
 			Expect(output).To(ContainSubstring(`"warn"`))
@@ -308,7 +314,7 @@ var _ = Describe("Check Command", func() {
 
 			Eventually(session).Should(gexec.Exit(1))
 			output := string(session.Out.Contents())
-			Expect(output).To(ContainSubstring("issue"))
+			Expect(output).To(ContainSubstring("error"))
 			Expect(output).NotTo(ContainSubstring("━━━"))
 		})
 	})
