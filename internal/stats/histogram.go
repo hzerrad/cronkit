@@ -11,15 +11,15 @@ func GenerateHistogram(hourData []int, width int) string {
 		return ""
 	}
 
-	// Find max value for scaling
-	max := 0
+	// Find maxCount value for scaling
+	maxCount := 0
 	for _, v := range hourData {
-		if v > max {
-			max = v
+		if v > maxCount {
+			maxCount = v
 		}
 	}
 
-	if max == 0 {
+	if maxCount == 0 {
 		return "No runs detected"
 	}
 
@@ -29,7 +29,7 @@ func GenerateHistogram(hourData []int, width int) string {
 
 	for hour := 0; hour < HoursInDay; hour++ {
 		count := hourData[hour]
-		barWidth := int(float64(count) / float64(max) * float64(width))
+		barWidth := int(float64(count) / float64(maxCount) * float64(width))
 		bar := strings.Repeat("█", barWidth)
 		sb.WriteString(fmt.Sprintf("%02d:00 │%s %d\n", hour, bar, count))
 	}

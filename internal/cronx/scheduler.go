@@ -10,8 +10,6 @@ import (
 // Scheduler calculates next run times for cron schedules.
 type Scheduler interface {
 	// Next calculates the next N occurrences of a cron expression starting from the given time.
-	// Returns a slice of time.Time values representing when the cron job would run.
-	// Returns an error if the expression is invalid or cannot be parsed.
 	Next(expression string, from time.Time, count int) ([]time.Time, error)
 }
 
@@ -22,13 +20,11 @@ type robfigScheduler struct {
 }
 
 // NewScheduler creates a new Scheduler instance using the robfig/cron implementation.
-// This is currently the default and only implementation
 func NewScheduler() Scheduler {
 	return NewRobfigScheduler()
 }
 
 // NewRobfigScheduler creates a new robfig/cron-based scheduler.
-// This constructor makes it explicit that we're using robfig/cron as the underlying implementation.
 func NewRobfigScheduler() Scheduler {
 	return &robfigScheduler{
 		parser: NewParser(),

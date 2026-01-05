@@ -286,7 +286,7 @@ func detectTerminalWidth() int {
 	}
 
 	// Try to get terminal size (Unix-like systems)
-	// Note: This is a simple implementation; for cross-platform support,
+	// TODO: This is a simple implementation; for cross-platform support,
 	// we'd need a library like golang.org/x/term
 	// For now, default to 80
 	return 80

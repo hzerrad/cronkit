@@ -19,7 +19,6 @@ const (
 	maxCommandDisplay     = 37 // for truncation
 )
 
-// ListCommand wraps cobra.Command with list-specific functionality
 type ListCommand struct {
 	*cobra.Command
 	file  string

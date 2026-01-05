@@ -11,11 +11,11 @@ import (
 // Schedule represents a parsed cron schedule with field information.
 type Schedule struct {
 	Original   string // The original cron expression string
-	Minute     Field  // Minute field (0-59)
-	Hour       Field  // Hour field (0-23)
-	DayOfMonth Field  // Day of month field (1-31)
-	Month      Field  // Month field (1-12)
-	DayOfWeek  Field  // Day of week field (0-6, Sunday=0)
+	Minute     Field  // Minute field (MinMinute-MaxMinute)
+	Hour       Field  // Hour field (MinHour-MaxHour)
+	DayOfMonth Field  // Day of month field (MinDayOfMonth-MaxDayOfMonth)
+	Month      Field  // Month field (MinMonth-MaxMonth)
+	DayOfWeek  Field  // Day of week field (MinDayOfWeek-MaxDayOfWeek, Sunday=0)
 }
 
 // Parser is the abstraction layer for cron expression parsing
@@ -101,11 +101,11 @@ func (p *parser) Parse(expression string) (*Schedule, error) {
 
 	schedule := &Schedule{
 		Original:   original,
-		Minute:     parseField(fields[0], 0, 59, p.symbols),
-		Hour:       parseField(fields[1], 0, 23, p.symbols),
-		DayOfMonth: parseField(fields[2], 1, 31, p.symbols),
-		Month:      parseField(fields[3], 1, 12, p.symbols),
-		DayOfWeek:  parseField(fields[4], 0, 6, p.symbols),
+		Minute:     parseField(fields[0], MinMinute, MaxMinute, p.symbols),
+		Hour:       parseField(fields[1], MinHour, MaxHour, p.symbols),
+		DayOfMonth: parseField(fields[2], MinDayOfMonth, MaxDayOfMonth, p.symbols),
+		Month:      parseField(fields[3], MinMonth, MaxMonth, p.symbols),
+		DayOfWeek:  parseField(fields[4], MinDayOfWeek, MaxDayOfWeek, p.symbols),
 	}
 
 	// Cache the result (write lock)

@@ -135,9 +135,10 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 	issuesToShow := cc.filterIssues(result.Issues)
 
 	// Separate errors, warnings, and info for display
-	errors := []check.Issue{}
-	warnings := []check.Issue{}
-	info := []check.Issue{}
+	var errors []check.Issue
+	var warnings []check.Issue
+	var info []check.Issue
+
 	for _, issue := range issuesToShow {
 		switch issue.Severity {
 		case check.SeverityError:
@@ -473,6 +474,9 @@ func (cc *CheckCommand) printIssuesGrouped(issues []check.Issue, mode GroupByMod
 			}
 			cc.Println()
 		}
+	default:
+		// GroupByNone or unexpected mode - no-op, caller handles flat display
+		// This should not print anything as groupIssues returns an empty map for GroupByNone
 	}
 }
 

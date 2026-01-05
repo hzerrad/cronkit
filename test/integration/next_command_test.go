@@ -348,7 +348,7 @@ var _ = Describe("Next Command", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(session).Should(gexec.Exit(1))
-				Expect(session.Err).To(gbytes.Say("count must be at least 1"))
+				Expect(session.Err).To(gbytes.Say("invalid count: must be at least 1"))
 			})
 
 			It("should reject negative count", func() {
@@ -357,7 +357,7 @@ var _ = Describe("Next Command", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(session).Should(gexec.Exit(1))
-				Expect(session.Err).To(gbytes.Say("count must be at least 1"))
+				Expect(session.Err).To(gbytes.Say("invalid count: must be at least 1"))
 			})
 
 			It("should reject count over 100", func() {
@@ -366,7 +366,7 @@ var _ = Describe("Next Command", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(session).Should(gexec.Exit(1))
-				Expect(session.Err).To(gbytes.Say("count must be at most 100"))
+				Expect(session.Err).To(gbytes.Say("invalid count: must be at most 100"))
 			})
 		})
 	})

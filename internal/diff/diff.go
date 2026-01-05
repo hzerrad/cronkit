@@ -180,9 +180,6 @@ func detectFieldChanges(oldJob, newJob *crontab.Job) []string {
 
 	// Note: We don't check expression/command because if those changed,
 	// it would be a different job key. We only check comment here.
-	// However, if the expression or command changed but normalized to the same,
-	// we should still detect it. Let's check all fields for safety.
-
 	oldExpr := strings.TrimSpace(oldJob.Expression)
 	newExpr := strings.TrimSpace(newJob.Expression)
 	if oldExpr != newExpr {

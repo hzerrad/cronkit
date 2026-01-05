@@ -20,19 +20,13 @@ func TestReadUser_ErrorPaths(t *testing.T) {
 		// Should not error - exit code 1 means no crontab, returns empty list
 		assert.NoError(t, err)
 		assert.NotNil(t, jobs)
-		// If exit code was 1, jobs should be empty
-		// If user has crontab, jobs will have content
-		_ = jobs // Jobs may be empty or have content
 	})
 
 	t.Run("should handle other exit codes", func(t *testing.T) {
-		// Test error handling for non-1 exit codes
-		// This tests the error path in ReadUser
 		// We can't easily mock exec.Command, but we can verify
 		// the function handles errors gracefully
 		_, err := reader.ReadUser()
 		// If crontab command fails with non-1 exit code, should return error
-		// If it succeeds or returns exit code 1, should not error
 		if err != nil {
 			// Error should contain context
 			assert.Contains(t, err.Error(), "failed to read user crontab")

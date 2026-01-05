@@ -5,7 +5,6 @@ import "strings"
 // SymbolRegistry provides locale-specific mappings for day and month names
 type SymbolRegistry interface {
 	// ParseSymbol attempts to parse a symbol (day/month name) to its numeric value
-	// Returns the numeric value and true if found, or 0 and false if not found
 	ParseSymbol(s string) (int, bool)
 
 	// Locale returns the locale identifier (e.g., "en", "fr", "es")
