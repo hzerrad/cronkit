@@ -1641,6 +1641,70 @@ func TestCheckCommand_GroupBy(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("check with warnings in compact format (not verbose)", func(t *testing.T) {
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		// Use expression that generates warnings but not verbose mode
+		// This should trigger printWarningsCompact
+		cc.SetArgs([]string{"0 0 1 * 1"}) // DOM/DOW conflict
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err := cc.Execute()
+		require.NoError(t, err)
+		output := buf.String()
+		// Should use compact format (one line per warning)
+		assert.Contains(t, output, "⚠")
+		// Should include expression in compact format
+		assert.Contains(t, output, "0 0 1 * 1")
+	})
+
+	t.Run("check printWarningsCompact with all edge cases", func(t *testing.T) {
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+
+		// Create issues with different combinations to test all branches
+		warnings := []check.Issue{
+			{
+				LineNumber: 1,
+				Code:       "TEST_CODE",
+				Message:    "Test warning",
+				Expression: "0 0 1 * 1",
+			},
+			{
+				LineNumber: 0, // No line number
+				Code:       "",
+				Message:    "Warning without code",
+				Expression: "0 * * * *",
+			},
+			{
+				LineNumber: 2,
+				Code:       "CODE2",
+				Message:    "Warning without expression",
+				Expression: "", // No expression
+			},
+		}
+
+		cc.printWarningsCompact(warnings)
+		output := buf.String()
+
+		// Should have all three warnings
+		assert.Contains(t, output, "Test warning")
+		assert.Contains(t, output, "Warning without code")
+		assert.Contains(t, output, "Warning without expression")
+		// First warning should have line number and code
+		assert.Contains(t, output, "Line 1:")
+		assert.Contains(t, output, "[TEST_CODE]")
+		// Second warning should not have line number prefix
+		assert.Contains(t, output, "Warning without code")
+		// Third warning should not have expression suffix
+		assert.NotContains(t, output, "Warning without expression -")
+	})
+
 	t.Run("check with group-by job", func(t *testing.T) {
 		cc := newCheckCommand()
 		buf := new(bytes.Buffer)

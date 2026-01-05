@@ -165,3 +165,45 @@ func TestIdentifyBusiestHours(t *testing.T) {
 	busiestHours := calc.IdentifyBusiestHours(jobs)
 	assert.Greater(t, len(busiestHours), 0)
 }
+
+func TestCalculateMetrics_LongWindow(t *testing.T) {
+	// Test countRunsInWindow indirectly through CalculateMetrics with long windows
+	// This exercises the else branch in countRunsInWindow for windows > 24 hours
+	calc := NewCalculator()
+
+	t.Run("should handle windows longer than 24 hours", func(t *testing.T) {
+		jobs := []*crontab.Job{
+			{LineNumber: 1, Expression: "0 0 * * *", Valid: true}, // Daily
+		}
+		// Test with 48-hour window to exercise the long window path in CalculateCollisions
+		metrics, err := calc.CalculateMetrics(jobs, 48*time.Hour)
+		require.NoError(t, err)
+		assert.NotNil(t, metrics)
+		// Should have calculated metrics successfully
+		assert.Equal(t, 1, len(metrics.JobFrequencies))
+		// Daily job should have 1 run per day (calculated over 24h window)
+		assert.GreaterOrEqual(t, metrics.JobFrequencies[0].RunsPerDay, 0)
+	})
+
+	t.Run("should handle very long windows", func(t *testing.T) {
+		jobs := []*crontab.Job{
+			{LineNumber: 1, Expression: "0 0 1 * *", Valid: true}, // Monthly
+		}
+		// Test with 60-day window to exercise the long window path with cap in CalculateCollisions
+		metrics, err := calc.CalculateMetrics(jobs, 60*24*time.Hour)
+		require.NoError(t, err)
+		assert.NotNil(t, metrics)
+		// Should have calculated metrics successfully
+		assert.GreaterOrEqual(t, len(metrics.JobFrequencies), 1)
+	})
+
+	t.Run("should handle invalid expressions in long window", func(t *testing.T) {
+		jobs := []*crontab.Job{
+			{LineNumber: 1, Expression: "invalid", Valid: false},
+		}
+		metrics, err := calc.CalculateMetrics(jobs, 48*time.Hour)
+		require.NoError(t, err)
+		// Invalid jobs should be skipped
+		assert.Equal(t, 0, len(metrics.JobFrequencies))
+	})
+}

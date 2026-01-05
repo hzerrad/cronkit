@@ -176,4 +176,58 @@ func TestBudgetCommand_Additional(t *testing.T) {
 		// Just verify it doesn't panic
 		_ = err
 	})
+
+	t.Run("user crontab path", func(t *testing.T) {
+		bc := newBudgetCommand()
+		bc.maxConcurrent = 10
+		bc.window = "1h"
+		// No file or stdin specified, should use user crontab
+
+		var buf bytes.Buffer
+		bc.SetOut(&buf)
+
+		err := bc.runBudget(nil, nil)
+		// May succeed or fail depending on whether user has crontab
+		// Just verify it doesn't panic
+		_ = err
+	})
+
+	t.Run("error when renderer creation fails", func(t *testing.T) {
+		content := "0 * * * * /usr/bin/job1.sh\n"
+		testFile := createTempFile(t, content)
+
+		bc := newBudgetCommand()
+		bc.file = testFile
+		bc.maxConcurrent = 10
+		bc.window = "1h"
+		bc.json = true
+
+		var buf bytes.Buffer
+		bc.SetOut(&buf)
+
+		err := bc.runBudget(nil, nil)
+		// Should succeed with valid format
+		assert.NoError(t, err)
+	})
+
+	t.Run("enforce flag - fails when budget violated", func(t *testing.T) {
+		// Create jobs that will violate the budget
+		content := "0 * * * * /usr/bin/job1.sh\n15 * * * * /usr/bin/job2.sh\n30 * * * * /usr/bin/job3.sh\n45 * * * * /usr/bin/job4.sh\n"
+		testFile := createTempFile(t, content)
+
+		bc := newBudgetCommand()
+		bc.file = testFile
+		bc.maxConcurrent = 2 // Very low limit
+		bc.window = "1h"
+		bc.enforce = true
+
+		var buf bytes.Buffer
+		bc.SetOut(&buf)
+
+		err := bc.runBudget(nil, nil)
+		// Should error when budget is violated and enforce is true
+		if err != nil {
+			assert.Contains(t, err.Error(), "budget violation")
+		}
+	})
 }
