@@ -160,7 +160,7 @@ var _ = Describe("E2E Scenarios", func() {
 				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(1))
-				Expect(session.Out).To(gbytes.Say("issue"))
+				Expect(session.Out).To(gbytes.Say("error"))
 
 				By("getting JSON output for CI/CD integration")
 				command = exec.Command(pathToCLI, "check", "0 0 * * *", "--json")
@@ -172,7 +172,7 @@ var _ = Describe("E2E Scenarios", func() {
 
 			It("should help identify DOM/DOW conflicts in schedules", func() {
 				By("checking expression with DOM/DOW conflict")
-				command := exec.Command(pathToCLI, "check", "0 0 1 * 1", "--verbose")
+				command := exec.Command(pathToCLI, "check", "0 0 1 * 1", "--verbose", "--fail-on", "warn")
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(2))
@@ -183,7 +183,8 @@ var _ = Describe("E2E Scenarios", func() {
 				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("All valid"))
+				Expect(session.Out).To(gbytes.Say("warning"))
+				Expect(session.Out).To(gbytes.Say("Valid: 1"))
 			})
 		})
 	})
