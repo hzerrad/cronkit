@@ -176,7 +176,8 @@ func TestTimeline_Render(t *testing.T) {
 		output := tl.Render(false)
 		assert.Contains(t, output, "Timeline")
 		assert.Contains(t, output, "09:00")
-		assert.Contains(t, output, "10:00")
+		assert.Contains(t, output, "09:59") // Hour view now shows 09:59 as end time
+		assert.Contains(t, output, "Legend")
 	})
 
 	t.Run("should handle narrow width", func(t *testing.T) {
@@ -404,7 +405,6 @@ func TestTimeline_findSlotIndex(t *testing.T) {
 	t.Run("should find correct slot for day view", func(t *testing.T) {
 		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 		tl := NewTimeline(DayView, startTime, 80)
-
 		// Test various hours
 		assert.Equal(t, 0, tl.findSlotIndex(startTime))
 		assert.Equal(t, 1, tl.findSlotIndex(startTime.Add(1*time.Hour)))
@@ -611,16 +611,16 @@ func TestTimeline_Render_AdaptiveWidth(t *testing.T) {
 		output4 := tl4.Render(false)
 		assert.Contains(t, output4, "░")
 
-		// Test very low density (1 job out of 10 max) - should use dot
+		// Test single execution (1 job) - should use discrete marker │
 		tl5 := NewTimeline(DayView, startTime, 100)
 		// Create 10 jobs at time3 to set maxOverlaps=10
 		for i := 0; i < 10; i++ {
 			tl5.AddJobRun(fmt.Sprintf("job-%d", i), overlapTime3)
 		}
-		// Then 1 job at time2 (density = 1/10 = 0.1, should use ·)
+		// Then 1 job at time2 (single execution, should use │)
 		tl5.AddJobRun("job-1", overlapTime2)
 		output5 := tl5.Render(false)
-		assert.Contains(t, output5, "·")
+		assert.Contains(t, output5, "│")
 	})
 
 	t.Run("should handle Render with showOverlaps and many overlaps (>50)", func(t *testing.T) {

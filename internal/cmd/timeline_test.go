@@ -36,7 +36,7 @@ func TestTimelineCommand(t *testing.T) {
 
 		output := buf.String()
 		assert.Contains(t, output, "Timeline")
-		assert.Contains(t, output, "*/15 * * * *")
+		assert.Contains(t, output, "Every 15 minutes") // Check for humanized description
 	})
 
 	t.Run("timeline with --view hour", func(t *testing.T) {

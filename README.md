@@ -54,6 +54,44 @@ make build
 # Binary will be in ./bin/cronic
 ```
 
+### Package Managers
+
+#### Homebrew (macOS/Linux)
+
+```bash
+brew tap hzerrad/cronic
+brew install cronic
+```
+
+#### APT (Debian/Ubuntu)
+
+Download the `.deb` package from [GitHub Releases](https://github.com/hzerrad/cronic/releases) and install:
+
+```bash
+wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_0.1.0_amd64.deb
+sudo dpkg -i cronic_0.1.0_amd64.deb
+sudo apt-get install -f  # Fix dependencies if needed
+```
+
+#### DNF/YUM (Fedora/RHEL)
+
+Download the `.rpm` package from [GitHub Releases](https://github.com/hzerrad/cronic/releases) and install:
+
+```bash
+wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic-0.1.0-1.x86_64.rpm
+sudo dnf install cronic-0.1.0-1.x86_64.rpm
+```
+
+#### Pacman (Arch Linux)
+
+Install from AUR:
+
+```bash
+yay -S cronic
+# or
+paru -S cronic
+```
+
 ## Quick Start
 
 ### Explain a Cron Expression
