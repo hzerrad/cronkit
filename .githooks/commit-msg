@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Commit message hook for conventional commits
+# Enforces commit message format: <type>(<scope>): <subject>
+# Scope, body, and footer are optional
+#
+# Configuration (set via environment variables):
+# - SKIP_COMMIT_MSG_CHECK=1  : Skip commit message validation
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+if [ "$SKIP_COMMIT_MSG_CHECK" = "1" ]; then
+    echo -e "${YELLOW}⚠${NC}  Skipping commit message validation (SKIP_COMMIT_MSG_CHECK=1)"
+    exit 0
+fi
+
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Valid commit types
+VALID_TYPES="feat|fix|docs|test|refactor|perf|chore"
+
+# Pattern 1: <type>: <subject> (required format)
+# Pattern 2: <type>(<scope>): <subject> (optional scope)
+PATTERN="^($VALID_TYPES)(\([^)]+\))?: .+"
+
+if ! echo "$COMMIT_MSG" | head -n1 | grep -qE "$PATTERN"; then
+    echo -e "${RED}✗${NC} Invalid commit message format"
+    echo ""
+    echo "Expected format: <type>(<scope>): <subject>"
+    echo "                 <type>: <subject>"
+    echo ""
+    echo "Valid types: feat, fix, docs, test, refactor, perf, chore"
+    echo ""
+    echo "Examples:"
+    echo "  feat(next): add timezone support"
+    echo "  fix(check): correct exit code calculation"
+    echo "  docs: update README"
+    echo ""
+    echo "To skip this check, use:"
+    echo "  SKIP_COMMIT_MSG_CHECK=1 git commit"
+    exit 1
+fi
+
+echo -e "${GREEN}✓${NC} Commit message format is valid"
+exit 0
+
