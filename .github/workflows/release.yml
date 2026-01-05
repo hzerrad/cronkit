@@ -1,0 +1,159 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on semantic version tags (e.g., v0.1.0, v1.2.3)
+
+env:
+  GO_VERSION: "1.25.2"
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper versioning
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+          echo "Tag: ${GITHUB_REF#refs/tags/}"
+
+      - name: Get commit hash
+        id: commit
+        run: |
+          COMMIT=$(git rev-parse --short HEAD)
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "Commit: $COMMIT"
+
+      - name: Build Linux amd64
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ steps.commit.outputs.commit }}
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build \
+            -ldflags "-X github.com/hzerrad/cronic/internal/cmd.version=v${VERSION} -X github.com/hzerrad/cronic/internal/cmd.commit=${COMMIT} -X github.com/hzerrad/cronic/internal/cmd.date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            -o dist/cronic-linux-amd64 \
+            ./cmd/cronic
+          chmod +x dist/cronic-linux-amd64
+
+      - name: Build Linux arm64
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ steps.commit.outputs.commit }}
+        run: |
+          GOOS=linux GOARCH=arm64 go build \
+            -ldflags "-X github.com/hzerrad/cronic/internal/cmd.version=v${VERSION} -X github.com/hzerrad/cronic/internal/cmd.commit=${COMMIT} -X github.com/hzerrad/cronic/internal/cmd.date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            -o dist/cronic-linux-arm64 \
+            ./cmd/cronic
+          chmod +x dist/cronic-linux-arm64
+
+      - name: Build macOS amd64
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ steps.commit.outputs.commit }}
+        run: |
+          GOOS=darwin GOARCH=amd64 go build \
+            -ldflags "-X github.com/hzerrad/cronic/internal/cmd.version=v${VERSION} -X github.com/hzerrad/cronic/internal/cmd.commit=${COMMIT} -X github.com/hzerrad/cronic/internal/cmd.date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            -o dist/cronic-darwin-amd64 \
+            ./cmd/cronic
+          chmod +x dist/cronic-darwin-amd64
+
+      - name: Build macOS arm64
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ steps.commit.outputs.commit }}
+        run: |
+          GOOS=darwin GOARCH=arm64 go build \
+            -ldflags "-X github.com/hzerrad/cronic/internal/cmd.version=v${VERSION} -X github.com/hzerrad/cronic/internal/cmd.commit=${COMMIT} -X github.com/hzerrad/cronic/internal/cmd.date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            -o dist/cronic-darwin-arm64 \
+            ./cmd/cronic
+          chmod +x dist/cronic-darwin-arm64
+
+      - name: Verify binaries
+        run: |
+          echo "Verifying binaries..."
+          ls -lh dist/
+          echo ""
+          echo "Testing version output..."
+          ./dist/cronic-linux-amd64 version
+          echo ""
+          echo "Verifying version contains expected information..."
+          VERSION_OUTPUT=$(./dist/cronic-linux-amd64 version)
+          echo "$VERSION_OUTPUT"
+          if echo "$VERSION_OUTPUT" | grep -q "v${{ steps.version.outputs.version }}"; then
+            echo "✓ Version string is correct"
+          else
+            echo "✗ Version string mismatch"
+            exit 1
+          fi
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          echo "Checksums:"
+          cat checksums.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cronic-binaries-${{ steps.version.outputs.tag }}
+          path: dist/*
+          retention-days: 90
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.version.outputs.tag }}
+          body: |
+            ## Release ${{ steps.version.outputs.tag }}
+            
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ steps.version.outputs.tag }}/CHANGELOG.md) for details.
+            
+            ## Installation
+            
+            ### Download Binaries
+            
+            Download the appropriate binary for your platform:
+            
+            - **Linux (amd64)**: [cronic-linux-amd64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cronic-linux-amd64)
+            - **Linux (arm64)**: [cronic-linux-arm64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cronic-linux-arm64)
+            - **macOS (amd64)**: [cronic-darwin-amd64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cronic-darwin-amd64)
+            - **macOS (arm64)**: [cronic-darwin-arm64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cronic-darwin-arm64)
+            
+            ### Verify Checksums
+            
+            ```bash
+            sha256sum -c checksums.txt
+            ```
+          files: |
+            dist/*
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+
