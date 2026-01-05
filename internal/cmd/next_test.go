@@ -92,7 +92,7 @@ func TestNextCommand(t *testing.T) {
 
 		err := nc.Execute()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "count must be at least 1")
+		assert.Contains(t, err.Error(), "invalid count: must be at least 1")
 	})
 
 	t.Run("fail on out of range count (high)", func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestNextCommand(t *testing.T) {
 
 		err := nc.Execute()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "count must be at most 100")
+		assert.Contains(t, err.Error(), "invalid count: must be at most 100")
 	})
 
 	t.Run("fail on missing argument", func(t *testing.T) {

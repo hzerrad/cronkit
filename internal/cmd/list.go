@@ -12,40 +12,25 @@ import (
 	"golang.org/x/term"
 )
 
-var (
-	listFile  string
-	listAll   bool
-	listJSON  bool
-	listStdin bool
+const (
+	maxDescriptionLength  = 36
+	maxCommandLength      = 40
+	maxDescriptionDisplay = 33 // for truncation
+	maxCommandDisplay     = 37 // for truncation
 )
 
-// listCmd represents the list command
-var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List and summarize cron jobs from a crontab file or user's crontab",
-	Long: `Parse and display cron jobs from a crontab file or the current user's crontab.
-
-Examples:
-  cronic list                        # List current user's cron jobs
-  cronic list --file /etc/crontab    # List jobs from specific file
-  cronic list --all                  # Include comments and environment variables
-  cronic list --json                 # Output as JSON
-  cronic list --file sample.cron --json > jobs.json`,
-	RunE: runList,
+// ListCommand wraps cobra.Command with list-specific functionality
+type ListCommand struct {
+	*cobra.Command
+	file  string
+	all   bool
+	json  bool
+	stdin bool
 }
 
-func init() {
-	rootCmd.AddCommand(listCmd)
-
-	listCmd.Flags().StringVarP(&listFile, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
-	listCmd.Flags().BoolVarP(&listAll, "all", "a", false, "Show all entries including comments and environment variables")
-	listCmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output in JSON format")
-	listCmd.Flags().BoolVar(&listStdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
-}
-
-// newListCommand creates a new list command for testing
-func newListCommand() *cobra.Command {
-	cmd := &cobra.Command{
+func newListCommand() *ListCommand {
+	lc := &ListCommand{}
+	lc.Command = &cobra.Command{
 		Use:   "list",
 		Short: "List and summarize cron jobs from a crontab file or user's crontab",
 		Long: `Parse and display cron jobs from a crontab file or the current user's crontab.
@@ -56,18 +41,22 @@ Examples:
   cronic list --all                  # Include comments and environment variables
   cronic list --json                 # Output as JSON
   cronic list --file sample.cron --json > jobs.json`,
-		RunE: runList,
+		RunE: lc.runList,
 	}
 
-	cmd.Flags().StringVarP(&listFile, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
-	cmd.Flags().BoolVarP(&listAll, "all", "a", false, "Show all entries including comments and environment variables")
-	cmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output in JSON format")
-	cmd.Flags().BoolVar(&listStdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
+	lc.Flags().StringVarP(&lc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
+	lc.Flags().BoolVarP(&lc.all, "all", "a", false, "Show all entries including comments and environment variables")
+	lc.Flags().BoolVarP(&lc.json, "json", "j", false, "Output in JSON format")
+	lc.Flags().BoolVar(&lc.stdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
 
-	return cmd
+	return lc
 }
 
-func runList(cmd *cobra.Command, args []string) error {
+func init() {
+	rootCmd.AddCommand(newListCommand().Command)
+}
+
+func (lc *ListCommand) runList(_ *cobra.Command, args []string) error {
 	reader := crontab.NewReader()
 
 	var jobs []*crontab.Job
@@ -75,18 +64,18 @@ func runList(cmd *cobra.Command, args []string) error {
 	var err error
 
 	// Priority: --file > --stdin > user crontab
-	if listFile != "" {
-		if listAll {
-			entries, err = reader.ParseFile(listFile)
+	if lc.file != "" {
+		if lc.all {
+			entries, err = reader.ParseFile(lc.file)
 		} else {
-			jobs, err = reader.ReadFile(listFile)
+			jobs, err = reader.ReadFile(lc.file)
 		}
 		if err != nil {
-			return fmt.Errorf("failed to read crontab file %s: %w", listFile, err)
+			return fmt.Errorf("failed to read crontab file %s: %w", lc.file, err)
 		}
-	} else if listStdin {
+	} else if lc.stdin {
 		// Read from stdin
-		if listAll {
+		if lc.all {
 			entries, err = reader.ParseStdin()
 		} else {
 			jobs, err = reader.ReadStdin()
@@ -98,7 +87,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		// Check if stdin is available (not a terminal)
 		if isStdinAvailable() {
 			// Read from stdin automatically
-			if listAll {
+			if lc.all {
 				entries, err = reader.ParseStdin()
 			} else {
 				jobs, err = reader.ReadStdin()
@@ -120,28 +109,28 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Handle --all mode
-	if listAll && entries != nil {
-		return outputAllEntries(cmd, entries)
+	if lc.all && entries != nil {
+		return lc.outputAllEntries(entries)
 	}
 
 	// Handle empty job list
 	if len(jobs) == 0 {
-		if listJSON {
-			return outputJSON(cmd, map[string]interface{}{"jobs": []interface{}{}})
+		if lc.json {
+			return lc.outputJSON(map[string]interface{}{"jobs": []interface{}{}})
 		}
-		cmd.Println("No cron jobs found")
+		lc.Println("No cron jobs found")
 		return nil
 	}
 
 	// Output results
-	if listJSON {
-		return outputJobsJSON(cmd, jobs)
+	if lc.json {
+		return lc.outputJobsJSON(jobs)
 	}
 
-	return outputJobsTable(cmd, jobs)
+	return lc.outputJobsTable(jobs)
 }
 
-func outputJobsJSON(cmd *cobra.Command, jobs []*crontab.Job) error {
+func (lc *ListCommand) outputJobsJSON(jobs []*crontab.Job) error {
 	type jobOutput struct {
 		LineNumber  int    `json:"lineNumber"`
 		Expression  string `json:"expression"`
@@ -171,14 +160,14 @@ func outputJobsJSON(cmd *cobra.Command, jobs []*crontab.Job) error {
 		output = append(output, jo)
 	}
 
-	return outputJSON(cmd, map[string]interface{}{
+	return lc.outputJSON(map[string]interface{}{
 		"jobs":   output,
 		"locale": GetLocale(),
 	})
 }
 
-func outputAllEntries(cmd *cobra.Command, entries []*crontab.Entry) error {
-	if listJSON {
+func (lc *ListCommand) outputAllEntries(entries []*crontab.Entry) error {
+	if lc.json {
 		type entryOutput struct {
 			LineNumber int    `json:"lineNumber"`
 			Type       string `json:"type"`
@@ -213,7 +202,7 @@ func outputAllEntries(cmd *cobra.Command, entries []*crontab.Entry) error {
 			output = append(output, eo)
 		}
 
-		return outputJSON(cmd, map[string]interface{}{
+		return lc.outputJSON(map[string]interface{}{
 			"entries": output,
 			"locale":  GetLocale(),
 		})
@@ -222,19 +211,19 @@ func outputAllEntries(cmd *cobra.Command, entries []*crontab.Entry) error {
 	// Table output for all entries
 	for _, entry := range entries {
 		typeStr := entryTypeString(entry.Type)
-		cmd.Printf("%-4d  %-10s  %s\n", entry.LineNumber, typeStr, entry.Raw)
+		lc.Printf("%-4d  %-10s  %s\n", entry.LineNumber, typeStr, entry.Raw)
 	}
 
 	return nil
 }
 
-func outputJobsTable(cmd *cobra.Command, jobs []*crontab.Job) error {
+func (lc *ListCommand) outputJobsTable(jobs []*crontab.Job) error {
 	parser := cronx.NewParserWithLocale(GetLocale())
 	humanizer := human.NewHumanizer()
 
 	// Print header
-	cmd.Println("LINE  EXPRESSION        DESCRIPTION                          COMMAND")
-	cmd.Println("────  ────────────────  ───────────────────────────────────  ────────────────────────")
+	lc.Println("LINE  EXPRESSION        DESCRIPTION                          COMMAND")
+	lc.Println("────  ────────────────  ───────────────────────────────────  ────────────────────────")
 
 	for _, job := range jobs {
 		description := ""
@@ -246,17 +235,17 @@ func outputJobsTable(cmd *cobra.Command, jobs []*crontab.Job) error {
 		}
 
 		// Truncate long descriptions
-		if len(description) > 36 {
-			description = description[:33] + "..."
+		if len(description) > maxDescriptionLength {
+			description = description[:maxDescriptionDisplay] + "..."
 		}
 
 		// Truncate long commands
 		command := job.Command
-		if len(command) > 40 {
-			command = command[:37] + "..."
+		if len(command) > maxCommandLength {
+			command = command[:maxCommandDisplay] + "..."
 		}
 
-		cmd.Printf("%-4d  %-16s  %-36s  %s\n", job.LineNumber, job.Expression, description, command)
+		lc.Printf("%-4d  %-16s  %-36s  %s\n", job.LineNumber, job.Expression, description, command)
 	}
 
 	return nil
@@ -279,8 +268,8 @@ func entryTypeString(t crontab.EntryType) string {
 	}
 }
 
-func outputJSON(cmd *cobra.Command, data interface{}) error {
-	encoder := json.NewEncoder(cmd.OutOrStdout())
+func (lc *ListCommand) outputJSON(data interface{}) error {
+	encoder := json.NewEncoder(lc.OutOrStdout())
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(data)
 }

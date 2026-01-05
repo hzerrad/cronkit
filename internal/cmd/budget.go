@@ -57,10 +57,10 @@ func init() {
 func (bc *BudgetCommand) runBudget(_ *cobra.Command, args []string) error {
 	// Validate required flags
 	if bc.maxConcurrent <= 0 {
-		return fmt.Errorf("--max-concurrent must be greater than 0")
+		return fmt.Errorf("invalid --max-concurrent: must be greater than 0")
 	}
 	if bc.window == "" {
-		return fmt.Errorf("--window is required (e.g., 1m, 1h, 24h)")
+		return fmt.Errorf("invalid --window: required (e.g., 1m, 1h, 24h)")
 	}
 
 	// Parse time window
@@ -126,7 +126,7 @@ func (bc *BudgetCommand) runBudget(_ *cobra.Command, args []string) error {
 
 	// Exit code handling
 	if bc.enforce && !report.Passed {
-		return fmt.Errorf("budget violation detected")
+		return fmt.Errorf("budget violation detected: exceeded maximum concurrent jobs")
 	}
 
 	return nil

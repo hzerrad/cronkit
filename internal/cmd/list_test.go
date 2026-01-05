@@ -26,24 +26,25 @@ func TestListCommand(t *testing.T) {
 	})
 
 	t.Run("list command should have metadata", func(t *testing.T) {
-		assert.NotEmpty(t, listCmd.Short, "Short description should not be empty")
-		assert.NotEmpty(t, listCmd.Long, "Long description should not be empty")
-		assert.NotEmpty(t, listCmd.Use, "Use should not be empty")
+		lc := newListCommand()
+		assert.NotEmpty(t, lc.Short, "Short description should not be empty")
+		assert.NotEmpty(t, lc.Long, "Long description should not be empty")
+		assert.NotEmpty(t, lc.Use, "Use should not be empty")
 	})
 
 	t.Run("list crontab file with valid jobs", func(t *testing.T) {
 		// Setup: Create command with output capture
 		buf := new(bytes.Buffer)
-		cmd := newListCommand()
-		cmd.SetOut(buf)
-		cmd.SetErr(buf)
+		lc := newListCommand()
+		lc.SetOut(buf)
+		lc.SetErr(buf)
 
 		// Get test fixture path
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 
 		// Execute: Run command with test file
-		cmd.SetArgs([]string{"--file", testFile})
-		err := cmd.Execute()
+		lc.SetArgs([]string{"--file", testFile})
+		err := lc.Execute()
 
 		// Assert: Should succeed
 		require.NoError(t, err)
@@ -353,28 +354,10 @@ func TestListCommand_ErrorPaths(t *testing.T) {
 }
 
 func TestListCommand_ErrorCoverage(t *testing.T) {
-	// Reset global flags
-	oldFile := listFile
-	oldAll := listAll
-	oldJSON := listJSON
-	oldStdin := listStdin
-	defer func() {
-		listFile = oldFile
-		listAll = oldAll
-		listJSON = oldJSON
-		listStdin = oldStdin
-	}()
-
 	t.Run("should handle error in outputJSON", func(t *testing.T) {
 		// Test the error path in outputJSON (line 170-172)
 		// This tests when JSON encoding fails
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
-
-		// Reset flags
-		listFile = testFile
-		listAll = false
-		listJSON = true
-		listStdin = false
 
 		cmd := newListCommand()
 		// Use a writer that will fail on write to test error path
@@ -391,12 +374,6 @@ func TestListCommand_ErrorCoverage(t *testing.T) {
 		// Test the error path in outputAllEntries when JSON encoding fails
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 
-		// Reset flags
-		listFile = testFile
-		listAll = true
-		listJSON = true
-		listStdin = false
-
 		cmd := newListCommand()
 		// Use a writer that will fail on write
 		cmd.SetOut(&errorWriter{})
@@ -412,12 +389,6 @@ func TestListCommand_ErrorCoverage(t *testing.T) {
 		// This is a defensive check that should rarely be hit
 		// but we can test the code path exists
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
-
-		// Reset flags
-		listFile = testFile
-		listAll = false
-		listJSON = false
-		listStdin = false
 
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
@@ -475,27 +446,9 @@ func TestListCommand_OutputPaths(t *testing.T) {
 }
 
 func TestListCommand_OutputAllEntries(t *testing.T) {
-	// Reset global flags
-	oldFile := listFile
-	oldAll := listAll
-	oldJSON := listJSON
-	oldStdin := listStdin
-	defer func() {
-		listFile = oldFile
-		listAll = oldAll
-		listJSON = oldJSON
-		listStdin = oldStdin
-	}()
-
 	t.Run("should handle outputAllEntries with job entries", func(t *testing.T) {
 		// Test the path in outputAllEntries where entry has a job (line 200-211)
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
-
-		// Reset flags
-		listFile = testFile
-		listAll = true
-		listJSON = true
-		listStdin = false
 
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
@@ -517,12 +470,6 @@ func TestListCommand_OutputAllEntries(t *testing.T) {
 		content := "# This is a comment\nPATH=/usr/bin\n# Another comment\n"
 		require.NoError(t, os.WriteFile(tmpFile, []byte(content), 0644))
 
-		// Reset flags
-		listFile = tmpFile
-		listAll = true
-		listJSON = true
-		listStdin = false
-
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
 		cmd.SetOut(buf)
@@ -540,27 +487,9 @@ func TestListCommand_OutputAllEntries(t *testing.T) {
 }
 
 func TestListCommand_AllPaths(t *testing.T) {
-	// Reset global flags
-	oldFile := listFile
-	oldAll := listAll
-	oldJSON := listJSON
-	oldStdin := listStdin
-	defer func() {
-		listFile = oldFile
-		listAll = oldAll
-		listJSON = oldJSON
-		listStdin = oldStdin
-	}()
-
 	t.Run("list with --all flag and file", func(t *testing.T) {
 		// Test the path where listAll is true and file is set
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
-
-		// Reset flags
-		listFile = testFile
-		listAll = true
-		listJSON = false
-		listStdin = false
 
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
@@ -576,12 +505,6 @@ func TestListCommand_AllPaths(t *testing.T) {
 	t.Run("list with --all flag and JSON", func(t *testing.T) {
 		// Test the path where listAll is true and JSON is true
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
-
-		// Reset flags
-		listFile = testFile
-		listAll = true
-		listJSON = true
-		listStdin = false
 
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
@@ -601,12 +524,6 @@ func TestListCommand_AllPaths(t *testing.T) {
 		// that the error handling code exists
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 
-		// Reset flags - use file to avoid stdin
-		listFile = testFile
-		listAll = false
-		listJSON = false
-		listStdin = false
-
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
 		cmd.SetOut(buf)
@@ -620,12 +537,6 @@ func TestListCommand_AllPaths(t *testing.T) {
 	t.Run("list with user crontab fallback", func(t *testing.T) {
 		// Test the path where stdin is not available and falls back to user crontab
 		// This tests line 109-115 in runList
-		// Reset flags
-		listFile = ""
-		listAll = false
-		listJSON = false
-		listStdin = false
-
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
 		cmd.SetOut(buf)
@@ -640,27 +551,9 @@ func TestListCommand_AllPaths(t *testing.T) {
 }
 
 func TestListCommand_MorePaths(t *testing.T) {
-	// Reset global flags
-	oldFile := listFile
-	oldAll := listAll
-	oldJSON := listJSON
-	oldStdin := listStdin
-	defer func() {
-		listFile = oldFile
-		listAll = oldAll
-		listJSON = oldJSON
-		listStdin = oldStdin
-	}()
-
 	t.Run("should handle outputAllEntries with table output", func(t *testing.T) {
 		// Test the table output path in outputAllEntries (line 222-228)
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
-
-		// Reset flags - use --all without --json to get table output
-		listFile = testFile
-		listAll = true
-		listJSON = false
-		listStdin = false
 
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
@@ -682,12 +575,6 @@ func TestListCommand_MorePaths(t *testing.T) {
 		content := "60 0 * * * /usr/bin/invalid.sh\n"
 		require.NoError(t, os.WriteFile(tmpFile, []byte(content), 0644))
 
-		// Reset flags
-		listFile = tmpFile
-		listAll = false
-		listJSON = false
-		listStdin = false
-
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
 		cmd.SetOut(buf)
@@ -704,12 +591,6 @@ func TestListCommand_MorePaths(t *testing.T) {
 	t.Run("should handle outputJobsTable with long descriptions", func(t *testing.T) {
 		// Test the truncation path in outputJobsTable (line 248-251)
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
-
-		// Reset flags
-		listFile = testFile
-		listAll = false
-		listJSON = false
-		listStdin = false
 
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
@@ -730,12 +611,6 @@ func TestListCommand_MorePaths(t *testing.T) {
 		longCmd := "0 0 * * * " + string(make([]byte, 100)) + "/usr/bin/very/long/path/to/command.sh\n"
 		require.NoError(t, os.WriteFile(tmpFile, []byte(longCmd), 0644))
 
-		// Reset flags
-		listFile = tmpFile
-		listAll = false
-		listJSON = false
-		listStdin = false
-
 		cmd := newListCommand()
 		buf := new(bytes.Buffer)
 		cmd.SetOut(buf)
@@ -753,12 +628,12 @@ func TestOutputJSON_Error(t *testing.T) {
 	t.Run("should handle JSON encoding error in outputJSON", func(t *testing.T) {
 		// Test the error path in outputJSON when encoding fails
 		// This tests the error return path (line 285)
-		cmd := newListCommand()
+		lc := newListCommand()
 		// Use an error writer to trigger JSON encoding error
-		cmd.SetOut(&errorWriter{})
+		lc.SetOut(&errorWriter{})
 
 		// Try to output JSON - this should fail
-		err := outputJSON(cmd, map[string]interface{}{"test": "data"})
+		err := lc.outputJSON(map[string]interface{}{"test": "data"})
 		// Should return error from JSON encoding
 		require.Error(t, err)
 		// The error comes from encoder.Encode, which may not wrap it
@@ -792,25 +667,8 @@ func TestIsStdinAvailable(t *testing.T) {
 }
 
 func TestListCommand_StdinPaths(t *testing.T) {
-	// Reset global flags
-	oldFile := listFile
-	oldAll := listAll
-	oldJSON := listJSON
-	oldStdin := listStdin
-	defer func() {
-		listFile = oldFile
-		listAll = oldAll
-		listJSON = oldJSON
-		listStdin = oldStdin
-	}()
-
 	t.Run("should handle --stdin flag with jobs", func(t *testing.T) {
 		// Test the path where listStdin is true (line 87-96)
-		// Reset flags
-		listFile = ""
-		listAll = false
-		listJSON = false
-		listStdin = true
 
 		// Create a temporary file to simulate stdin
 		tmpFile := filepath.Join(t.TempDir(), "stdin.cron")
@@ -839,11 +697,6 @@ func TestListCommand_StdinPaths(t *testing.T) {
 
 	t.Run("should handle --stdin flag with --all", func(t *testing.T) {
 		// Test the path where listStdin is true and listAll is true (line 89-90)
-		// Reset flags
-		listFile = ""
-		listAll = true
-		listJSON = false
-		listStdin = true
 
 		// Create a temporary file to simulate stdin
 		tmpFile := filepath.Join(t.TempDir(), "stdin-all.cron")
@@ -872,11 +725,6 @@ func TestListCommand_StdinPaths(t *testing.T) {
 
 	t.Run("should handle --stdin flag with --all and --json", func(t *testing.T) {
 		// Test the path where listStdin is true, listAll is true, and JSON is true
-		// Reset flags
-		listFile = ""
-		listAll = true
-		listJSON = true
-		listStdin = true
 
 		// Create a temporary file to simulate stdin
 		tmpFile := filepath.Join(t.TempDir(), "stdin-all-json.cron")
@@ -905,11 +753,6 @@ func TestListCommand_StdinPaths(t *testing.T) {
 
 	t.Run("should handle automatic stdin detection with jobs", func(t *testing.T) {
 		// Test the path where stdin is automatically detected (line 99-108)
-		// Reset flags
-		listFile = ""
-		listAll = false
-		listJSON = false
-		listStdin = false
 
 		// Create a temporary file to simulate stdin
 		tmpFile := filepath.Join(t.TempDir(), "auto-stdin.cron")
@@ -937,11 +780,6 @@ func TestListCommand_StdinPaths(t *testing.T) {
 
 	t.Run("should handle automatic stdin detection with --all", func(t *testing.T) {
 		// Test the path where stdin is automatically detected and listAll is true (line 101-102)
-		// Reset flags
-		listFile = ""
-		listAll = true
-		listJSON = false
-		listStdin = false
 
 		// Create a temporary file to simulate stdin
 		tmpFile := filepath.Join(t.TempDir(), "auto-stdin-all.cron")

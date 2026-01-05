@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	maxCommandLengthDoc  = 50
+	maxCommandDisplayDoc = 47 // for truncation
+)
+
 // Renderer interface for different output formats
 type Renderer interface {
 	Render(doc *Document, w io.Writer) error
@@ -36,8 +41,8 @@ func (r *MarkdownRenderer) Render(doc *Document, w io.Writer) error {
 	for _, job := range doc.Jobs {
 		// Truncate command for table display
 		command := job.Command
-		if len(command) > 50 {
-			command = command[:47] + "..."
+		if len(command) > maxCommandLengthDoc {
+			command = command[:maxCommandDisplayDoc] + "..."
 		}
 		_, _ = fmt.Fprintf(w, "| %d | `%s` | %s | `%s` |\n",
 			job.LineNumber, job.Expression, job.Description, command)
@@ -122,8 +127,8 @@ func (r *HTMLRenderer) Render(doc *Document, w io.Writer) error {
 	_, _ = fmt.Fprintf(w, "<h2>Jobs</h2>\n<table>\n<thead>\n<tr><th>Line</th><th>Expression</th><th>Description</th><th>Command</th></tr>\n</thead>\n<tbody>\n")
 	for _, job := range doc.Jobs {
 		command := job.Command
-		if len(command) > 50 {
-			command = command[:47] + "..."
+		if len(command) > maxCommandLengthDoc {
+			command = command[:maxCommandDisplayDoc] + "..."
 		}
 		_, _ = fmt.Fprintf(w, "<tr><td>%d</td><td><code>%s</code></td><td>%s</td><td><code>%s</code></td></tr>\n",
 			job.LineNumber, job.Expression, job.Description, command)

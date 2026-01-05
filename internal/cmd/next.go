@@ -78,10 +78,10 @@ func (nc *NextCommand) runNext(_ *cobra.Command, args []string) error {
 
 	// Validate count range
 	if nc.count < 1 {
-		return fmt.Errorf("count must be at least 1")
+		return fmt.Errorf("invalid count: must be at least 1")
 	}
 	if nc.count > 100 {
-		return fmt.Errorf("count must be at most 100")
+		return fmt.Errorf("invalid count: must be at most 100")
 	}
 
 	// Determine timezone
