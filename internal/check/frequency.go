@@ -12,13 +12,13 @@ import (
 func CalculateRunsPerDay(expression string, scheduler cronx.Scheduler) (int, error) {
 	// Start from just before midnight to capture the first run at midnight
 	// scheduler.Next returns times AFTER the given time, so we need to start slightly before
-	startTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	startTime := ReferenceDate
 	queryTime := startTime.Add(-1 * time.Second) // Query from just before midnight
-	endTime := startTime.Add(24 * time.Hour)
+	endTime := startTime.Add(DefaultOverlapWindow)
 
 	// Get all runs for a 24-hour period
 	// For every-minute schedules, we need 1440 runs. Use a larger limit to be safe.
-	times, err := scheduler.Next(expression, queryTime, 2000)
+	times, err := scheduler.Next(expression, queryTime, MaxRunsForDailyCalculation)
 	if err != nil {
 		return 0, fmt.Errorf("failed to calculate runs: %w", err)
 	}
@@ -72,11 +72,11 @@ func EstimateRunFrequency(expression string, scheduler cronx.Scheduler) (runsPer
 
 	// Calculate runs per hour by getting runs for a 1-hour window
 	// Start from just before the hour to capture the first run at the start of the hour
-	startTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	startTime := ReferenceDate
 	queryTime := startTime.Add(-1 * time.Second) // Query from just before the hour
 	endTime := startTime.Add(1 * time.Hour)
 
-	times, err := scheduler.Next(expression, queryTime, 100)
+	times, err := scheduler.Next(expression, queryTime, MaxRunsForHourlyCalculation)
 	if err != nil {
 		return runsPerDay, 0, fmt.Errorf("failed to calculate hourly runs: %w", err)
 	}

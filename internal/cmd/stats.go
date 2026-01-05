@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/hzerrad/cronic/internal/crontab"
 	"github.com/hzerrad/cronic/internal/stats"
@@ -44,7 +43,7 @@ Examples:
 	sc.Flags().BoolVar(&sc.stdin, "stdin", false, "Read crontab from standard input")
 	sc.Flags().BoolVarP(&sc.json, "json", "j", false, "Output in JSON format")
 	sc.Flags().BoolVarP(&sc.verbose, "verbose", "v", false, "Show detailed statistics")
-	sc.Flags().IntVar(&sc.top, "top", 5, "Number of top items to show (default: 5)")
+	sc.Flags().IntVar(&sc.top, "top", DefaultStatsTopN, "Number of top items to show (default: 5)")
 	sc.Flags().BoolVar(&sc.aggregate, "aggregate", false, "Aggregate statistics from multiple sources")
 
 	return sc
@@ -86,7 +85,7 @@ func (sc *StatsCommand) runStats(_ *cobra.Command, _ []string) error {
 	}
 
 	// Calculate metrics
-	metrics, err := calculator.CalculateMetrics(jobs, 24*time.Hour)
+	metrics, err := calculator.CalculateMetrics(jobs, stats.OneDay)
 	if err != nil {
 		return fmt.Errorf("failed to calculate metrics: %w", err)
 	}
@@ -127,7 +126,7 @@ func (sc *StatsCommand) outputText(metrics *stats.Metrics, calculator *stats.Cal
 
 	// Hour histogram
 	if sc.verbose {
-		sc.Printf("\n%s\n", stats.GenerateHistogram(metrics.HourHistogram, 40))
+		sc.Printf("\n%s\n", stats.GenerateHistogram(metrics.HourHistogram, stats.DefaultHistogramWidth))
 	}
 
 	// Collision stats

@@ -45,10 +45,10 @@ func NewValidator(locale string) *Validator {
 		parser:          cronx.NewParserWithLocale(locale),
 		scheduler:       cronx.NewScheduler(),
 		locale:          locale,
-		enableFrequency: true,           // Default: enabled
-		maxRunsPerDay:   1000,           // Default threshold
-		warnOnOverlap:   false,          // Default: disabled
-		overlapWindow:   24 * time.Hour, // Default: 24 hours
+		enableFrequency: true,                 // Default: enabled
+		maxRunsPerDay:   1000,                 // Default threshold
+		warnOnOverlap:   false,                // Default: disabled
+		overlapWindow:   DefaultOverlapWindow, // Default: 24 hours
 	}
 }
 

@@ -134,11 +134,11 @@ func (g *Generator) GenerateDocument(entries []*crontab.Entry, source string, op
 func (g *Generator) calculateJobStats(expression string) *JobStats {
 	// Calculate runs per day
 	// Start from just before midnight to capture the first run at midnight
-	startTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	startTime := ReferenceDate
 	queryTime := startTime.Add(-1 * time.Second)
-	endTime := startTime.Add(24 * time.Hour)
+	endTime := startTime.Add(24 * time.Hour) // Using literal, OneDay constant is in stats package
 
-	times, err := g.scheduler.Next(expression, queryTime, 2000)
+	times, err := g.scheduler.Next(expression, queryTime, 2000) // Using literal, constant is in check package
 	if err != nil {
 		return nil
 	}
@@ -155,7 +155,7 @@ func (g *Generator) calculateJobStats(expression string) *JobStats {
 
 	// Calculate runs per hour
 	hourEndTime := startTime.Add(1 * time.Hour)
-	hourTimes, err := g.scheduler.Next(expression, queryTime, 100)
+	hourTimes, err := g.scheduler.Next(expression, queryTime, 100) // Using literal, constant is in check package
 	runsPerHour := 0
 	if err == nil {
 		for _, t := range hourTimes {

@@ -7,7 +7,7 @@ import (
 
 // GenerateHistogram generates a text histogram from hour data
 func GenerateHistogram(hourData []int, width int) string {
-	if len(hourData) != 24 {
+	if len(hourData) != HoursInDay {
 		return ""
 	}
 
@@ -27,7 +27,7 @@ func GenerateHistogram(hourData []int, width int) string {
 	sb.WriteString("Hour Distribution:\n")
 	sb.WriteString(strings.Repeat("=", width+20) + "\n")
 
-	for hour := 0; hour < 24; hour++ {
+	for hour := 0; hour < HoursInDay; hour++ {
 		count := hourData[hour]
 		barWidth := int(float64(count) / float64(max) * float64(width))
 		bar := strings.Repeat("█", barWidth)

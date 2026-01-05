@@ -27,7 +27,7 @@ func NewCalculator() *Calculator {
 func (c *Calculator) CalculateMetrics(jobs []*crontab.Job, timeWindow time.Duration) (*Metrics, error) {
 	metrics := &Metrics{
 		JobFrequencies: []JobFrequency{},
-		HourHistogram:  make([]int, 24),
+		HourHistogram:  make([]int, HoursInDay),
 		Collisions:     CollisionStats{},
 	}
 
@@ -66,50 +66,72 @@ func (c *Calculator) CalculateMetrics(jobs []*crontab.Job, timeWindow time.Durat
 
 // calculateJobFrequency calculates runs per day and per hour for a job
 func (c *Calculator) calculateJobFrequency(expression string) (runsPerDay, runsPerHour int) {
-	startTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	endTime := startTime.Add(24 * time.Hour)
+	startTime := ReferenceDate
+	endTime := startTime.Add(OneDay)
 
-	times, err := c.scheduler.Next(expression, startTime, 2000)
-	if err != nil {
-		return 0, 0
+	// Use optimized counting with smart estimates
+	runsPerDay = c.countRunsInWindow(expression, startTime, endTime)
+
+	hourEndTime := startTime.Add(OneHour)
+	runsPerHour = c.countRunsInWindow(expression, startTime, hourEndTime)
+
+	return runsPerDay, runsPerHour
+}
+
+// countRunsInWindow counts how many times a cron expression runs within a time window
+// Uses smart estimation to minimize unnecessary time generation
+func (c *Calculator) countRunsInWindow(expression string, startTime, endTime time.Time) int {
+	windowDuration := endTime.Sub(startTime)
+
+	// Smart estimate based on window duration to avoid generating excessive times
+	// Worst case: every minute
+	var maxRuns int
+	if windowDuration <= OneHour {
+		// For 1 hour: worst case is every minute
+		maxRuns = MaxRunsPerHour
+	} else if windowDuration <= OneDay {
+		// For 24 hours: worst case is every minute
+		maxRuns = MaxRunsPerDay
+	} else {
+		// For longer windows, calculate based on duration
+		maxRuns = int(windowDuration.Minutes()) + 1
+		if maxRuns > MaxRunsForLongWindow {
+			maxRuns = MaxRunsForLongWindow // Cap for very long windows
+		}
 	}
 
+	times, err := c.scheduler.Next(expression, startTime, maxRuns)
+	if err != nil {
+		return 0
+	}
+
+	count := 0
 	for _, t := range times {
 		if t.After(endTime) || t.Equal(endTime) {
 			break
 		}
 		if !t.Before(startTime) {
-			runsPerDay++
+			count++
 		}
 	}
 
-	hourEndTime := startTime.Add(1 * time.Hour)
-	hourTimes, err := c.scheduler.Next(expression, startTime, 100)
-	if err == nil {
-		for _, t := range hourTimes {
-			if t.After(hourEndTime) || t.Equal(hourEndTime) {
-				break
-			}
-			if !t.Before(startTime) {
-				runsPerHour++
-			}
-		}
-	}
-
-	return runsPerDay, runsPerHour
+	return count
 }
 
 // calculateHourHistogram calculates the distribution of runs across hours
 func (c *Calculator) calculateHourHistogram(jobs []*crontab.Job, metrics *Metrics) {
-	startTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	endTime := startTime.Add(24 * time.Hour)
+	startTime := ReferenceDate
+	endTime := startTime.Add(OneDay)
+
+	// Use optimized count: worst case is every minute
+	maxRuns := MaxRunsPerDay
 
 	for _, job := range jobs {
 		if !job.Valid {
 			continue
 		}
 
-		times, err := c.scheduler.Next(job.Expression, startTime, 2000)
+		times, err := c.scheduler.Next(job.Expression, startTime, maxRuns)
 		if err != nil {
 			continue
 		}
@@ -193,12 +215,18 @@ func (c *Calculator) CalculateCollisions(jobs []*crontab.Job, timeWindow time.Du
 
 	// Group runs by minute
 	minuteRuns := make(map[time.Time]int)
+	// Estimate max runs based on time window (worst case: every minute)
+	maxRuns := int(timeWindow.Minutes()) + 1
+	if maxRuns > MaxRunsForLongWindow {
+		maxRuns = MaxRunsForLongWindow // Cap at reasonable maximum
+	}
+
 	for _, job := range jobs {
 		if !job.Valid {
 			continue
 		}
 
-		times, err := c.scheduler.Next(job.Expression, startTime, 10000)
+		times, err := c.scheduler.Next(job.Expression, startTime, maxRuns)
 		if err != nil {
 			continue
 		}
@@ -255,6 +283,6 @@ func (c *Calculator) CalculateCollisions(jobs []*crontab.Job, timeWindow time.Du
 
 // IdentifyBusiestHours returns the busiest hours
 func (c *Calculator) IdentifyBusiestHours(jobs []*crontab.Job) []HourStats {
-	stats := c.CalculateCollisions(jobs, 24*time.Hour)
+	stats := c.CalculateCollisions(jobs, OneDay)
 	return stats.BusiestHours
 }

@@ -58,7 +58,7 @@ Examples:
 	cc.Flags().StringVar(&cc.groupBy, "group-by", "none", "Group issues by: 'none' (default), 'severity', 'line', or 'job'")
 	cc.Flags().BoolVar(&cc.stdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
 	cc.Flags().BoolVar(&cc.enableFrequency, "enable-frequency-checks", true, "Enable frequency analysis (redundant patterns, excessive runs)")
-	cc.Flags().IntVar(&cc.maxRunsPerDay, "max-runs-per-day", 1000, "Threshold for excessive runs warning (default: 1000)")
+	cc.Flags().IntVar(&cc.maxRunsPerDay, "max-runs-per-day", DefaultMaxRunsPerDay, "Threshold for excessive runs warning (default: 1000)")
 	cc.Flags().BoolVar(&cc.enableHygiene, "enable-hygiene-checks", false, "Enable command hygiene checks (absolute paths, redirections, %, quoting)")
 	cc.Flags().BoolVar(&cc.warnOnOverlap, "warn-on-overlap", false, "Enable overlap warnings (multiple jobs running simultaneously)")
 	cc.Flags().StringVar(&cc.overlapWindow, "overlap-window", "24h", "Time window for overlap analysis (default: 24h, e.g., 1h, 24h, 48h)")

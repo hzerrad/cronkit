@@ -176,8 +176,8 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	var runCount int
 	var timeRange time.Duration
 	if timelineView == render.DayView {
-		timeRange = 24 * time.Hour
-		runCount = 200 // Enough to cover a day for most schedules
+		timeRange = 24 * time.Hour // Using literal for comparison, OneDay constant is in stats package
+		runCount = 200             // Enough to cover a day for most schedules
 	} else {
 		timeRange = time.Hour
 		runCount = 100 // Enough to cover an hour for most schedules

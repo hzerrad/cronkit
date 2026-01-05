@@ -66,7 +66,7 @@ Examples:
   cronic next "*/5 9-17 * * 1-5" -c 20    # Business hours monitoring`,
 	}
 
-	nc.Command.Flags().IntVarP(&nc.count, "count", "c", 10, "Number of runs to show (1-100, default: 10)")
+	nc.Command.Flags().IntVarP(&nc.count, "count", "c", DefaultNextCount, "Number of runs to show (1-100, default: 10)")
 	nc.Command.Flags().BoolVarP(&nc.json, "json", "j", false, "Output in JSON format")
 	nc.Command.Flags().StringVar(&nc.timezone, "timezone", "", "Timezone for calculations (e.g., 'America/New_York', 'UTC', defaults to local timezone)")
 
@@ -77,11 +77,11 @@ func (nc *NextCommand) runNext(_ *cobra.Command, args []string) error {
 	expression := args[0]
 
 	// Validate count range
-	if nc.count < 1 {
-		return fmt.Errorf("invalid count: must be at least 1")
+	if nc.count < MinNextCount {
+		return fmt.Errorf("invalid count: must be at least %d", MinNextCount)
 	}
-	if nc.count > 100 {
-		return fmt.Errorf("invalid count: must be at most 100")
+	if nc.count > MaxNextCount {
+		return fmt.Errorf("invalid count: must be at most %d", MaxNextCount)
 	}
 
 	// Determine timezone
@@ -190,7 +190,7 @@ func formatRelativeTime(from, to time.Time) string {
 	}
 
 	// Hours (less than a day)
-	if duration < 24*time.Hour {
+	if duration < 24*time.Hour { // Using literal for comparison, OneDay constant is in stats package
 		hours := int(duration.Hours())
 		if hours == 1 {
 			return "in 1 hour"
