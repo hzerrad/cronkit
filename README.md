@@ -552,7 +552,6 @@ make benchmark      # Run performance benchmarks
 
 **Documentation:**
 - [TESTING.md](TESTING.md) - Comprehensive testing guidelines
-- [BDD Tutorial](docs/BDD_TUTORIAL.md) - Hands-on BDD with Ginkgo tutorial
 
 ### Code Quality
 
@@ -588,9 +587,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Documentation
 
-- [CRONIC_REFERENCE.md](docs/CRONIC_REFERENCE.md) - Complete specification and roadmap
 - [TESTING.md](TESTING.md) - Testing guidelines
-- [BDD_TUTORIAL.md](docs/BDD_TUTORIAL.md) - BDD testing tutorial
 
 ## License
 
