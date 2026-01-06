@@ -59,7 +59,7 @@ brews:
     url_template: "https://github.com/hzerrad/cronic/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
     # Ensure GoReleaser writes the formula where taps expect it
-    folder: Formula
+    directory: Formula
 
     repository:
       owner: hzerrad
