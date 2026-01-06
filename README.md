@@ -31,30 +31,7 @@
 
 ## Installation
 
-### Using Go Install
-
-```bash
-go install github.com/hzerrad/cronic/cmd/cronic@latest
-```
-
-### From Source
-
-```bash
-git clone https://github.com/hzerrad/cronic.git
-cd cronic
-make install
-```
-
-### Building from Source
-
-```bash
-git clone https://github.com/hzerrad/cronic.git
-cd cronic
-make build
-# Binary will be in ./bin/cronic
-```
-
-### Package Managers
+### Quick Install (Recommended)
 
 #### Homebrew (macOS/Linux)
 
@@ -63,34 +40,110 @@ brew tap hzerrad/cronic
 brew install cronic
 ```
 
+#### Direct Binary Download
+
+Download the pre-built binary for your platform from [GitHub Releases](https://github.com/hzerrad/cronic/releases):
+
+```bash
+# Linux (amd64)
+wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_linux_amd64.tar.gz
+tar -xzf cronic_linux_amd64.tar.gz
+sudo mv cronic /usr/local/bin/
+
+# macOS (Apple Silicon)
+wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_darwin_arm64.tar.gz
+tar -xzf cronic_darwin_arm64.tar.gz
+sudo mv cronic /usr/local/bin/
+
+# macOS (Intel)
+wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_darwin_amd64.tar.gz
+tar -xzf cronic_darwin_amd64.tar.gz
+sudo mv cronic /usr/local/bin/
+```
+
+### Package Managers
+
 #### APT (Debian/Ubuntu)
 
-Download the `.deb` package from [GitHub Releases](https://github.com/hzerrad/cronic/releases) and install:
+Download and install the `.deb` package:
 
 ```bash
+# For amd64
 wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_0.1.0_amd64.deb
 sudo dpkg -i cronic_0.1.0_amd64.deb
-sudo apt-get install -f  # Fix dependencies if needed
+
+# For arm64
+wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_0.1.0_arm64.deb
+sudo dpkg -i cronic_0.1.0_arm64.deb
+
+# Fix dependencies if needed
+sudo apt-get install -f
 ```
 
-#### DNF/YUM (Fedora/RHEL)
+#### DNF/YUM (Fedora/RHEL/CentOS)
 
-Download the `.rpm` package from [GitHub Releases](https://github.com/hzerrad/cronic/releases) and install:
+Download and install the `.rpm` package:
 
 ```bash
+# For x86_64
 wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic-0.1.0-1.x86_64.rpm
 sudo dnf install cronic-0.1.0-1.x86_64.rpm
+
+# For aarch64
+wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic-0.1.0-1.aarch64.rpm
+sudo dnf install cronic-0.1.0-1.aarch64.rpm
 ```
 
-#### Pacman (Arch Linux)
+#### Pacman/AUR (Arch Linux)
 
-Install from AUR:
+Install from the Arch User Repository (AUR) using an AUR helper:
 
 ```bash
-yay -S cronic
-# or
-paru -S cronic
+# Using yay
+yay -S cronic-bin
+
+# Using paru
+paru -S cronic-bin
+
+# Or manually
+git clone https://aur.archlinux.org/cronic-bin.git
+cd cronic-bin
+makepkg -si
 ```
+
+### Go Install
+
+Install directly from source using Go:
+
+```bash
+go install github.com/hzerrad/cronic/cmd/cronic@latest
+```
+
+**Note:** This requires Go 1.25.2 or higher to be installed.
+
+### Build from Source
+
+Clone the repository and build:
+
+```bash
+git clone https://github.com/hzerrad/cronic.git
+cd cronic
+make build
+# Binary will be in ./bin/cronic
+
+# Or install directly
+make install
+```
+
+### Verify Installation
+
+After installation, verify it works:
+
+```bash
+cronic version
+```
+
+You should see the version information printed.
 
 ## Quick Start
 

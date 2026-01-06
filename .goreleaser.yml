@@ -81,6 +81,25 @@ brews:
       name: goreleaserbot
       email: goreleaser@cronic.dev
 
+# AUR (Arch User Repository) configuration
+aurs:
+  - name: cronic-bin
+    homepage: https://github.com/hzerrad/cronic
+    description: Make cron human again - CLI tool for cron job management
+    license: Apache-2.0
+    maintainers:
+      - hzerrad <contact@hzerrad.dev>
+    git_url: ssh://[email protected]/cronic-bin.git
+    private_key: "{{ .Env.AUR_SSH_PRIVATE_KEY }}"
+    provides:
+      - cronic
+    conflicts:
+      - cronic
+    package: |
+      install -Dm755 "./cronic" "${pkgdir}/usr/bin/cronic"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/cronic/LICENSE"
+      install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/cronic/README.md"
+
 # APT (Debian/Ubuntu) repository configuration
 nfpms:
   - id: deb
@@ -150,3 +169,11 @@ release:
     ```bash
     wget https://github.com/hzerrad/cronic/releases/download/{{ .Tag }}/cronic-{{ .Tag }}-1.x86_64.rpm
     sudo dnf install cronic-{{ .Tag }}-1.x86_64.rpm
+    ```
+    
+    #### Pacman/AUR (Arch Linux)
+    ```bash
+    yay -S cronic-bin
+    # or
+    paru -S cronic-bin
+    ```

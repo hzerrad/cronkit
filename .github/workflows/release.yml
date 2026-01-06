@@ -35,3 +35,6 @@ jobs:
           # If using Homebrew tap, create a Personal Access Token with repo permissions
           # and add it as a secret named HOMEBREW_TAP_GITHUB_TOKEN in GitHub Settings > Secrets
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # If using AUR, create an SSH key pair and add the private key as a secret
+          # named AUR_SSH_PRIVATE_KEY in GitHub Settings > Secrets
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
