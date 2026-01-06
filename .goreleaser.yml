@@ -100,21 +100,8 @@ nfpms:
       - src: README.md
         dst: /usr/share/doc/cronic/README.md
     deb:
-      depends:
+      dependencies:
         - libc6
-      scripts:
-        preinstall: |
-          #!/bin/bash
-          # Pre-install script (if needed)
-        postinstall: |
-          #!/bin/bash
-          # Post-install script (if needed)
-        preremove: |
-          #!/bin/bash
-          # Pre-remove script (if needed)
-        postremove: |
-          #!/bin/bash
-          # Post-remove script (if needed)
 
   - id: rpm
     package_name: cronic
@@ -140,19 +127,6 @@ nfpms:
       group: Applications/System
       compression: gzip
       summary: Make cron human again - CLI tool for cron job management
-      scripts:
-        preinstall: |
-          #!/bin/bash
-          # Pre-install script (if needed)
-        postinstall: |
-          #!/bin/bash
-          # Post-install script (if needed)
-        preremove: |
-          #!/bin/bash
-          # Pre-remove script (if needed)
-        postremove: |
-          #!/bin/bash
-          # Post-remove script (if needed)
 
 # Release configuration
 release:
@@ -183,4 +157,3 @@ release:
     ```bash
     wget https://github.com/hzerrad/cronic/releases/download/{{ .Tag }}/cronic-{{ .Tag }}-1.x86_64.rpm
     sudo dnf install cronic-{{ .Tag }}-1.x86_64.rpm
-    ```
