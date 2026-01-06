@@ -11,7 +11,6 @@ builds:
     goos:
       - linux
       - darwin
-      - windows
     goarch:
       - amd64
       - arm64
@@ -27,7 +26,6 @@ builds:
       - CGO_ENABLED=0
     ignore:
       - goos: windows
-        goarch: arm64 # Windows ARM64 not commonly used yet
 
 # Archive configuration
 archives:
@@ -186,13 +184,3 @@ release:
     wget https://github.com/hzerrad/cronic/releases/download/{{ .Tag }}/cronic-{{ .Tag }}-1.x86_64.rpm
     sudo dnf install cronic-{{ .Tag }}-1.x86_64.rpm
     ```
-
-# Docker (optional, for future use)
-# dockers:
-#   - image_templates:
-#       - "ghcr.io/hzerrad/cronic:{{ .Tag }}"
-#       - "ghcr.io/hzerrad/cronic:latest"
-#     dockerfile: Dockerfile
-#     goos: linux
-#     goarch: amd64
-

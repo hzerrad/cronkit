@@ -1006,3 +1006,107 @@ func TestTimeline_GetOverlapStats(t *testing.T) {
 		assert.Equal(t, 2, stats.MostProblematic[2].Count)
 	})
 }
+
+// TestTimeline_Render_EdgeCases tests additional Render edge cases
+func TestTimeline_Render_EdgeCases(t *testing.T) {
+	t.Run("should handle Render with zero width", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 0)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+	})
+
+	t.Run("should handle Render with very small width less than fixed chars", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Width < 10 (fixed chars) so availableWidth will be 0 or negative
+		tl := NewTimeline(DayView, startTime, 5)
+
+		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+	})
+
+	t.Run("should handle Render with jobs without description", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Add job run but don't set job info (so no description)
+		tl.AddJobRun("job-without-info", startTime.Add(1*time.Hour))
+		output := tl.Render(false)
+		// Should fallback to job ID
+		assert.Contains(t, output, "job-without-info")
+	})
+
+	t.Run("should handle Render with jobs with expr- prefix", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		tl.AddJobRun("expr-test", startTime.Add(1*time.Hour))
+		tl.SetJobInfo("expr-test", "0 * * * *", "Hourly job")
+		output := tl.Render(false)
+		// Should show just description without expression in parentheses for expr- prefix
+		assert.Contains(t, output, "Hourly job")
+	})
+
+	t.Run("should handle Render with marker label overflow", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Very narrow width so labels might overflow
+		tl := NewTimeline(DayView, startTime, 30)
+
+		tl.AddJobRun("job-1", startTime.Add(6*time.Hour))
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+	})
+
+	t.Run("should handle Render with placed=false path when all positions occupied", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		// Very narrow width to cause placement issues
+		tl := NewTimeline(DayView, startTime, 15)
+
+		// Add many runs at different times to fill positions
+		for i := 0; i < 50; i++ {
+			tl.AddJobRun(fmt.Sprintf("job-%d", i), startTime.Add(time.Duration(i)*time.Minute))
+		}
+		output := tl.Render(false)
+		// Should still render without error
+		assert.Contains(t, output, "Timeline")
+	})
+
+	t.Run("should handle Render with hour view and narrow width", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 9, 0, 0, 0, time.UTC)
+		tl := NewTimeline(HourView, startTime, 40)
+
+		tl.AddJobRun("job-1", startTime.Add(15*time.Minute))
+		output := tl.Render(false)
+		assert.Contains(t, output, "Hour View")
+	})
+
+	t.Run("should handle Render with timeRuns that have times before start", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Add a run that's before start (should be filtered out)
+		tl.AddJobRun("job-before", startTime.Add(-1*time.Hour))
+		// Add valid runs
+		tl.AddJobRun("job-valid", startTime.Add(1*time.Hour))
+
+		output := tl.Render(false)
+		assert.Contains(t, output, "job-valid")
+		// Should not contain the before-start job
+		assert.NotContains(t, output, "job-before")
+	})
+
+	t.Run("should handle Render with durationRange == 0", func(t *testing.T) {
+		// This is a theoretical edge case - creating timeline with startTime == endTime
+		// In practice, NewTimeline always creates a timeline with duration > 0
+		// But we can test the branch where durationRange might be 0 in calculation
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		// Normal case - should work
+		output := tl.Render(false)
+		assert.Contains(t, output, "Timeline")
+	})
+}

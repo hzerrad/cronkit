@@ -33,5 +33,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # If using Homebrew tap, create a Personal Access Token with repo permissions
-          # and add it as a secret named HOMEBREW_TAP_GITHUB_TOKEN, then uncomment:
-          # HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # and add it as a secret named HOMEBREW_TAP_GITHUB_TOKEN in GitHub Settings > Secrets
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
