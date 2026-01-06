@@ -85,7 +85,7 @@ aurs:
     maintainers:
       - hzerrad <contact@hzerrad.dev>
 
-    git_url: "ssh://[email protected]/cronic-bin.git"
+    git_url: "ssh://aur@aur.archlinux.org/cronic-bin.git"
 
     private_key: "{{ .Env.AUR_SSH_PRIVATE_KEY }}"
 
