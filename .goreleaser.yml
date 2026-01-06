@@ -1,6 +1,8 @@
 # GoReleaser configuration for Cronic
 # Documentation: https://goreleaser.com
 
+version: 2
+
 project_name: cronic
 
 # Build configuration
@@ -33,11 +35,13 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     files:
       - LICENSE
       - README.md
-    format: tar.gz
+    formats:
+      - tar.gz
 
 # Checksums
 checksum:
@@ -46,7 +50,7 @@ checksum:
 
 # Snapshots (for development/testing)
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  # name_template removed - using default snapshot naming
 
 # Changelog
 changelog:
@@ -58,12 +62,12 @@ changelog:
       - "^chore:"
 
 # Homebrew tap configuration
+# Note: brews is deprecated but still works. For CLI tools, brews is still the correct section.
 brews:
   - name: cronic
-    tap:
+    repository:
       owner: hzerrad
       name: homebrew-cronic
-    folder: Formula
     homepage: https://github.com/hzerrad/cronic
     description: Make cron human again - CLI tool for cron job management
     license: Apache-2.0
@@ -91,17 +95,10 @@ nfpms:
       - deb
     bindir: /usr/bin
     contents:
-      - src: "{{ .ArtifactPath }}"
-        dst: /usr/bin/cronic
-        file_info:
-          mode: 0755
       - src: LICENSE
         dst: /usr/share/doc/cronic/copyright
       - src: README.md
         dst: /usr/share/doc/cronic/README.md
-    deb:
-      dependencies:
-        - libc6
 
   - id: rpm
     package_name: cronic
@@ -115,10 +112,6 @@ nfpms:
       - rpm
     bindir: /usr/bin
     contents:
-      - src: "{{ .ArtifactPath }}"
-        dst: /usr/bin/cronic
-        file_info:
-          mode: 0755
       - src: LICENSE
         dst: /usr/share/doc/cronic/LICENSE
       - src: README.md
