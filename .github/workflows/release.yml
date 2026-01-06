@@ -14,6 +14,10 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     steps:
+      - name: Trust AUR host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts
       - name: Checkout code
         uses: actions/checkout@v5
         with:

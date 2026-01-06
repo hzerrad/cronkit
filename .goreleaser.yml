@@ -85,10 +85,8 @@ aurs:
     maintainers:
       - hzerrad <contact@hzerrad.dev>
 
-    # FIXED: valid SSH URL (your previous one was missing the hostname)
-    git_url: "ssh://git@github.com/hzerrad/cronic-bin.git"
+    git_url: "ssh://[email protected]/cronic-bin.git"
 
-    # Private key injected from CI secret (recommended to also use ssh-agent in the workflow)
     private_key: "{{ .Env.AUR_SSH_PRIVATE_KEY }}"
 
     provides:
