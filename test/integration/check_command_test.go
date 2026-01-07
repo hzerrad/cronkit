@@ -12,7 +12,7 @@ import (
 )
 
 var _ = Describe("Check Command", func() {
-	Context("when running 'cronic check' with a valid expression", func() {
+	Context("when running 'cronkit check' with a valid expression", func() {
 		It("should validate successfully", func() {
 			command := exec.Command(pathToCLI, "check", "0 0 * * *")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -23,7 +23,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check' with an invalid expression", func() {
+	Context("when running 'cronkit check' with an invalid expression", func() {
 		It("should report errors and exit with code 1", func() {
 			command := exec.Command(pathToCLI, "check", "60 0 * * *")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -36,7 +36,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check' with DOM/DOW conflict", func() {
+	Context("when running 'cronkit check' with DOM/DOW conflict", func() {
 		It("should show as valid without verbose flag", func() {
 			command := exec.Command(pathToCLI, "check", "0 0 1 * 1")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -60,7 +60,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check --file' with a valid crontab", func() {
+	Context("when running 'cronkit check --file' with a valid crontab", func() {
 		It("should validate successfully", func() {
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "check", "--file", testFile)
@@ -71,7 +71,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check --file' with an invalid crontab", func() {
+	Context("when running 'cronkit check --file' with an invalid crontab", func() {
 		It("should report errors and exit with code 1", func() {
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "invalid", "invalid.cron")
 			command := exec.Command(pathToCLI, "check", "--file", testFile)
@@ -83,7 +83,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check --file' with non-existent file", func() {
+	Context("when running 'cronkit check --file' with non-existent file", func() {
 		It("should report error and exit with code 1", func() {
 			command := exec.Command(pathToCLI, "check", "--file", "nonexistent.cron")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -94,7 +94,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check --json'", func() {
+	Context("when running 'cronkit check --json'", func() {
 		It("should output valid JSON", func() {
 			command := exec.Command(pathToCLI, "check", "0 0 * * *", "--json")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -135,7 +135,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check' with alias", func() {
+	Context("when running 'cronkit check' with alias", func() {
 		It("should validate @daily successfully", func() {
 			command := exec.Command(pathToCLI, "check", "@daily")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -164,7 +164,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check' with empty crontab", func() {
+	Context("when running 'cronkit check' with empty crontab", func() {
 		It("should handle empty file gracefully", func() {
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "empty.cron")
 			command := exec.Command(pathToCLI, "check", "--file", testFile)
@@ -176,7 +176,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check' with various expression types", func() {
+	Context("when running 'cronkit check' with various expression types", func() {
 		It("should validate step expressions", func() {
 			command := exec.Command(pathToCLI, "check", "*/15 * * * *")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -205,7 +205,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check' without arguments", func() {
+	Context("when running 'cronkit check' without arguments", func() {
 		It("should attempt to validate user crontab", func() {
 			command := exec.Command(pathToCLI, "check")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -216,7 +216,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check' with --fail-on flag", func() {
+	Context("when running 'cronkit check' with --fail-on flag", func() {
 		It("should exit with code 0 for warnings with --fail-on error (default)", func() {
 			command := exec.Command(pathToCLI, "check", "0 0 1 * 1")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -266,7 +266,7 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
-	Context("when running 'cronic check' with --group-by flag", func() {
+	Context("when running 'cronkit check' with --group-by flag", func() {
 		It("should group issues by severity", func() {
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "mixed_issues.cron")
 			// Create a test file with mixed issues if it doesn't exist

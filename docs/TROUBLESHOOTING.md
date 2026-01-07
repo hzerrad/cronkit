@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-This guide helps you resolve common issues when using Cronic.
+This guide helps you resolve common issues when using Cronkit.
 
 ## Common Errors
 
@@ -17,11 +17,11 @@ This guide helps you resolve common issues when using Cronic.
 **Example:**
 ```bash
 # Wrong
-$ cronic explain "0 9 * *"
+$ cronkit explain "0 9 * *"
 Error: failed to parse expression: expected 5 fields
 
 # Correct
-$ cronic explain "0 9 * * *"
+$ cronkit explain "0 9 * * *"
 At 09:00 daily
 ```
 
@@ -43,11 +43,11 @@ At 09:00 daily
 **Example:**
 ```bash
 # Wrong
-$ cronic next "0 9 * * *" --timezone EST
+$ cronkit next "0 9 * * *" --timezone EST
 Error: invalid timezone: unknown time zone EST
 
 # Correct
-$ cronic next "0 9 * * *" --timezone America/New_York
+$ cronkit next "0 9 * * *" --timezone America/New_York
 Next 10 runs for "0 9 * * *" (At 09:00 daily):
 ...
 ```
@@ -69,7 +69,7 @@ Next 10 runs for "0 9 * * *" (At 09:00 daily):
 $ ls -l /etc/crontab
 
 # Use absolute path
-$ cronic list --file /etc/crontab
+$ cronkit list --file /etc/crontab
 ```
 
 ### Stdin Reading Issues
@@ -86,10 +86,10 @@ $ cronic list --file /etc/crontab
 **Example:**
 ```bash
 # Correct usage
-$ echo "0 2 * * * /usr/bin/backup.sh" | cronic list --stdin
+$ echo "0 2 * * * /usr/bin/backup.sh" | cronkit list --stdin
 
 # Or with explicit flag
-$ cat file.cron | cronic check --stdin
+$ cat file.cron | cronkit check --stdin
 ```
 
 ### Permission Denied
@@ -106,7 +106,7 @@ $ cat file.cron | cronic check --stdin
 **Example:**
 ```bash
 # Use file instead of user crontab
-$ cronic list --file /path/to/crontab
+$ cronkit list --file /path/to/crontab
 ```
 
 ## Timezone Issues
@@ -129,7 +129,7 @@ $ date
 Mon Dec 28 12:00:00 PST 2025
 
 # Use specific timezone
-$ cronic next "0 9 * * *" --timezone UTC
+$ cronkit next "0 9 * * *" --timezone UTC
 ```
 
 ### Daylight Saving Time Confusion
@@ -158,10 +158,10 @@ $ cronic next "0 9 * * *" --timezone UTC
 **Example:**
 ```bash
 # Explicit flag
-$ cat file.cron | cronic list --stdin
+$ cat file.cron | cronkit list --stdin
 
 # Automatic detection (should work)
-$ cat file.cron | cronic list
+$ cat file.cron | cronkit list
 ```
 
 ### Empty Stdin
@@ -180,14 +180,14 @@ $ cat file.cron | cronic list
 $ cat file.cron | wc -l
 
 # Try with explicit stdin
-$ cat file.cron | cronic list --stdin --all
+$ cat file.cron | cronkit list --stdin --all
 ```
 
 ## Performance Issues with Large Crontabs
 
 ### Expected Performance Characteristics
 
-Cronic is optimized for performance with large crontabs. Expected performance:
+Cronkit is optimized for performance with large crontabs. Expected performance:
 
 - **100 jobs**: < 1 second for most operations
 - **500 jobs**: < 5 seconds for most operations
@@ -213,13 +213,13 @@ Performance is optimized through:
 **Example:**
 ```bash
 # Faster JSON output
-$ cronic list --file large.cron --json > output.json
+$ cronkit list --file large.cron --json > output.json
 
 # Check specific file
-$ cronic check --file specific-jobs.cron
+$ cronkit check --file specific-jobs.cron
 
 # Time the operation to verify performance
-$ time cronic check --file large.cron
+$ time cronkit check --file large.cron
 ```
 
 **Performance Profiling:**
@@ -248,7 +248,7 @@ $ go tool pprof -http=:8080 bin/cpu.prof
 - Use streaming processing where possible
 - Report the issue if it persists
 
-**Note:** Cronic uses caching for parsed expressions, which may increase memory usage slightly but improves performance significantly for repeated expressions.
+**Note:** Cronkit uses caching for parsed expressions, which may increase memory usage slightly but improves performance significantly for repeated expressions.
 
 ## JSON Parsing Errors
 
@@ -266,10 +266,10 @@ $ go tool pprof -http=:8080 bin/cpu.prof
 **Example:**
 ```bash
 # Separate stdout and stderr
-$ cronic list --file file.cron --json > output.json 2> errors.txt
+$ cronkit list --file file.cron --json > output.json 2> errors.txt
 
 # Validate JSON
-$ cronic list --file file.cron --json | jq .
+$ cronkit list --file file.cron --json | jq .
 ```
 
 ### Schema Mismatch
@@ -279,7 +279,7 @@ $ cronic list --file file.cron --json | jq .
 **Cause:** Version mismatch or schema changes.
 
 **Solution:**
-- Check Cronic version: `cronic version`
+- Check Cronkit version: `cronkit version`
 - Review JSON schema documentation: `docs/JSON_SCHEMAS.md`
 - Update your parsing code if needed
 
@@ -299,10 +299,10 @@ $ cronic list --file file.cron --json | jq .
 **Example:**
 ```bash
 # Show warnings
-$ cronic check "0 0 1 * 1" --verbose
+$ cronkit check "0 0 1 * 1" --verbose
 
 # Check with specific fail-on level
-$ cronic check "0 0 1 * 1" --fail-on warn
+$ cronkit check "0 0 1 * 1" --fail-on warn
 ```
 
 ## v0.2.0 Feature Troubleshooting
@@ -324,15 +324,15 @@ $ cronic check "0 0 1 * 1" --fail-on warn
 **Example:**
 ```bash
 # Default: only fail on errors
-$ cronic check --file jobs.cron
+$ cronkit check --file jobs.cron
 # Exits 0 if only warnings, 1 if errors
 
 # Fail on warnings too
-$ cronic check --file jobs.cron --fail-on warn --verbose
+$ cronkit check --file jobs.cron --fail-on warn --verbose
 # Exits 2 if warnings found, 1 if errors found
 
 # Fail on info messages (future use)
-$ cronic check --file jobs.cron --fail-on info --verbose
+$ cronkit check --file jobs.cron --fail-on info --verbose
 # Exits 2 if any issues found
 ```
 
@@ -350,16 +350,16 @@ $ cronic check --file jobs.cron --fail-on info --verbose
 **Example:**
 ```bash
 # Group by severity (recommended for many issues)
-$ cronic check --file jobs.cron --group-by severity --verbose
+$ cronkit check --file jobs.cron --group-by severity --verbose
 
 # Group by line number (useful for file-based validation)
-$ cronic check --file jobs.cron --group-by line --verbose
+$ cronkit check --file jobs.cron --group-by line --verbose
 
 # Group by job/expression (useful for identifying problematic patterns)
-$ cronic check --file jobs.cron --group-by job --verbose
+$ cronkit check --file jobs.cron --group-by job --verbose
 
 # No grouping (default, flat list)
-$ cronic check --file jobs.cron --group-by none --verbose
+$ cronkit check --file jobs.cron --group-by none --verbose
 ```
 
 ### Overlap Detection Issues
@@ -377,13 +377,13 @@ $ cronic check --file jobs.cron --group-by none --verbose
 **Example:**
 ```bash
 # Show overlaps in timeline
-$ cronic timeline --file jobs.cron --show-overlaps
+$ cronkit timeline --file jobs.cron --show-overlaps
 
 # Get overlap statistics in JSON
-$ cronic timeline --file jobs.cron --show-overlaps --json | jq '.overlapStats'
+$ cronkit timeline --file jobs.cron --show-overlaps --json | jq '.overlapStats'
 
 # Check specific time window
-$ cronic timeline --file jobs.cron --from "2025-01-15T00:00:00Z" --show-overlaps
+$ cronkit timeline --file jobs.cron --from "2025-01-15T00:00:00Z" --show-overlaps
 ```
 
 **Understanding Overlap Output:**
@@ -418,10 +418,10 @@ Overlaps:
 **Example:**
 ```bash
 # Check if expression runs
-$ cronic next "problematic-expression" --count 100
+$ cronkit next "problematic-expression" --count 100
 
 # Validate with verbose
-$ cronic check "problematic-expression" --verbose
+$ cronkit check "problematic-expression" --verbose
 ```
 
 ## Getting Help
@@ -435,7 +435,7 @@ If you encounter issues not covered here:
 
 2. **Run with verbose output:**
    ```bash
-   cronic <command> --verbose
+   cronkit <command> --verbose
    ```
 
 3. **Check exit codes:**
@@ -455,7 +455,7 @@ If you encounter issues not covered here:
 
 ```bash
 # Validate crontab before deploying
-cronic check --file new-crontab.cron --fail-on warn
+cronkit check --file new-crontab.cron --fail-on warn
 
 # Exit code 0 = safe to deploy
 # Exit code 1 = errors found, don't deploy
@@ -466,7 +466,7 @@ cronic check --file new-crontab.cron --fail-on warn
 
 ```bash
 # In CI pipeline
-if ! cronic check --file .github/crontab --fail-on error; then
+if ! cronkit check --file .github/crontab --fail-on error; then
     echo "Crontab validation failed"
     exit 1
 fi
@@ -476,16 +476,16 @@ fi
 
 ```bash
 # Explain what the expression does
-cronic explain "problematic-expression"
+cronkit explain "problematic-expression"
 
 # Show when it will run
-cronic next "problematic-expression" --count 20
+cronkit next "problematic-expression" --count 20
 
 # Check for issues
-cronic check "problematic-expression" --verbose
+cronkit check "problematic-expression" --verbose
 
 # Visualize schedule
-cronic timeline "problematic-expression" --view day
+cronkit timeline "problematic-expression" --view day
 ```
 
 

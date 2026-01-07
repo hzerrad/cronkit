@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/cronx"
 )
 
 // CalculateRunsPerDay calculates the number of times a cron expression runs per day

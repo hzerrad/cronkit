@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide covers the development workflow, testing practices, and contribution guidelines for Cronic.
+This guide covers the development workflow, testing practices, and contribution guidelines for Cronkit.
 
 ## Development Setup
 
@@ -15,8 +15,8 @@ This guide covers the development workflow, testing practices, and contribution 
 
 ```bash
 # Clone the repository
-git clone https://github.com/hzerrad/cronic.git
-cd cronic
+git clone https://github.com/hzerrad/cronkit.git
+cd cronkit
 
 # Install dependencies
 go mod download
@@ -86,7 +86,7 @@ make fmt && make vet && make lint
 ```bash
 # Build binary
 make build
-# Binary: ./bin/cronic
+# Binary: ./bin/cronkit
 
 # Build for all platforms
 make build-all
@@ -205,7 +205,7 @@ var _ = Describe("Feature Name", func() {
 Use the `internal/testutil` package for common test helpers:
 
 ```go
-import "github.com/hzerrad/cronic/internal/testutil"
+import "github.com/hzerrad/cronkit/internal/testutil"
 
 // Create temporary crontab file
 file, cleanup := testutil.CreateTempCrontab(t, "0 2 * * * /usr/bin/backup.sh")
@@ -307,8 +307,8 @@ when --fail-on warn is set.
 ## Project Structure
 
 ```
-cronic/
-├── cmd/cronic/          # CLI entry point (main.go)
+cronkit/
+├── cmd/cronkit/          # CLI entry point (main.go)
 ├── internal/            # Private application code
 │   ├── cmd/            # Command implementations (Cobra)
 │   ├── cronx/          # Parser abstraction (wraps robfig/cron)
@@ -331,7 +331,7 @@ cronic/
 
 ```bash
 # Run with verbose output
-go run ./cmd/cronic <command> --verbose
+go run ./cmd/cronkit <command> --verbose
 
 # Run specific test with debug
 go test -v ./internal/cmd -run TestNextCommand
@@ -394,8 +394,8 @@ for i in {1..500}; do
 done
 
 # Test performance
-time ./bin/cronic check --file /tmp/large-test.cron
-time ./bin/cronic list --file /tmp/large-test.cron --json
+time ./bin/cronkit check --file /tmp/large-test.cron
+time ./bin/cronkit list --file /tmp/large-test.cron --json
 ```
 
 **Performance Optimization Tips:**

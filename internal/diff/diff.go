@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hzerrad/cronic/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/crontab"
 )
 
 // ChangeType represents the type of change detected

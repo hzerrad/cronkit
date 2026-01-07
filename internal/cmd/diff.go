@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"fmt"
 
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/diff"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/diff"
 	"github.com/spf13/cobra"
 )
 
@@ -37,10 +37,10 @@ This command performs semantic comparison (not just line-by-line), identifying:
   - Environment variable changes
 
 Examples:
-  cronic diff old.cron new.cron
-  cronic diff --old-file old.cron --new-file new.cron --json
-  cronic diff --old-stdin --new-file new.cron
-  cronic diff old.cron new.cron --format unified`,
+  cronkit diff old.cron new.cron
+  cronkit diff --old-file old.cron --new-file new.cron --json
+  cronkit diff --old-stdin --new-file new.cron
+  cronkit diff old.cron new.cron --format unified`,
 		RunE: dc.runDiff,
 		Args: cobra.MaximumNArgs(2),
 	}

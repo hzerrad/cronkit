@@ -1,14 +1,14 @@
-# Cronic
+# Cronkit
 
 > Make cron human again.
 
-**Cronic** is a command-line tool that makes cron jobs human-readable, auditable, and visual. It converts confusing cron syntax into plain English, generates upcoming run schedules, provides ASCII timeline visualizations, and validates crontabs with severity levels and diagnostic codes.
+**Cronkit** is a command-line tool that makes cron jobs human-readable, auditable, and visual. It converts confusing cron syntax into plain English, generates upcoming run schedules, provides ASCII timeline visualizations, and validates crontabs with severity levels and diagnostic codes.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-1.25.2%2B-blue.svg)](https://golang.org/)
-[![codecov](https://codecov.io/gh/hzerrad/cronic/branch/main/graph/badge.svg)](https://codecov.io/gh/hzerrad/cronic)
+[![codecov](https://codecov.io/gh/hzerrad/cronkit/branch/main/graph/badge.svg)](https://codecov.io/gh/hzerrad/cronkit)
 
-## Why Cronic?
+## Why Cronkit?
 
 - **Works offline** - No internet connection required. Perfect for isolated environments, air-gapped systems, and CI/CD pipelines where external services aren't accessible.
 - **CI/CD ready** - Machine-readable JSON output, deterministic exit codes, and comprehensive validation make it ideal for automated checks in pre-commit hooks, PR pipelines, and deployment workflows.
@@ -36,29 +36,29 @@
 #### Homebrew (macOS/Linux)
 
 ```bash
-brew tap hzerrad/cronic
-brew install cronic
+brew tap hzerrad/cronkit
+brew install cronkit
 ```
 
 #### Direct Binary Download
 
-Download the pre-built binary for your platform from [GitHub Releases](https://github.com/hzerrad/cronic/releases):
+Download the pre-built binary for your platform from [GitHub Releases](https://github.com/hzerrad/cronkit/releases):
 
 ```bash
 # Linux (amd64)
-wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_linux_amd64.tar.gz
-tar -xzf cronic_linux_amd64.tar.gz
-sudo mv cronic /usr/local/bin/
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_linux_amd64.tar.gz
+tar -xzf cronkit_linux_amd64.tar.gz
+sudo mv cronkit /usr/local/bin/
 
 # macOS (Apple Silicon)
-wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_darwin_arm64.tar.gz
-tar -xzf cronic_darwin_arm64.tar.gz
-sudo mv cronic /usr/local/bin/
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_darwin_arm64.tar.gz
+tar -xzf cronkit_darwin_arm64.tar.gz
+sudo mv cronkit /usr/local/bin/
 
 # macOS (Intel)
-wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_darwin_amd64.tar.gz
-tar -xzf cronic_darwin_amd64.tar.gz
-sudo mv cronic /usr/local/bin/
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_darwin_amd64.tar.gz
+tar -xzf cronkit_darwin_amd64.tar.gz
+sudo mv cronkit /usr/local/bin/
 ```
 
 ### Package Managers
@@ -69,12 +69,12 @@ Download and install the `.deb` package:
 
 ```bash
 # For amd64
-wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_0.1.0_amd64.deb
-sudo dpkg -i cronic_0.1.0_amd64.deb
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_0.1.0_amd64.deb
+sudo dpkg -i cronkit_0.1.0_amd64.deb
 
 # For arm64
-wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic_0.1.0_arm64.deb
-sudo dpkg -i cronic_0.1.0_arm64.deb
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_0.1.0_arm64.deb
+sudo dpkg -i cronkit_0.1.0_arm64.deb
 
 # Fix dependencies if needed
 sudo apt-get install -f
@@ -86,12 +86,12 @@ Download and install the `.rpm` package:
 
 ```bash
 # For x86_64
-wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic-0.1.0-1.x86_64.rpm
-sudo dnf install cronic-0.1.0-1.x86_64.rpm
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit-0.1.0-1.x86_64.rpm
+sudo dnf install cronkit-0.1.0-1.x86_64.rpm
 
 # For aarch64
-wget https://github.com/hzerrad/cronic/releases/download/v0.1.0/cronic-0.1.0-1.aarch64.rpm
-sudo dnf install cronic-0.1.0-1.aarch64.rpm
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit-0.1.0-1.aarch64.rpm
+sudo dnf install cronkit-0.1.0-1.aarch64.rpm
 ```
 
 #### Pacman/AUR (Arch Linux)
@@ -100,14 +100,14 @@ Install from the Arch User Repository (AUR) using an AUR helper:
 
 ```bash
 # Using yay
-yay -S cronic-bin
+yay -S cronkit-bin
 
 # Using paru
-paru -S cronic-bin
+paru -S cronkit-bin
 
 # Or manually
-git clone https://aur.archlinux.org/cronic-bin.git
-cd cronic-bin
+git clone https://aur.archlinux.org/cronkit-bin.git
+cd cronkit-bin
 makepkg -si
 ```
 
@@ -116,7 +116,7 @@ makepkg -si
 Install directly from source using Go:
 
 ```bash
-go install github.com/hzerrad/cronic/cmd/cronic@latest
+go install github.com/hzerrad/cronkit/cmd/cronkit@latest
 ```
 
 **Note:** This requires Go 1.25.2 or higher to be installed.
@@ -126,10 +126,10 @@ go install github.com/hzerrad/cronic/cmd/cronic@latest
 Clone the repository and build:
 
 ```bash
-git clone https://github.com/hzerrad/cronic.git
-cd cronic
+git clone https://github.com/hzerrad/cronkit.git
+cd cronkit
 make build
-# Binary will be in ./bin/cronic
+# Binary will be in ./bin/cronkit
 
 # Or install directly
 make install
@@ -140,7 +140,7 @@ make install
 After installation, verify it works:
 
 ```bash
-cronic version
+cronkit version
 ```
 
 You should see the version information printed.
@@ -150,14 +150,14 @@ You should see the version information printed.
 ### Explain a Cron Expression
 
 ```bash
-$ cronic explain "*/15 2-5 * * 1-5"
+$ cronkit explain "*/15 2-5 * * 1-5"
 Runs every 15 minutes between 02:00–05:59 on weekdays (Mon–Fri).
 ```
 
 ### Show Next Run Times
 
 ```bash
-$ cronic next "0 9 * * *" --count 5
+$ cronkit next "0 9 * * *" --count 5
 Next 5 runs for "0 9 * * *" (At 09:00 daily):
 
 1. 2025-12-29 09:00:00 UTC
@@ -167,7 +167,7 @@ Next 5 runs for "0 9 * * *" (At 09:00 daily):
 5. 2026-01-02 09:00:00 UTC
 
 # With timezone support
-$ cronic next "0 9 * * *" --timezone America/New_York --count 3
+$ cronkit next "0 9 * * *" --timezone America/New_York --count 3
 Next 3 runs for "0 9 * * *" (At 09:00 daily):
 
 1. 2025-12-29 09:00:00 EST
@@ -178,22 +178,22 @@ Next 3 runs for "0 9 * * *" (At 09:00 daily):
 ### List Crontab Jobs
 
 ```bash
-$ cronic list --file /etc/crontab
+$ cronkit list --file /etc/crontab
 LINE  EXPRESSION        DESCRIPTION                          COMMAND
 ────  ────────────────  ───────────────────────────────────  ────────────────────────
 1     0 2 * * *         At 02:00 daily                       /usr/bin/backup.sh
 2     */15 * * * *      Every 15 minutes                     /usr/bin/check-disk.sh
 
 # Read from stdin
-$ cat /etc/crontab | cronic list
+$ cat /etc/crontab | cronkit list
 # or
-$ cronic list --stdin < /etc/crontab
+$ cronkit list --stdin < /etc/crontab
 ```
 
 ### Visualize Timeline
 
 ```bash
-$ cronic timeline "*/15 * * * *" --view day
+$ cronkit timeline "*/15 * * * *" --view day
 Timeline for 2025-12-28 (Day View)
 00:00 ──────────────────────────────────────────────────────────────── 24:00
       │                                                                    │
@@ -206,10 +206,10 @@ Timeline for 2025-12-28 (Day View)
 ### Validate Crontab
 
 ```bash
-$ cronic check --file /etc/crontab
+$ cronkit check --file /etc/crontab
 ✓ All valid (2 jobs)
 
-$ cronic check "0 0 1 * 1" --verbose
+$ cronkit check "0 0 1 * 1" --verbose
 ⚠ Found 1 warning(s)
   Total jobs: 1
   Valid: 1
@@ -220,7 +220,7 @@ $ cronic check "0 0 1 * 1" --verbose
   Hint: Consider using only day-of-month OR day-of-week, not both. Cron uses OR logic (runs if either condition is met).
 
 # Group issues by severity
-$ cronic check --file jobs.cron --group-by severity --verbose
+$ cronkit check --file jobs.cron --group-by severity --verbose
 ━━━ Error Issues (2 issue(s)) ━━━
   ...
 
@@ -228,10 +228,10 @@ $ cronic check --file jobs.cron --group-by severity --verbose
   ...
 
 # Use in CI/CD with fail-on
-$ cronic check --file jobs.cron --fail-on warn --verbose
+$ cronkit check --file jobs.cron --fail-on warn --verbose
 # Exits with code 2 if warnings are found
 
-$ cronic check "60 0 * * *"
+$ cronkit check "60 0 * * *"
 ✗ Found 1 issue(s)
   Total jobs: 1
   Valid: 0
@@ -249,10 +249,10 @@ $ cronic check "60 0 * * *"
 Convert a cron expression to plain English.
 
 ```bash
-cronic explain <cron-expression>
-cronic explain "*/15 * * * *"
-cronic explain "@daily"
-cronic explain "0 9 * * 1-5" --json
+cronkit explain <cron-expression>
+cronkit explain "*/15 * * * *"
+cronkit explain "@daily"
+cronkit explain "0 9 * * 1-5" --json
 ```
 
 ### `next`
@@ -260,11 +260,11 @@ cronic explain "0 9 * * 1-5" --json
 Show the next N scheduled run times for a cron expression.
 
 ```bash
-cronic next <cron-expression> [flags]
-cronic next "*/15 * * * *"              # Next 10 runs (default)
-cronic next "@daily" --count 5          # Next 5 runs
-cronic next "0 9 * * 1-5" -c 3          # Next 3 runs
-cronic next "0 14 * * *" --json          # JSON output
+cronkit next <cron-expression> [flags]
+cronkit next "*/15 * * * *"              # Next 10 runs (default)
+cronkit next "@daily" --count 5          # Next 5 runs
+cronkit next "0 9 * * 1-5" -c 3          # Next 3 runs
+cronkit next "0 14 * * *" --json          # JSON output
 ```
 
 **Flags:**
@@ -277,11 +277,11 @@ cronic next "0 14 * * *" --json          # JSON output
 Parse and list cron jobs from a crontab file or the user's crontab.
 
 ```bash
-cronic list [flags]
-cronic list                              # List user's crontab
-cronic list --file /etc/crontab         # List from file
-cronic list --all                        # Include comments and env vars
-cronic list --json                       # JSON output
+cronkit list [flags]
+cronkit list                              # List user's crontab
+cronkit list --file /etc/crontab         # List from file
+cronkit list --all                        # Include comments and env vars
+cronkit list --json                       # JSON output
 ```
 
 **Flags:**
@@ -295,11 +295,11 @@ cronic list --json                       # JSON output
 Display ASCII timeline visualization of cron job schedules.
 
 ```bash
-cronic timeline [cron-expression] [flags]
-cronic timeline "*/15 * * * *"              # Timeline for single expression
-cronic timeline --file /etc/crontab         # Timeline for crontab file
-cronic timeline "*/5 * * * *" --view hour   # Hour view timeline
-cronic timeline --file jobs.cron --json     # JSON output
+cronkit timeline [cron-expression] [flags]
+cronkit timeline "*/15 * * * *"              # Timeline for single expression
+cronkit timeline --file /etc/crontab         # Timeline for crontab file
+cronkit timeline "*/5 * * * *" --view hour   # Hour view timeline
+cronkit timeline --file jobs.cron --json     # JSON output
 ```
 
 **Flags:**
@@ -317,11 +317,11 @@ cronic timeline --file jobs.cron --json     # JSON output
 Validate crontab syntax and detect common issues with severity levels and diagnostic codes.
 
 ```bash
-cronic check [cron-expression|--file <path>] [flags]
-cronic check "0 0 * * *"                  # Validate single expression
-cronic check --file /etc/crontab         # Validate crontab file
-cronic check "0 0 1 * 1" --verbose       # Show warnings with diagnostic codes
-cronic check --file jobs.cron --json     # JSON output
+cronkit check [cron-expression|--file <path>] [flags]
+cronkit check "0 0 * * *"                  # Validate single expression
+cronkit check --file /etc/crontab         # Validate crontab file
+cronkit check "0 0 1 * 1" --verbose       # Show warnings with diagnostic codes
+cronkit check --file jobs.cron --json     # JSON output
 ```
 
 **Flags:**
@@ -372,11 +372,11 @@ Each diagnostic includes a **hint** with actionable suggestions for fixing the i
 Generate human-readable documentation from crontab files in Markdown, HTML, or JSON format.
 
 ```bash
-cronic doc [flags]
-cronic doc --file /etc/crontab --output docs.md
-cronic doc --file crontab.txt --format html --output docs.html
-cronic doc --stdin --format json --include-next 5
-cronic doc --file jobs.cron --format md --include-warnings --include-stats
+cronkit doc [flags]
+cronkit doc --file /etc/crontab --output docs.md
+cronkit doc --file crontab.txt --format html --output docs.html
+cronkit doc --stdin --format json --include-next 5
+cronkit doc --file jobs.cron --format md --include-warnings --include-stats
 ```
 
 **Flags:**
@@ -413,11 +413,11 @@ cronic doc --file jobs.cron --format md --include-warnings --include-stats
 Calculate and display statistics about crontab jobs including run frequency metrics, collision analysis, and hour distribution.
 
 ```bash
-cronic stats [flags]
-cronic stats --file /etc/crontab
-cronic stats --file crontab.txt --json
-cronic stats --top 10 --verbose
-cronic stats --stdin --aggregate
+cronkit stats [flags]
+cronkit stats --file /etc/crontab
+cronkit stats --file crontab.txt --json
+cronkit stats --top 10 --verbose
+cronkit stats --stdin --aggregate
 ```
 
 **Flags:**
@@ -433,11 +433,11 @@ cronic stats --stdin --aggregate
 Compare two crontabs semantically to see what actually changed (jobs added, removed, or modified).
 
 ```bash
-cronic diff [old-file] [new-file] [flags]
-cronic diff old.cron new.cron
-cronic diff --old-file old.cron --new-file new.cron --json
-cronic diff --old-stdin --new-file new.cron
-cronic diff old.cron new.cron --format unified
+cronkit diff [old-file] [new-file] [flags]
+cronkit diff old.cron new.cron
+cronkit diff --old-file old.cron --new-file new.cron --json
+cronkit diff --old-stdin --new-file new.cron
+cronkit diff old.cron new.cron --format unified
 ```
 
 **Flags:**
@@ -472,11 +472,11 @@ Summary: 1 added, 1 removed, 0 modified
 Analyze crontab jobs against concurrency budgets to prevent resource exhaustion.
 
 ```bash
-cronic budget [flags]
-cronic budget --file /etc/crontab --max-concurrent 10 --window 1m
-cronic budget --file crontab.txt --max-concurrent 50 --window 1h --json
-cronic budget --file jobs.cron --max-concurrent 10 --window 1m --enforce
-cronic budget --stdin --max-concurrent 5 --window 1h --verbose
+cronkit budget [flags]
+cronkit budget --file /etc/crontab --max-concurrent 10 --window 1m
+cronkit budget --file crontab.txt --max-concurrent 50 --window 1h --json
+cronkit budget --file jobs.cron --max-concurrent 10 --window 1m --enforce
+cronkit budget --stdin --max-concurrent 5 --window 1h --verbose
 ```
 
 **Flags:**
@@ -533,7 +533,7 @@ All commands support `--json` flag for machine-readable output. The JSON schema 
 
 **Example - Explain:**
 ```bash
-$ cronic explain "*/15 * * * *" --json
+$ cronkit explain "*/15 * * * *" --json
 {
   "expression": "*/15 * * * *",
   "description": "Every 15 minutes",
@@ -543,7 +543,7 @@ $ cronic explain "*/15 * * * *" --json
 
 **Example - Next (with timezone):**
 ```bash
-$ cronic next "@daily" --timezone UTC --json -c 2
+$ cronkit next "@daily" --timezone UTC --json -c 2
 {
   "expression": "@daily",
   "description": "At midnight every day",
@@ -566,7 +566,7 @@ $ cronic next "@daily" --timezone UTC --json -c 2
 
 **Example - Check (with severity and diagnostic codes):**
 ```bash
-$ cronic check "0 0 1 * 1" --json --verbose
+$ cronkit check "0 0 1 * 1" --json --verbose
 {
   "valid": true,
   "totalJobs": 1,
@@ -589,7 +589,7 @@ $ cronic check "0 0 1 * 1" --json --verbose
 
 **Example - List (with stdin):**
 ```bash
-$ echo "0 2 * * * /usr/bin/backup.sh" | cronic list --json
+$ echo "0 2 * * * /usr/bin/backup.sh" | cronkit list --json
 {
   "jobs": [
     {
@@ -605,7 +605,7 @@ $ echo "0 2 * * * /usr/bin/backup.sh" | cronic list --json
 
 ## Safety
 
-**Cronic is read-only by design.** It never executes or modifies crontabs. It's safe to use on production systems for auditing and documentation purposes.
+**Cronkit is read-only by design.** It never executes or modifies crontabs. It's safe to use on production systems for auditing and documentation purposes.
 
 ## Requirements
 
@@ -623,7 +623,7 @@ $ echo "0 2 * * * /usr/bin/backup.sh" | cronic list --json
 ### Building
 
 ```bash
-make build          # Build binary (./bin/cronic)
+make build          # Build binary (./bin/cronkit)
 make build-all      # Cross-platform builds
 make install        # Install to GOPATH/bin
 ```
@@ -656,8 +656,8 @@ make setup-hooks    # Install pre-commit hooks
 ### Project Structure
 
 ```
-cronic/
-├── cmd/cronic/          # CLI entry point
+cronkit/
+├── cmd/cronkit/          # CLI entry point
 ├── internal/            # Private application code
 │   ├── cmd/            # Command implementations
 │   ├── cronx/          # Cron parser abstraction

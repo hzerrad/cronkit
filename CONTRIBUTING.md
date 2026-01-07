@@ -1,6 +1,6 @@
-# Contributing to cronic
+# Contributing to cronkit
 
-Thank you for considering contributing to cronic! This document provides guidelines and instructions for contributing.
+Thank you for considering contributing to cronkit! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 
@@ -65,8 +65,8 @@ Be respectful and inclusive. We welcome contributions from everyone.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/hzerrad/cronic.git
-   cd cronic
+   git clone https://github.com/hzerrad/cronkit.git
+   cd cronkit
    ```
 
 2. Install dependencies:

@@ -1,6 +1,6 @@
 # JSON Output Schemas
 
-This document describes the JSON output format for all Cronic commands. All JSON outputs use camelCase for field names and include a `locale` field where applicable.
+This document describes the JSON output format for all Cronkit commands. All JSON outputs use camelCase for field names and include a `locale` field where applicable.
 
 ## Version
 
@@ -15,7 +15,7 @@ All JSON outputs may include:
 
 ### `explain` Command
 
-**Command:** `cronic explain <expression> --json`
+**Command:** `cronkit explain <expression> --json`
 
 **Schema:**
 ```json
@@ -37,7 +37,7 @@ All JSON outputs may include:
 
 ### `next` Command
 
-**Command:** `cronic next <expression> --json [--timezone <zone>]`
+**Command:** `cronkit next <expression> --json [--timezone <zone>]`
 
 **Schema:**
 ```json
@@ -87,7 +87,7 @@ All JSON outputs may include:
 
 ### `list` Command
 
-**Command:** `cronic list --json [--all]`
+**Command:** `cronkit list --json [--all]`
 
 **Schema (jobs only):**
 ```json
@@ -141,7 +141,7 @@ All JSON outputs may include:
 
 ### `check` Command
 
-**Command:** `cronic check [expression|--file <path>] --json [--verbose]`
+**Command:** `cronkit check [expression|--file <path>] --json [--verbose]`
 
 **Schema:**
 ```json
@@ -201,7 +201,7 @@ All JSON outputs may include:
 
 ### `timeline` Command
 
-**Command:** `cronic timeline [expression|--file <path>] --json [--timezone <zone>]`
+**Command:** `cronkit timeline [expression|--file <path>] --json [--timezone <zone>]`
 
 **Schema:**
 ```json
@@ -326,7 +326,7 @@ However, most commands output errors to stderr in plain text format for better C
 
 ### `doc` Command
 
-**Command:** `cronic doc --file <path> --format <format> --json`
+**Command:** `cronkit doc --file <path> --format <format> --json`
 
 **Schema:**
 ```json
@@ -420,7 +420,7 @@ However, most commands output errors to stderr in plain text format for better C
 
 ### `stats` Command
 
-**Command:** `cronic stats --file <path> --json [--verbose] [--top <number>]`
+**Command:** `cronkit stats --file <path> --json [--verbose] [--top <number>]`
 
 **Schema:**
 ```json
@@ -522,7 +522,7 @@ However, most commands output errors to stderr in plain text format for better C
 
 ### `diff` Command
 
-**Command:** `cronic diff [old-file] [new-file] --json [flags]`
+**Command:** `cronkit diff [old-file] [new-file] --json [flags]`
 
 **Schema:**
 ```json
@@ -623,7 +623,7 @@ However, most commands output errors to stderr in plain text format for better C
 
 ### `budget` Command
 
-**Command:** `cronic budget --file <path> --max-concurrent <number> --window <duration> --json [flags]`
+**Command:** `cronkit budget --file <path> --max-concurrent <number> --window <duration> --json [flags]`
 
 **Schema:**
 ```json

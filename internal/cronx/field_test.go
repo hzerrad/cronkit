@@ -3,7 +3,7 @@ package cronx_test
 import (
 	"testing"
 
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/cronx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

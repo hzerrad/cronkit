@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/cronx"
 )
 
 // Humanizer converts cron schedules to human-readable descriptions

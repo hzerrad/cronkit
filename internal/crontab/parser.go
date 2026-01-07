@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/cronx"
 )
 
 var (

@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/cronx"
-	"github.com/hzerrad/cronic/internal/human"
-	"github.com/hzerrad/cronic/internal/render"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/human"
+	"github.com/hzerrad/cronkit/internal/render"
 	"github.com/spf13/cobra"
 )
 
@@ -53,11 +53,11 @@ Supports:
   - JSON output with --json flag for programmatic use
 
 Examples:
-  cronic timeline "*/15 * * * *"              # Timeline for single expression
-  cronic timeline --file /etc/crontab          # Timeline for crontab file
-  cronic timeline "*/5 * * * *" --view hour    # Hour view timeline
-  cronic timeline --file jobs.cron --json       # JSON output
-  cronic timeline                               # Timeline for user's crontab`,
+  cronkit timeline "*/15 * * * *"              # Timeline for single expression
+  cronkit timeline --file /etc/crontab          # Timeline for crontab file
+  cronkit timeline "*/5 * * * *" --view hour    # Hour view timeline
+  cronkit timeline --file jobs.cron --json       # JSON output
+  cronkit timeline                               # Timeline for user's crontab`,
 	}
 
 	tc.Command.Flags().StringVarP(&tc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")

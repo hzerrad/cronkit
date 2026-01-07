@@ -3,7 +3,7 @@ package human
 import (
 	"testing"
 
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/cronx"
 )
 
 func BenchmarkHumanize_Simple(b *testing.B) {

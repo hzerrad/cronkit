@@ -12,7 +12,7 @@ var pathToCLI string
 
 var _ = BeforeSuite(func() {
 	var err error
-	pathToCLI, err = gexec.Build("github.com/hzerrad/cronic/cmd/cronic")
+	pathToCLI, err = gexec.Build("github.com/hzerrad/cronkit/cmd/cronkit")
 	Expect(err).NotTo(HaveOccurred())
 })
 

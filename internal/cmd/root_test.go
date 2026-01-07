@@ -11,7 +11,7 @@ import (
 // TestRootCommand tests the root command initialization
 func TestRootCommand(t *testing.T) {
 	t.Run("root command should have correct name", func(t *testing.T) {
-		assert.Equal(t, "cronic", rootCmd.Use)
+		assert.Equal(t, "cronkit", rootCmd.Use)
 	})
 
 	t.Run("root command should have version set", func(t *testing.T) {

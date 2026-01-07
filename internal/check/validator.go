@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/cronx"
 )
 
 // Issue represents a validation issue found in a cron expression or crontab

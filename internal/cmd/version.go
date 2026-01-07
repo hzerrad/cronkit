@@ -6,10 +6,10 @@ import (
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print the version number of cronic",
-	Long:  `All software has versions. This is cronic's.`,
+	Short: "Print the version number of cronkit",
+	Long:  `All software has versions. This is cronkit's.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Printf("cronic %s\n", rootCmd.Version)
+		cmd.Printf("cronkit %s\n", rootCmd.Version)
 	},
 }
 

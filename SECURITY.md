@@ -14,7 +14,7 @@ Do not open public issues for security vulnerabilities.
 
 ## Security Considerations
 
-Cronic is a read-only tool that never executes or modifies crontabs. It is designed to be safe to use on production systems for auditing and documentation purposes.
+Cronkit is a read-only tool that never executes or modifies crontabs. It is designed to be safe to use on production systems for auditing and documentation purposes.
 
 However, please report any security concerns, including:
 - Potential code injection vulnerabilities

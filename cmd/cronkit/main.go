@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/hzerrad/cronic/internal/cmd"
+	"github.com/hzerrad/cronkit/internal/cmd"
 )
 
 func main() {

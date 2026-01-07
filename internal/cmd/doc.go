@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/doc"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/doc"
 	"github.com/spf13/cobra"
 )
 
@@ -36,9 +36,9 @@ This command creates markdown, HTML, or JSON documentation that includes:
   - Optional: next runs, warnings, and statistics
 
 Examples:
-  cronic doc --file /etc/crontab --output docs.md
-  cronic doc --file crontab.txt --format html --output docs.html
-  cronic doc --stdin --format json --include-next 5`,
+  cronkit doc --file /etc/crontab --output docs.md
+  cronkit doc --file crontab.txt --format html --output docs.html
+  cronkit doc --stdin --format json --include-next 5`,
 		RunE: dc.runDoc,
 		Args: cobra.NoArgs,
 	}

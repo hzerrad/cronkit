@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/hzerrad/cronic/internal/check"
-	"github.com/hzerrad/cronic/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/check"
+	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/spf13/cobra"
 )
 
@@ -42,11 +42,11 @@ This command checks for:
   - Excessive run counts (configurable threshold)
 
 Examples:
-  cronic check "0 0 * * *"              # Validate a single expression
-  cronic check --file /etc/crontab       # Validate a crontab file
-  cronic check                           # Validate user's crontab
-  cronic check "0 0 1 * 1" --verbose    # Show warnings (DOM/DOW conflicts)
-  cronic check --file sample.cron --json # JSON output`,
+  cronkit check "0 0 * * *"              # Validate a single expression
+  cronkit check --file /etc/crontab       # Validate a crontab file
+  cronkit check                           # Validate user's crontab
+  cronkit check "0 0 1 * 1" --verbose    # Show warnings (DOM/DOW conflicts)
+  cronkit check --file sample.cron --json # JSON output`,
 		RunE: cc.runCheck,
 		Args: cobra.MaximumNArgs(1),
 	}

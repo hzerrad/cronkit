@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hzerrad/cronic/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/crontab"
 )
 
 func BenchmarkValidateExpression_Simple(b *testing.B) {

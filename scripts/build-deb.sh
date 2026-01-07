@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Build Debian package for cronic
+# Build Debian package for cronkit
 # Usage: ./scripts/build-deb.sh [VERSION] [ARCH]
 # Example: ./scripts/build-deb.sh 0.1.0 amd64
 
@@ -22,7 +22,7 @@ case "$ARCH" in
     ;;
 esac
 
-PACKAGE_NAME="cronic"
+PACKAGE_NAME="cronkit"
 PACKAGE_VERSION="$VERSION"
 DEB_DIR="dist/deb/${PACKAGE_NAME}_${PACKAGE_VERSION}_${DEB_ARCH}"
 
@@ -38,8 +38,8 @@ mkdir -p "${DEB_DIR}/usr/share/doc/${PACKAGE_NAME}"
 mkdir -p "${DEB_DIR}/usr/share/man/man1"
 
 # Download binary from GitHub release or use local build
-BINARY_URL="https://github.com/hzerrad/cronic/releases/download/v${VERSION}/cronic-linux-${ARCH}"
-BINARY_PATH="${DEB_DIR}/usr/bin/cronic"
+BINARY_URL="https://github.com/hzerrad/cronkit/releases/download/v${VERSION}/cronkit-linux-${ARCH}"
+BINARY_PATH="${DEB_DIR}/usr/bin/cronkit"
 
 echo "Downloading binary from ${BINARY_URL}..."
 if ! curl -Lf -o "${BINARY_PATH}" "${BINARY_URL}"; then
@@ -62,14 +62,14 @@ Description: Make cron human again
  It converts confusing cron syntax into plain English, generates upcoming
  run schedules, provides ASCII timeline visualizations, and validates crontabs
  with severity levels and diagnostic codes.
-Homepage: https://github.com/hzerrad/cronic
+Homepage: https://github.com/hzerrad/cronkit
 EOF
 
 # Create copyright file
 cat > "${DEB_DIR}/usr/share/doc/${PACKAGE_NAME}/copyright" <<EOF
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: cronic
-Source: https://github.com/hzerrad/cronic
+Upstream-Name: cronkit
+Source: https://github.com/hzerrad/cronkit
 
 Files: *
 Copyright: $(date +%Y) hzerrad
@@ -91,7 +91,7 @@ EOF
 
 # Create changelog
 cat > "${DEB_DIR}/usr/share/doc/${PACKAGE_NAME}/changelog.Debian.gz" <<EOF | gzip -9 > "${DEB_DIR}/usr/share/doc/${PACKAGE_NAME}/changelog.Debian.gz"
-cronic (${PACKAGE_VERSION}) unstable; urgency=medium
+cronkit (${PACKAGE_VERSION}) unstable; urgency=medium
 
   * Initial release
 

@@ -13,7 +13,7 @@ import (
 )
 
 var _ = Describe("Timeline Command", func() {
-	Context("when running 'cronic timeline' with a valid expression", func() {
+	Context("when running 'cronkit timeline' with a valid expression", func() {
 		It("should display timeline successfully", func() {
 			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -42,7 +42,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with --json flag", func() {
+	Context("when running 'cronkit timeline' with --json flag", func() {
 		It("should output valid JSON", func() {
 			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--json")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -90,7 +90,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with --file flag", func() {
+	Context("when running 'cronkit timeline' with --file flag", func() {
 		It("should read from crontab file", func() {
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "timeline", "--file", testFile)
@@ -116,7 +116,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with invalid expression", func() {
+	Context("when running 'cronkit timeline' with invalid expression", func() {
 		It("should exit with error code 1", func() {
 			command := exec.Command(pathToCLI, "timeline", "60 0 * * *")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -127,7 +127,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with invalid view", func() {
+	Context("when running 'cronkit timeline' with invalid view", func() {
 		It("should exit with error", func() {
 			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--view", "invalid")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -138,7 +138,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with non-existent file", func() {
+	Context("when running 'cronkit timeline' with non-existent file", func() {
 		It("should exit with error code 1", func() {
 			command := exec.Command(pathToCLI, "timeline", "--file", "/nonexistent/file.cron")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -149,7 +149,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' without arguments", func() {
+	Context("when running 'cronkit timeline' without arguments", func() {
 		It("should attempt to read user crontab", func() {
 			command := exec.Command(pathToCLI, "timeline")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -160,7 +160,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with --show-overlaps flag", func() {
+	Context("when running 'cronkit timeline' with --show-overlaps flag", func() {
 		It("should show overlap summary in text output", func() {
 			// Create jobs that run at the same time to generate overlaps
 			command := exec.Command(pathToCLI, "timeline", "0 * * * *", "--show-overlaps")
@@ -207,7 +207,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with --width flag", func() {
+	Context("when running 'cronkit timeline' with --width flag", func() {
 		It("should use specified width", func() {
 			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--width", "120")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -237,7 +237,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with --timezone flag", func() {
+	Context("when running 'cronkit timeline' with --timezone flag", func() {
 		It("should use UTC timezone", func() {
 			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--timezone", "UTC")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -294,7 +294,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with --from flag", func() {
+	Context("when running 'cronkit timeline' with --from flag", func() {
 		It("should use specified start time", func() {
 			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--from", "2025-01-15T00:00:00Z")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -326,13 +326,13 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with --export flag", func() {
+	Context("when running 'cronkit timeline' with --export flag", func() {
 		var tempDir string
 		var exportFile string
 
 		BeforeEach(func() {
 			var err error
-			tempDir, err = os.MkdirTemp("", "cronic-timeline-test-*")
+			tempDir, err = os.MkdirTemp("", "cronkit-timeline-test-*")
 			Expect(err).NotTo(HaveOccurred())
 			exportFile = filepath.Join(tempDir, "timeline.txt")
 		})
@@ -421,7 +421,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
-	Context("when running 'cronic timeline' with combined flags", func() {
+	Context("when running 'cronkit timeline' with combined flags", func() {
 		It("should work with width, timezone, and from flags", func() {
 			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--width", "100", "--timezone", "UTC", "--from", "2025-01-15T00:00:00Z")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -432,7 +432,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 
 		It("should work with all flags including export", func() {
-			tempDir, err := os.MkdirTemp("", "cronic-timeline-test-*")
+			tempDir, err := os.MkdirTemp("", "cronkit-timeline-test-*")
 			Expect(err).NotTo(HaveOccurred())
 			defer func() {
 				_ = os.RemoveAll(tempDir) // nolint:errcheck // Test cleanup, ignore errors

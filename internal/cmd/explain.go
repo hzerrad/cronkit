@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hzerrad/cronic/internal/cronx"
-	"github.com/hzerrad/cronic/internal/human"
+	"github.com/hzerrad/cronkit/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/human"
 	"github.com/spf13/cobra"
 )
 
@@ -29,9 +29,9 @@ Supports:
   - Case-insensitive day and month names
 
 Examples:
-  cronic explain "0 0 * * *"
-  cronic explain "*/15 9-17 * * 1-5"
-  cronic explain "@daily" --json`,
+  cronkit explain "0 0 * * *"
+  cronkit explain "*/15 9-17 * * 1-5"
+  cronkit explain "@daily" --json`,
 	}
 
 	ec.Flags().BoolVarP(&ec.json, "json", "j", false, "Output in JSON format")

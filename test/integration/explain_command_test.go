@@ -282,7 +282,7 @@ var _ = Describe("Explain Command", func() {
 
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				Expect(output).To(ContainSubstring("cronic explain"))
+				Expect(output).To(ContainSubstring("cronkit explain"))
 				Expect(output).To(ContainSubstring("@daily"))
 			})
 		})

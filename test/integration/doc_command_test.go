@@ -19,7 +19,7 @@ var _ = Describe("Doc Command", func() {
 	BeforeEach(func() {
 		testDataDir = filepath.Join("..", "..", "testdata", "crontab", "valid")
 		var err error
-		tempDir, err = os.MkdirTemp("", "cronic-doc-test-*")
+		tempDir, err = os.MkdirTemp("", "cronkit-doc-test-*")
 		Expect(err).NotTo(HaveOccurred())
 	})
 

@@ -15,7 +15,7 @@ import (
 // createTempFile creates a temporary file with the given content and returns its path
 func createTempFile(t *testing.T, content string) string {
 	t.Helper()
-	file, err := os.CreateTemp("", "cronic-test-*.cron")
+	file, err := os.CreateTemp("", "cronkit-test-*.cron")
 	require.NoError(t, err)
 
 	_, err = file.WriteString(content)

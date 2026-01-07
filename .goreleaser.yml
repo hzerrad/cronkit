@@ -1,13 +1,13 @@
-# GoReleaser configuration for Cronic
+# GoReleaser configuration for Cronkit
 # Documentation: https://goreleaser.com
 version: 2
 
-project_name: cronic
+project_name: cronkit
 
 builds:
-  - id: cronic
-    main: ./cmd/cronic
-    binary: cronic
+  - id: cronkit
+    main: ./cmd/cronkit
+    binary: cronkit
     goos:
       - linux
       - darwin
@@ -17,9 +17,9 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -X github.com/hzerrad/cronic/internal/cmd.version={{ .Version }}
-      - -X github.com/hzerrad/cronic/internal/cmd.commit={{ .Commit }}
-      - -X github.com/hzerrad/cronic/internal/cmd.date={{ .Date }}
+      - -X github.com/hzerrad/cronkit/internal/cmd.version={{ .Version }}
+      - -X github.com/hzerrad/cronkit/internal/cmd.commit={{ .Commit }}
+      - -X github.com/hzerrad/cronkit/internal/cmd.date={{ .Date }}
     env:
       - CGO_ENABLED=0
     ignore:
@@ -48,64 +48,64 @@ changelog:
       - "^test:"
       - "^chore:"
 
-# Homebrew formula (tap: hzerrad/homebrew-cronic -> brew tap hzerrad/cronic)
+# Homebrew formula (tap: hzerrad/homebrew-cronkit -> brew tap hzerrad/cronkit)
 brews:
-  - name: cronic
-    homepage: https://github.com/hzerrad/cronic
+  - name: cronkit
+    homepage: https://github.com/hzerrad/cronkit
     description: Make cron human again - CLI tool for cron job management
     license: Apache-2.0
 
     # Ensure formula downloads the correct release asset
-    url_template: "https://github.com/hzerrad/cronic/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "https://github.com/hzerrad/cronkit/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
     # Ensure GoReleaser writes the formula where taps expect it
     directory: Formula
 
     repository:
       owner: hzerrad
-      name: homebrew-cronic
-      # Use a PAT that has write access to hzerrad/homebrew-cronic
+      name: homebrew-cronkit
+      # Use a PAT that has write access to hzerrad/homebrew-cronkit
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
 
     install: |
-      bin.install "cronic"
+      bin.install "cronkit"
     test: |
-      system "#{bin}/cronic", "version"
+      system "#{bin}/cronkit", "version"
 
     commit_author:
       name: goreleaserbot
-      email: goreleaser@cronic.dev
+      email: goreleaser@cronkit.dev
 
 # AUR (Arch User Repository)
 aurs:
-  - name: cronic-bin
-    homepage: https://github.com/hzerrad/cronic
+  - name: cronkit-bin
+    homepage: https://github.com/hzerrad/cronkit
     description: Make cron human again - CLI tool for cron job management
     license: Apache-2.0
     maintainers:
       - hzerrad <contact@hzerrad.dev>
 
-    git_url: "ssh://aur@aur.archlinux.org/cronic-bin.git"
+    git_url: "ssh://aur@aur.archlinux.org/cronkit-bin.git"
 
     private_key: "{{ .Env.AUR_SSH_PRIVATE_KEY }}"
 
     provides:
-      - cronic
+      - cronkit
     conflicts:
-      - cronic
+      - cronkit
 
     package: |
-      install -Dm755 "./cronic" "${pkgdir}/usr/bin/cronic"
-      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/cronic/LICENSE"
-      install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/cronic/README.md"
+      install -Dm755 "./cronkit" "${pkgdir}/usr/bin/cronkit"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/cronkit/LICENSE"
+      install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/cronkit/README.md"
 
 # DEB/RPM packages
 nfpms:
   - id: deb
-    package_name: cronic
+    package_name: cronkit
     file_name_template: "{{ .ConventionalFileName }}"
     vendor: hzerrad
-    homepage: https://github.com/hzerrad/cronic
+    homepage: https://github.com/hzerrad/cronkit
     maintainer: hzerrad <contact@hzerrad.dev>
     description: Make cron human again - CLI tool for cron job management
     license: Apache-2.0
@@ -114,15 +114,15 @@ nfpms:
     bindir: /usr/bin
     contents:
       - src: LICENSE
-        dst: /usr/share/doc/cronic/copyright
+        dst: /usr/share/doc/cronkit/copyright
       - src: README.md
-        dst: /usr/share/doc/cronic/README.md
+        dst: /usr/share/doc/cronkit/README.md
 
   - id: rpm
-    package_name: cronic
+    package_name: cronkit
     file_name_template: "{{ .ConventionalFileName }}"
     vendor: hzerrad
-    homepage: https://github.com/hzerrad/cronic
+    homepage: https://github.com/hzerrad/cronkit
     maintainer: hzerrad <contact@hzerrad.dev>
     description: Make cron human again - CLI tool for cron job management
     license: Apache-2.0
@@ -131,9 +131,9 @@ nfpms:
     bindir: /usr/bin
     contents:
       - src: LICENSE
-        dst: /usr/share/doc/cronic/LICENSE
+        dst: /usr/share/doc/cronkit/LICENSE
       - src: README.md
-        dst: /usr/share/doc/cronic/README.md
+        dst: /usr/share/doc/cronkit/README.md
     rpm:
       group: Applications/System
       compression: gzip
@@ -142,10 +142,10 @@ nfpms:
 release:
   github:
     owner: hzerrad
-    name: cronic
+    name: cronkit
   mode: replace
   header: |
-    ## Cronic {{ .Tag }}
+    ## Cronkit {{ .Tag }}
 
     {{ .ReleaseNotes }}
 
@@ -153,25 +153,25 @@ release:
 
     #### Homebrew
     ```bash
-    brew tap hzerrad/cronic
-    brew install cronic
+    brew tap hzerrad/cronkit
+    brew install cronkit
     ```
 
     #### APT (Debian/Ubuntu)
     ```bash
-    wget https://github.com/hzerrad/cronic/releases/download/{{ .Tag }}/cronic_{{ .Version }}_linux_amd64.deb
-    sudo dpkg -i cronic_{{ .Version }}_linux_amd64.deb
+    wget https://github.com/hzerrad/cronkit/releases/download/{{ .Tag }}/cronkit_{{ .Version }}_linux_amd64.deb
+    sudo dpkg -i cronkit_{{ .Version }}_linux_amd64.deb
     ```
 
     #### DNF/YUM (Fedora/RHEL)
     ```bash
-    wget https://github.com/hzerrad/cronic/releases/download/{{ .Tag }}/cronic_{{ .Version }}_linux_amd64.rpm
-    sudo dnf install cronic_{{ .Version }}_linux_amd64.rpm
+    wget https://github.com/hzerrad/cronkit/releases/download/{{ .Tag }}/cronkit_{{ .Version }}_linux_amd64.rpm
+    sudo dnf install cronkit_{{ .Version }}_linux_amd64.rpm
     ```
 
     #### Pacman/AUR (Arch Linux)
     ```bash
-    yay -S cronic-bin
+    yay -S cronkit-bin
     # or
-    paru -S cronic-bin
+    paru -S cronkit-bin
     ```

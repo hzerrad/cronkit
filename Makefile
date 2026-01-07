@@ -1,8 +1,8 @@
 .PHONY: help build install clean test test-unit test-integration test-e2e test-bdd test-coverage test-watch lint fmt run dev build-all setup-hooks vet benchmark benchmark-compare test-large profile examples docs dev-setup
 
 # Variables
-BINARY_NAME=cronic
-MAIN_PATH=./cmd/cronic
+BINARY_NAME=cronkit
+MAIN_PATH=./cmd/cronkit
 BUILD_DIR=./bin
 DIST_DIR=./dist
 
@@ -12,9 +12,9 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Linker flags
-LDFLAGS=-ldflags "-X github.com/hzerrad/cronic/internal/cmd.version=$(VERSION) \
-                  -X github.com/hzerrad/cronic/internal/cmd.commit=$(COMMIT) \
-                  -X github.com/hzerrad/cronic/internal/cmd.date=$(DATE)"
+LDFLAGS=-ldflags "-X github.com/hzerrad/cronkit/internal/cmd.version=$(VERSION) \
+                  -X github.com/hzerrad/cronkit/internal/cmd.commit=$(COMMIT) \
+                  -X github.com/hzerrad/cronkit/internal/cmd.date=$(DATE)"
 
 help: ## Display this help message
 	@echo "Available targets:"
@@ -132,8 +132,8 @@ test-large: build ## Test with large crontabs (100+ jobs)
 		echo "0 * * * * /usr/bin/job$$i.sh" >> /tmp/large-test.cron; \
 	done
 	@echo "Testing with large crontab..."
-	@time ./bin/cronic check --file /tmp/large-test.cron
-	@time ./bin/cronic list --file /tmp/large-test.cron --json > /dev/null
+	@time ./bin/cronkit check --file /tmp/large-test.cron
+	@time ./bin/cronkit list --file /tmp/large-test.cron --json > /dev/null
 	@rm -f /tmp/large-test.cron
 	@echo "Large crontab tests passed"
 
@@ -167,7 +167,7 @@ examples: ## Validate example crontabs
 	@echo "Validating example crontabs..."
 	@for file in examples/crontabs/*.cron; do \
 		echo "Checking $$file..."; \
-		./bin/cronic check --file $$file || exit 1; \
+		./bin/cronkit check --file $$file || exit 1; \
 	done
 	@echo "All example crontabs are valid"
 

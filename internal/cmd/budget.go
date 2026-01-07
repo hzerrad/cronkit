@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hzerrad/cronic/internal/budget"
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/budget"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/cronx"
 	"github.com/spf13/cobra"
 )
 
@@ -32,10 +32,10 @@ This command checks if the crontab violates concurrency limits by analyzing
 how many jobs run simultaneously within a given time window.
 
 Examples:
-  cronic budget --file /etc/crontab --max-concurrent 10 --window 1m
-  cronic budget --file crontab.txt --max-concurrent 50 --window 1h --json
-  cronic budget --file jobs.cron --max-concurrent 10 --window 1m --enforce
-  cronic budget --stdin --max-concurrent 5 --window 1h --verbose`,
+  cronkit budget --file /etc/crontab --max-concurrent 10 --window 1m
+  cronkit budget --file crontab.txt --max-concurrent 50 --window 1h --json
+  cronkit budget --file jobs.cron --max-concurrent 10 --window 1m --enforce
+  cronkit budget --stdin --max-concurrent 5 --window 1h --verbose`,
 		RunE: bc.runBudget,
 	}
 

@@ -1,6 +1,6 @@
 # Testing Guidelines
 
-This document provides comprehensive guidelines for testing in the cronic project. We follow Test-Driven Development (TDD) and Behavior-Driven Development (BDD) practices.
+This document provides comprehensive guidelines for testing in the cronkit project. We follow Test-Driven Development (TDD) and Behavior-Driven Development (BDD) practices.
 
 ## Table of Contents
 
@@ -61,7 +61,7 @@ func TestVersionCommand(t *testing.T) {
 **Example:**
 ```go
 Describe("CLI Integration Tests", func() {
-    Context("when running 'cronic version'", func() {
+    Context("when running 'cronkit version'", func() {
         It("should display version information", func() {
             command := exec.Command(pathToCLI, "version")
             session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)

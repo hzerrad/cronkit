@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/cronx"
-	"github.com/hzerrad/cronic/internal/human"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/human"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -35,11 +35,11 @@ func newListCommand() *ListCommand {
 		Long: `Parse and display cron jobs from a crontab file or the current user's crontab.
 
 Examples:
-  cronic list                        # List current user's cron jobs
-  cronic list --file /etc/crontab    # List jobs from specific file
-  cronic list --all                  # Include comments and environment variables
-  cronic list --json                 # Output as JSON
-  cronic list --file sample.cron --json > jobs.json`,
+  cronkit list                        # List current user's cron jobs
+  cronkit list --file /etc/crontab    # List jobs from specific file
+  cronkit list --all                  # Include comments and environment variables
+  cronkit list --json                 # Output as JSON
+  cronkit list --file sample.cron --json > jobs.json`,
 		RunE: lc.runList,
 	}
 

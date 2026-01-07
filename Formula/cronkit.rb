@@ -5,23 +5,23 @@
 # Documentation: https://docs.brew.sh/Formula-Cookbook
 #                https://rubydoc.brew.sh/Formula
 
-class Cronic < Formula
+class Cronkit < Formula
   desc "Make cron human again - CLI tool for cron job management"
-  homepage "https://github.com/hzerrad/cronic"
-  url "https://github.com/hzerrad/cronic/archive/v0.1.0.tar.gz"
+  homepage "https://github.com/hzerrad/cronkit"
+  url "https://github.com/hzerrad/cronkit/archive/v0.1.0.tar.gz"
   sha256 "9c647f092c1a0c4b7eeb1ec47108e476dbd0cf1abc235bf0344af4db86799e05"
   license "Apache-2.0"
-  head "https://github.com/hzerrad/cronic.git", branch: "main"
+  head "https://github.com/hzerrad/cronkit.git", branch: "main"
 
   depends_on "go" => :build
 
   def install
     system "make", "build"
-    bin.install "bin/cronic"
+    bin.install "bin/cronkit"
   end
 
   test do
-    system "#{bin}/cronic", "version"
+    system "#{bin}/cronkit", "version"
   end
 end
 

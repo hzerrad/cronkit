@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/cronx"
 )
 
 // ReferenceDate is a fixed date used for consistent calculations

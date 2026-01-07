@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hzerrad/cronic/internal/cronx"
-	"github.com/hzerrad/cronic/internal/human"
+	"github.com/hzerrad/cronkit/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/human"
 	"github.com/spf13/cobra"
 )
 
@@ -59,11 +59,11 @@ Supports:
   - JSON output with --json flag for programmatic use
 
 Examples:
-  cronic next "*/15 * * * *"              # Next 10 runs (default)
-  cronic next "@daily" --count 5          # Next 5 runs
-  cronic next "0 9 * * 1-5" -c 3          # Next 3 runs (short flag)
-  cronic next "0 14 * * *" --json         # JSON output
-  cronic next "*/5 9-17 * * 1-5" -c 20    # Business hours monitoring`,
+  cronkit next "*/15 * * * *"              # Next 10 runs (default)
+  cronkit next "@daily" --count 5          # Next 5 runs
+  cronkit next "0 9 * * 1-5" -c 3          # Next 3 runs (short flag)
+  cronkit next "0 14 * * *" --json         # JSON output
+  cronkit next "*/5 9-17 * * 1-5" -c 20    # Business hours monitoring`,
 	}
 
 	nc.Command.Flags().IntVarP(&nc.count, "count", "c", DefaultNextCount, "Number of runs to show (1-100, default: 10)")

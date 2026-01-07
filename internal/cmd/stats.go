@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/stats"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -32,9 +32,9 @@ func newStatsCommand() *StatsCommand {
   - Collision analysis (busiest hours, quiet windows)
 
 Examples:
-  cronic stats --file /etc/crontab
-  cronic stats --file crontab.txt --json
-  cronic stats --top 10 --verbose`,
+  cronkit stats --file /etc/crontab
+  cronkit stats --file crontab.txt --json
+  cronkit stats --top 10 --verbose`,
 		RunE: sc.runStats,
 		Args: cobra.NoArgs,
 	}

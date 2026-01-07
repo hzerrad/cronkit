@@ -9,7 +9,7 @@ CRONTAB_FILE="${1:-/etc/crontab}"
 echo "Validating crontab: $CRONTAB_FILE"
 echo "================================"
 
-if cronic check --file "$CRONTAB_FILE" --verbose; then
+if cronkit check --file "$CRONTAB_FILE" --verbose; then
     echo ""
     echo "✓ Crontab validation passed"
     exit 0

@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/hzerrad/cronic/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/crontab"
 )
 
 var _ = Describe("Crontab Reader", func() {

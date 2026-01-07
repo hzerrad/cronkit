@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hzerrad/cronic/internal/crontab"
-	"github.com/hzerrad/cronic/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/cronx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -883,7 +883,7 @@ func TestValidator_ValidateUserCrontab(t *testing.T) {
 // Helper function to create temporary crontab file
 func createTempCrontab(t *testing.T, content string) string {
 	t.Helper()
-	file, err := os.CreateTemp("", "cronic-test-*.cron")
+	file, err := os.CreateTemp("", "cronkit-test-*.cron")
 	require.NoError(t, err)
 
 	_, err = file.WriteString(content)

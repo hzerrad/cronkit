@@ -12,31 +12,31 @@ import (
 var _ = Describe("CLI Integration Tests", func() {
 
 	Describe("Version Command", func() {
-		Context("when running 'cronic version'", func() {
+		Context("when running 'cronkit version'", func() {
 			It("should display version information", func() {
 				command := exec.Command(pathToCLI, "version")
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("cronic"))
+				Expect(session.Out).To(gbytes.Say("cronkit"))
 			})
 		})
 
-		Context("when running 'cronic --version'", func() {
+		Context("when running 'cronkit --version'", func() {
 			It("should display version information", func() {
 				command := exec.Command(pathToCLI, "--version")
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("cronic"))
+				Expect(session.Out).To(gbytes.Say("cronkit"))
 			})
 		})
 	})
 
 	Describe("Help Command", func() {
-		Context("when running 'cronic --help'", func() {
+		Context("when running 'cronkit --help'", func() {
 			It("should display help information", func() {
 				command := exec.Command(pathToCLI, "--help")
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -50,7 +50,7 @@ var _ = Describe("CLI Integration Tests", func() {
 			})
 		})
 
-		Context("when running 'cronic help version'", func() {
+		Context("when running 'cronkit help version'", func() {
 			It("should display help for version command", func() {
 				command := exec.Command(pathToCLI, "help", "version")
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)

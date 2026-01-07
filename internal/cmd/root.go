@@ -14,9 +14,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "cronic",
+	Use:   "cronkit",
 	Short: "Make cron human again",
-	Long: `Cronic is a command-line tool that makes cron jobs human-readable, auditable, and visual.
+	Long: `Cronkit is a command-line tool that makes cron jobs human-readable, auditable, and visual.
 
 It converts confusing cron syntax into plain English, generates upcoming run schedules,
 provides ASCII timeline visualizations, and validates crontabs with severity levels

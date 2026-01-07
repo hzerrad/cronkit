@@ -218,7 +218,7 @@ var _ = Describe("List Command", func() {
 	})
 
 	Describe("Help and usage", func() {
-		Context("when running 'cronic list --help'", func() {
+		Context("when running 'cronkit list --help'", func() {
 			It("should display help information", func() {
 				command := exec.Command(pathToCLI, "list", "--help")
 				session, err := gexec.Start(command, nil, nil)

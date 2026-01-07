@@ -10,10 +10,10 @@ if [ -t 0 ]; then
         echo "Usage: $0 [crontab-file] OR cat file.cron | $0"
         exit 1
     fi
-    cronic list --file "$1" --json
+    cronkit list --file "$1" --json
 else
     # stdin is piped, read from stdin
-    cronic list --stdin --json
+    cronkit list --stdin --json
 fi
 
 

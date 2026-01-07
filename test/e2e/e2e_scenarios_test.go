@@ -16,7 +16,7 @@ var pathToCLI string
 var _ = BeforeSuite(func() {
 	var err error
 	// Build the CLI binary for testing
-	pathToCLI, err = gexec.Build("github.com/hzerrad/cronic/cmd/cronic")
+	pathToCLI, err = gexec.Build("github.com/hzerrad/cronkit/cmd/cronkit")
 	Expect(err).NotTo(HaveOccurred())
 })
 
@@ -31,7 +31,7 @@ var _ = Describe("E2E Scenarios", func() {
 	BeforeEach(func() {
 		var err error
 		// Create a temporary directory for each test
-		tempDir, err = os.MkdirTemp("", "cronic-e2e-*")
+		tempDir, err = os.MkdirTemp("", "cronkit-e2e-*")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -60,7 +60,7 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("cronic"))
+				Expect(session.Out).To(gbytes.Say("cronkit"))
 			})
 		})
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hzerrad/cronic/internal/cronx"
-	"github.com/hzerrad/cronic/internal/human"
+	"github.com/hzerrad/cronkit/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/human"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

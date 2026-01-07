@@ -22,7 +22,7 @@ testdata/
 ### Loading Test Fixtures
 
 ```go
-import "github.com/hzerrad/cronic/internal/testutil"
+import "github.com/hzerrad/cronkit/internal/testutil"
 
 // Load a test crontab
 path := testutil.LoadTestCrontab("sample.cron")

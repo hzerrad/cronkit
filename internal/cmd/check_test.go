@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hzerrad/cronic/internal/check"
+	"github.com/hzerrad/cronkit/internal/check"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

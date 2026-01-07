@@ -1,6 +1,6 @@
-# Cronic Examples
+# Cronkit Examples
 
-This directory contains example crontab files and scripts demonstrating how to use Cronic.
+This directory contains example crontab files and scripts demonstrating how to use Cronkit.
 
 ## Crontab Examples
 
@@ -32,7 +32,7 @@ Validates a crontab file and exits with appropriate exit codes for CI/CD integra
 ```bash
 ./validate-crontab.sh /etc/crontab
 # or
-cat my-crontab.cron | cronic check --stdin
+cat my-crontab.cron | cronkit check --stdin
 ```
 
 ### `list-jobs.sh`
@@ -57,45 +57,45 @@ Generates a timeline visualization and exports it to both text and JSON formats.
 
 ### Validate an Example Crontab
 ```bash
-cronic check --file examples/crontabs/simple.cron
+cronkit check --file examples/crontabs/simple.cron
 ```
 
 ### Explain Jobs from an Example
 ```bash
-cronic list --file examples/crontabs/complex.cron
+cronkit list --file examples/crontabs/complex.cron
 ```
 
 ### Generate Timeline
 ```bash
 # Basic timeline
-cronic timeline --file examples/crontabs/complex.cron
+cronkit timeline --file examples/crontabs/complex.cron
 
 # Show overlap information (v0.2.0)
-cronic timeline --file examples/crontabs/complex.cron --show-overlaps
+cronkit timeline --file examples/crontabs/complex.cron --show-overlaps
 
 # Timeline with timezone
-cronic timeline --file examples/crontabs/complex.cron --timezone America/New_York
+cronkit timeline --file examples/crontabs/complex.cron --timezone America/New_York
 ```
 
 ### Use with Stdin
 ```bash
-cat examples/crontabs/simple.cron | cronic list --stdin
-cat examples/crontabs/simple.cron | cronic check --stdin
+cat examples/crontabs/simple.cron | cronkit list --stdin
+cat examples/crontabs/simple.cron | cronkit check --stdin
 ```
 
 ### Advanced Validation (v0.2.0)
 ```bash
 # Group issues by severity
-cronic check --file examples/crontabs/complex.cron --group-by severity --verbose
+cronkit check --file examples/crontabs/complex.cron --group-by severity --verbose
 
 # Group issues by line number
-cronic check --file examples/crontabs/complex.cron --group-by line --verbose
+cronkit check --file examples/crontabs/complex.cron --group-by line --verbose
 
 # Fail on warnings in CI/CD
-cronic check --file examples/crontabs/complex.cron --fail-on warn --verbose
+cronkit check --file examples/crontabs/complex.cron --fail-on warn --verbose
 
 # Check with JSON output
-cronic check --file examples/crontabs/complex.cron --json --verbose
+cronkit check --file examples/crontabs/complex.cron --json --verbose
 ```
 
 ## CI/CD Integration Examples
@@ -104,22 +104,22 @@ cronic check --file examples/crontabs/complex.cron --json --verbose
 ```yaml
 - name: Validate crontab
   run: |
-    cronic check --file .github/crontab --fail-on warn --verbose
+    cronkit check --file .github/crontab --fail-on warn --verbose
 
 # With grouped output
 - name: Validate crontab with grouped issues
   run: |
-    cronic check --file .github/crontab --group-by severity --fail-on warn --verbose
+    cronkit check --file .github/crontab --group-by severity --fail-on warn --verbose
 ```
 
 ### Pre-commit Hook
 ```bash
 #!/bin/bash
 # Validate crontab before commit
-cronic check --file .crontab --fail-on error
+cronkit check --file .crontab --fail-on error
 
 # Or with verbose output
-cronic check --file .crontab --fail-on warn --verbose --group-by severity
+cronkit check --file .crontab --fail-on warn --verbose --group-by severity
 ```
 
 ### Automated Documentation
@@ -128,7 +128,7 @@ cronic check --file .crontab --fail-on warn --verbose --group-by severity
 # Generate documentation for all crontabs
 for file in crontabs/*.cron; do
     echo "=== $file ==="
-    cronic list --file "$file" --all
+    cronkit list --file "$file" --all
     echo ""
 done > CRONTAB_DOCS.md
 ```
@@ -139,7 +139,7 @@ done > CRONTAB_DOCS.md
 # Generate timeline with overlap analysis for all crontabs
 for file in crontabs/*.cron; do
     echo "=== Timeline for $file ==="
-    cronic timeline --file "$file" --show-overlaps
+    cronkit timeline --file "$file" --show-overlaps
     echo ""
 done > TIMELINE_ANALYSIS.txt
 ```
@@ -150,7 +150,7 @@ done > TIMELINE_ANALYSIS.txt
 # Validate all crontabs and group issues by severity
 for file in crontabs/*.cron; do
     echo "=== Validating $file ==="
-    cronic check --file "$file" --group-by severity --verbose
+    cronkit check --file "$file" --group-by severity --verbose
     echo ""
 done
 ```
