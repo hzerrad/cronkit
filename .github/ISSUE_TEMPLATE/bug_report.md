@@ -22,7 +22,7 @@ labels: bug
 ## Environment
 - OS: 
 - Go version:
-- Cronic version:
+- cronkit version:
 
 ## Additional Context
 [Any other relevant information]

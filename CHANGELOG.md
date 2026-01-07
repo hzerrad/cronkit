@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Project renamed from `cronic` to `cronkit`
+- Project renamed from `cronkit` to `cronkit`
 
 ## [0.1.0] - 2026-01-05
 ### Added

@@ -169,7 +169,7 @@ jobs:
 
       - name: Verify binary exists
         run: |
-          if [ ! -f ./bin/cronic ]; then
+          if [ ! -f ./bin/cronkit ]; then
             echo "Binary not found"
             exit 1
           fi
@@ -177,6 +177,6 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v5
         with:
-          name: cronic-${{ matrix.os }}
-          path: ./bin/cronic*
+          name: cronkit-${{ matrix.os }}
+          path: ./bin/cronkit*
 
