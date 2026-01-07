@@ -320,4 +320,85 @@ var _ = Describe("Explain Command", func() {
 			})
 		})
 	})
+
+	Describe("Edge Cases", func() {
+		Context("when explaining step minutes with single hour and month range", func() {
+			It("should include minute step and hour information", func() {
+				command := exec.Command(pathToCLI, "explain", "*/10 2 * 1-5 *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("Every 10 minutes"))
+				Expect(session.Out).To(gbytes.Say("02:00"))
+				Expect(session.Out).To(gbytes.Say("from January to May"))
+			})
+
+			It("should include minute step and hour information for different hour", func() {
+				command := exec.Command(pathToCLI, "explain", "*/10 4 * 1-5 *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("Every 10 minutes"))
+				Expect(session.Out).To(gbytes.Say("04:00"))
+				Expect(session.Out).To(gbytes.Say("from January to May"))
+			})
+		})
+
+		Context("when explaining step minutes with list hour", func() {
+			It("should include minute step and all hours", func() {
+				command := exec.Command(pathToCLI, "explain", "*/10 2,4,6 * * *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("Every 10 minutes"))
+				Expect(session.Out).To(gbytes.Say("02:00"))
+				Expect(session.Out).To(gbytes.Say("04:00"))
+				Expect(session.Out).To(gbytes.Say("06:00"))
+			})
+		})
+
+		Context("when explaining single minute with range hour", func() {
+			It("should include minute and hour range", func() {
+				command := exec.Command(pathToCLI, "explain", "30 2-4 * * *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("30 minutes past the hour"))
+				Expect(session.Out).To(gbytes.Say("02:00"))
+				Expect(session.Out).To(gbytes.Say("04:59"))
+			})
+		})
+
+		Context("when explaining list minute with single hour", func() {
+			It("should include all minutes and hour", func() {
+				command := exec.Command(pathToCLI, "explain", "0,30 2 * * *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("02:00"))
+				Expect(session.Out).To(gbytes.Say("02:30"))
+			})
+		})
+
+		Context("when explaining list minute with list hour", func() {
+			It("should include all time combinations", func() {
+				command := exec.Command(pathToCLI, "explain", "0,30 2,4,6 * * *")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("02:00"))
+				Expect(session.Out).To(gbytes.Say("02:30"))
+				Expect(session.Out).To(gbytes.Say("04:00"))
+				Expect(session.Out).To(gbytes.Say("04:30"))
+				Expect(session.Out).To(gbytes.Say("06:00"))
+				Expect(session.Out).To(gbytes.Say("06:30"))
+			})
+		})
+	})
 })

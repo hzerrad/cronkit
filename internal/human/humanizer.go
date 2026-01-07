@@ -111,8 +111,70 @@ func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
 		return fmt.Sprintf("At %s", formatList(times))
 	}
 
+	// Case 8: Step minutes with single hour (*/N, M)
+	if minute.IsStep() && hour.IsSingle() {
+		return fmt.Sprintf("Every %d minutes at %s", minute.Step(), formatHour(hour.Value()))
+	}
+
+	// Case 9: Step minutes with list hour (*/N, M,N,O)
+	if minute.IsStep() && hour.IsList() {
+		times := make([]string, len(hour.ListValues()))
+		for i, h := range hour.ListValues() {
+			times[i] = formatHour(h)
+		}
+		return fmt.Sprintf("Every %d minutes at %s", minute.Step(), formatList(times))
+	}
+
+	// Case 10: Single minute with range hour (N, M-O)
+	if minute.IsSingle() && hour.IsRange() {
+		return fmt.Sprintf("At %d minutes past the hour between %s and %s",
+			minute.Value(),
+			formatHour(hour.RangeStart()),
+			formatHourEnd(hour.RangeEnd()))
+	}
+
+	// Case 11: List minute with single hour (N,M,O, H)
+	if minute.IsList() && hour.IsSingle() {
+		times := make([]string, len(minute.ListValues()))
+		for i, m := range minute.ListValues() {
+			times[i] = formatTime(hour.Value(), m)
+		}
+		return fmt.Sprintf("At %s", formatList(times))
+	}
+
+	// Case 12: List minute with range hour (N,M,O, H-J)
+	if minute.IsList() && hour.IsRange() {
+		minutes := minute.ListValues()
+		minuteStrs := make([]string, len(minutes))
+		for i, m := range minutes {
+			minuteStrs[i] = fmt.Sprintf("%d", m)
+		}
+		return fmt.Sprintf("At %s minutes past the hour between %s and %s",
+			formatList(minuteStrs),
+			formatHour(hour.RangeStart()),
+			formatHourEnd(hour.RangeEnd()))
+	}
+
+	// Case 13: List minute with list hour (N,M,O, H,J,K) - cartesian product
+	if minute.IsList() && hour.IsList() {
+		times := h.generateTimeCombinations(minute.ListValues(), hour.ListValues())
+		return fmt.Sprintf("At %s", formatList(times))
+	}
+
 	// Default fallback
 	return "Runs periodically"
+}
+
+// generateTimeCombinations creates a cartesian product of minutes and hours
+// and returns formatted time strings sorted by hour then minute
+func (h *humanizer) generateTimeCombinations(minutes, hours []int) []string {
+	var times []string
+	for _, hour := range hours {
+		for _, minute := range minutes {
+			times = append(times, formatTime(hour, minute))
+		}
+	}
+	return times
 }
 
 // buildDayPart constructs the day portion of the description

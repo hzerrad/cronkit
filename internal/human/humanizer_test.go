@@ -692,3 +692,65 @@ func TestHumanizer_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestHumanizer_MissingTimePatterns(t *testing.T) {
+	parser := cronx.NewParser()
+	humanizer := human.NewHumanizer()
+
+	tests := []struct {
+		name       string
+		expression string
+		expected   string
+	}{
+		{
+			name:       "step minutes with single hour",
+			expression: "*/10 2 * * *",
+			expected:   "Every 10 minutes at 02:00 every day",
+		},
+		{
+			name:       "step minutes with single hour and month range",
+			expression: "*/15 4 * 1-5 *",
+			expected:   "Every 15 minutes at 04:00 every day from January to May",
+		},
+		{
+			name:       "step minutes with list hour",
+			expression: "*/10 2,4,6 * * *",
+			expected:   "Every 10 minutes at 02:00, 04:00, and 06:00 every day",
+		},
+		{
+			name:       "single minute with range hour",
+			expression: "30 2-4 * * *",
+			expected:   "At 30 minutes past the hour between 02:00 and 04:59 every day",
+		},
+		{
+			name:       "list minute with single hour",
+			expression: "0,30 2 * * *",
+			expected:   "At 02:00 and 02:30 every day",
+		},
+		{
+			name:       "list minute with range hour",
+			expression: "0,30 2-4 * * *",
+			expected:   "At 0 and 30 minutes past the hour between 02:00 and 04:59 every day",
+		},
+		{
+			name:       "list minute with list hour",
+			expression: "0,30 2,4,6 * * *",
+			expected:   "At 02:00, 02:30, 04:00, 04:30, 06:00, and 06:30 every day",
+		},
+		{
+			name:       "list minute with list hour (three minutes)",
+			expression: "0,15,30 2,4 * * *",
+			expected:   "At 02:00, 02:15, 02:30, 04:00, 04:15, and 04:30 every day",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schedule, err := parser.Parse(tt.expression)
+			require.NoError(t, err)
+
+			result := humanizer.Humanize(schedule)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
