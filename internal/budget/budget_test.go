@@ -45,23 +45,23 @@ func TestAnalyzeBudget(t *testing.T) {
 	})
 
 	t.Run("budget fails when violations found", func(t *testing.T) {
-		// Create jobs that will overlap (all run at minute 0)
+		// Three jobs that fire every minute, so they always run concurrently.
 		jobs := []*crontab.Job{
 			{
 				LineNumber: 1,
-				Expression: "0 * * * *",
+				Expression: "* * * * *",
 				Command:    "/usr/bin/job1.sh",
 				Valid:      true,
 			},
 			{
 				LineNumber: 2,
-				Expression: "0 * * * *",
+				Expression: "* * * * *",
 				Command:    "/usr/bin/job2.sh",
 				Valid:      true,
 			},
 			{
 				LineNumber: 3,
-				Expression: "0 * * * *",
+				Expression: "* * * * *",
 				Command:    "/usr/bin/job3.sh",
 				Valid:      true,
 			},
@@ -79,26 +79,23 @@ func TestAnalyzeBudget(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, report.Budgets, 1)
 
-		// All 3 jobs run at minute 0, so MaxFound should be 3
-		if report.Budgets[0].MaxFound > budgets[0].MaxConcurrent {
-			assert.False(t, report.Budgets[0].Passed)
-			assert.False(t, report.Passed)
-			assert.Greater(t, len(report.Budgets[0].Violations), 0)
-		} else {
-			// If overlap detection didn't work, log it but don't fail
-			t.Logf("MaxFound: %d, Budget: %d", report.Budgets[0].MaxFound, budgets[0].MaxConcurrent)
-		}
+		// MaxFound is 3 (all three every minute), over the limit of 2.
+		assert.False(t, report.Budgets[0].Passed)
+		assert.False(t, report.Passed)
+		assert.Greater(t, len(report.Budgets[0].Violations), 0)
 	})
 
 	t.Run("multiple budgets", func(t *testing.T) {
 		jobs := []*crontab.Job{
 			{
-				Expression: "0 * * * *",
+				LineNumber: 1,
+				Expression: "* * * * *",
 				Command:    "/usr/bin/job1.sh",
 				Valid:      true,
 			},
 			{
-				Expression: "0 * * * *",
+				LineNumber: 2,
+				Expression: "* * * * *",
 				Command:    "/usr/bin/job2.sh",
 				Valid:      true,
 			},
@@ -122,14 +119,9 @@ func TestAnalyzeBudget(t *testing.T) {
 		assert.Len(t, report.Budgets, 2)
 		assert.True(t, report.Budgets[0].Passed) // First budget passes (limit 10, found 2)
 
-		// Second budget should fail if we found more than 1 concurrent job
-		if report.Budgets[1].MaxFound > 1 {
-			assert.False(t, report.Budgets[1].Passed) // Second budget fails
-			assert.False(t, report.Passed)            // Overall should fail
-		} else {
-			// If overlap detection didn't find overlaps, that's also valid
-			t.Logf("No overlaps detected, MaxFound: %d", report.Budgets[1].MaxFound)
-		}
+		// Both jobs fire every minute, so the strict budget (limit 1) fails.
+		assert.False(t, report.Budgets[1].Passed)
+		assert.False(t, report.Passed)
 	})
 
 	t.Run("error when no budgets specified", func(t *testing.T) {
@@ -198,19 +190,19 @@ func TestAnalyzeSingleBudget(t *testing.T) {
 		jobs := []*crontab.Job{
 			{
 				LineNumber: 1,
-				Expression: "0 * * * *",
+				Expression: "* * * * *",
 				Command:    "/usr/bin/job1.sh",
 				Valid:      true,
 			},
 			{
 				LineNumber: 2,
-				Expression: "0 * * * *",
+				Expression: "* * * * *",
 				Command:    "/usr/bin/job2.sh",
 				Valid:      true,
 			},
 			{
 				LineNumber: 3,
-				Expression: "0 * * * *",
+				Expression: "* * * * *",
 				Command:    "/usr/bin/job3.sh",
 				Valid:      true,
 			},
@@ -225,20 +217,12 @@ func TestAnalyzeSingleBudget(t *testing.T) {
 		result, err := analyzeSingleBudget(jobs, budget, scheduler, parser)
 		require.NoError(t, err)
 
-		// The jobs all run at minute 0, so we should have 3 concurrent jobs
-		// If MaxFound is 3 and budget is 2, we should have violations
-		if result.MaxFound > budget.MaxConcurrent {
-			assert.False(t, result.Passed)
-			assert.Greater(t, len(result.Violations), 0)
+		// All jobs fire every minute, so MaxFound is 3 — over the limit of 2.
+		assert.False(t, result.Passed)
+		assert.Greater(t, len(result.Violations), 0)
 
-			// Check violation details
-			violation := result.Violations[0]
-			assert.Greater(t, violation.Count, budget.MaxConcurrent)
-			assert.Greater(t, len(violation.Jobs), budget.MaxConcurrent)
-		} else {
-			// If no violations found, that's also a valid outcome
-			// (might happen if overlap detection doesn't find exact matches)
-			t.Logf("No violations found, MaxFound: %d, Budget: %d", result.MaxFound, budget.MaxConcurrent)
-		}
+		violation := result.Violations[0]
+		assert.Greater(t, violation.Count, budget.MaxConcurrent)
+		assert.Greater(t, len(violation.Jobs), budget.MaxConcurrent)
 	})
 }
