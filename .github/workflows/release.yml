@@ -54,5 +54,5 @@ jobs:
           shopt -s nullglob
           for pkg in dist/*.deb dist/*.rpm; do
             echo "Pushing $(basename "$pkg") to Gemfury..."
-            curl -fsS -u "$FURY_PUSH_TOKEN:" -F package=@"$pkg" "https://push.fury.io/hzerrad/"
+            curl -fsS -u "$FURY_PUSH_TOKEN:" -F package=@"$pkg" "https://push.fury.io/hzerrad-dev/"
           done

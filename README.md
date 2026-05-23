@@ -68,7 +68,7 @@ sudo mv cronkit /usr/local/bin/
 Add the repository once, then install and upgrade with `apt` like any other package:
 
 ```bash
-echo "deb [trusted=yes] https://apt.fury.io/hzerrad/ /" | sudo tee /etc/apt/sources.list.d/cronkit.list
+echo "deb [trusted=yes] https://apt.fury.io/hzerrad-dev/ /" | sudo tee /etc/apt/sources.list.d/cronkit.list
 sudo apt update
 sudo apt install cronkit
 ```
@@ -96,7 +96,7 @@ Add the repository once, then install and upgrade with `dnf` like any other pack
 sudo tee /etc/yum.repos.d/cronkit.repo >/dev/null <<'EOF'
 [cronkit]
 name=Cronkit
-baseurl=https://yum.fury.io/hzerrad/
+baseurl=https://yum.fury.io/hzerrad-dev/
 enabled=1
 gpgcheck=0
 EOF

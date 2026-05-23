@@ -159,7 +159,7 @@ release:
 
     #### APT (Debian/Ubuntu)
     ```bash
-    echo "deb [trusted=yes] https://apt.fury.io/hzerrad/ /" | sudo tee /etc/apt/sources.list.d/cronkit.list
+    echo "deb [trusted=yes] https://apt.fury.io/hzerrad-dev/ /" | sudo tee /etc/apt/sources.list.d/cronkit.list
     sudo apt update && sudo apt install cronkit
     ```
 
@@ -168,7 +168,7 @@ release:
     sudo tee /etc/yum.repos.d/cronkit.repo >/dev/null <<'EOF'
     [cronkit]
     name=Cronkit
-    baseurl=https://yum.fury.io/hzerrad/
+    baseurl=https://yum.fury.io/hzerrad-dev/
     enabled=1
     gpgcheck=0
     EOF
