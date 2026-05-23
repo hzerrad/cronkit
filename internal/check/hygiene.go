@@ -129,19 +129,5 @@ func checkQuotingEscaping(command string) []Issue {
 		})
 	}
 
-	// Check for suspicious patterns like unescaped spaces in arguments
-	// This is a simple heuristic - look for patterns that might need quoting
-	parts := strings.Fields(command)
-	for i, part := range parts {
-		// Skip the first part (command itself)
-		if i == 0 {
-			continue
-		}
-		// If an argument contains spaces and isn't quoted, it might be an issue
-		// This is just a potential issue, not always wrong
-		// We'll be conservative and not flag it unless there are other issues
-		_ = part // Use part to avoid unused variable warning
-	}
-
 	return issues
 }
