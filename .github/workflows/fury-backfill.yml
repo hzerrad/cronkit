@@ -1,0 +1,49 @@
+name: Backfill Gemfury (apt/dnf)
+
+# Manually (re)upload the .deb/.rpm assets of an existing release to the
+# Gemfury apt/dnf repositories. Useful for backfilling releases that were
+# published before Gemfury publishing was wired into the release workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)upload to Gemfury"
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    name: Backfill
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p pkgs
+          gh release download "$TAG" --repo "$REPO" --pattern '*.deb' --pattern '*.rpm' --dir pkgs
+          ls -la pkgs
+
+      - name: Push to Gemfury
+        env:
+          FURY_PUSH_TOKEN: ${{ secrets.FURY_PUSH_TOKEN }}
+        run: |
+          if [ -z "$FURY_PUSH_TOKEN" ]; then
+            echo "FURY_PUSH_TOKEN not set."; exit 1
+          fi
+          shopt -s nullglob
+          found=0
+          for pkg in pkgs/*.deb pkgs/*.rpm; do
+            found=1
+            echo "Pushing $(basename "$pkg") to Gemfury..."
+            curl -fsS -u "$FURY_PUSH_TOKEN:" -F package=@"$pkg" https://push.fury.io/hzerrad/
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No .deb/.rpm assets found on the release."; exit 1
+          fi
