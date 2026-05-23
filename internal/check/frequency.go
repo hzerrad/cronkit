@@ -51,9 +51,7 @@ func DetectRedundantPattern(schedule *cronx.Schedule) bool {
 
 	for _, field := range fields {
 		raw := field.Raw()
-		// Check for exact */1 pattern (could be */1 or 0-59/1, etc.)
-		// Note: IsStep() returns true only for step > 1, so */1 has IsStep() = false
-		// We need to check the raw string directly
+		// IsStep() reports false for */1 (step is 1), so match the raw string.
 		if strings.HasSuffix(raw, "/1") {
 			return true
 		}
@@ -120,9 +118,6 @@ func GetRedundantPatternSuggestion(expression string, schedule *cronx.Schedule) 
 	}
 
 	for _, f := range fields {
-		// Check if the raw part contains */1 pattern
-		// Note: IsStep() returns true only for step > 1, so */1 has IsStep() = false
-		// We need to check the raw string directly
 		raw := parts[f.index]
 		if strings.HasSuffix(raw, "/1") {
 			simplified[f.index] = "*"

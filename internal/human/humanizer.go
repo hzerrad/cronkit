@@ -66,17 +66,17 @@ func (h *humanizer) Humanize(schedule *cronx.Schedule) string {
 
 // buildTimePart constructs the time portion of the description
 func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
-	// Case 1: Every minute (*, *)
+	// Every minute (*, *)
 	if minute.IsEvery() && hour.IsEvery() {
 		return "Every minute"
 	}
 
-	// Case 2: Minute intervals with wildcard hour (*/N, *)
+	// Minute intervals with wildcard hour (*/N, *)
 	if minute.IsStep() && hour.IsEvery() {
 		return fmt.Sprintf("Every %d minutes", minute.Step())
 	}
 
-	// Case 3: Minute intervals within hour range (*/N, N-M)
+	// Minute intervals within hour range (*/N, N-M)
 	if minute.IsStep() && hour.IsRange() {
 		return fmt.Sprintf("Every %d minutes between %s and %s",
 			minute.Step(),
@@ -84,17 +84,17 @@ func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
 			formatHourEnd(hour.RangeEnd()))
 	}
 
-	// Case 4: Start of every hour (0, *)
+	// Start of every hour (0, *)
 	if minute.IsSingle() && minute.Value() == 0 && hour.IsEvery() {
 		return "At the start of every hour"
 	}
 
-	// Case 5: Specific minute of every hour (N, *)
+	// Specific minute of every hour (N, *)
 	if minute.IsSingle() && hour.IsEvery() {
 		return fmt.Sprintf("At minute %d of every hour", minute.Value())
 	}
 
-	// Case 6: Specific time (N, M)
+	// Specific time (N, M)
 	if minute.IsSingle() && hour.IsSingle() {
 		if minute.Value() == 0 && hour.Value() == 0 {
 			return "At midnight"
@@ -102,7 +102,7 @@ func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
 		return fmt.Sprintf("At %s", formatTime(hour.Value(), minute.Value()))
 	}
 
-	// Case 7: Specific time with multiple hours (N, M,N,O)
+	// Specific time with multiple hours (N, M,N,O)
 	if minute.IsSingle() && hour.IsList() {
 		times := make([]string, len(hour.ListValues()))
 		for i, h := range hour.ListValues() {
@@ -111,12 +111,12 @@ func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
 		return fmt.Sprintf("At %s", formatList(times))
 	}
 
-	// Case 8: Step minutes with single hour (*/N, M)
+	// Step minutes with single hour (*/N, M)
 	if minute.IsStep() && hour.IsSingle() {
 		return fmt.Sprintf("Every %d minutes at %s", minute.Step(), formatHour(hour.Value()))
 	}
 
-	// Case 9: Step minutes with list hour (*/N, M,N,O)
+	// Step minutes with list hour (*/N, M,N,O)
 	if minute.IsStep() && hour.IsList() {
 		times := make([]string, len(hour.ListValues()))
 		for i, h := range hour.ListValues() {
@@ -125,7 +125,7 @@ func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
 		return fmt.Sprintf("Every %d minutes at %s", minute.Step(), formatList(times))
 	}
 
-	// Case 10: Single minute with range hour (N, M-O)
+	// Single minute with range hour (N, M-O)
 	if minute.IsSingle() && hour.IsRange() {
 		return fmt.Sprintf("At %d minutes past the hour between %s and %s",
 			minute.Value(),
@@ -133,7 +133,7 @@ func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
 			formatHourEnd(hour.RangeEnd()))
 	}
 
-	// Case 11: List minute with single hour (N,M,O, H)
+	// List minute with single hour (N,M,O, H)
 	if minute.IsList() && hour.IsSingle() {
 		times := make([]string, len(minute.ListValues()))
 		for i, m := range minute.ListValues() {
@@ -142,7 +142,7 @@ func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
 		return fmt.Sprintf("At %s", formatList(times))
 	}
 
-	// Case 12: List minute with range hour (N,M,O, H-J)
+	// List minute with range hour (N,M,O, H-J)
 	if minute.IsList() && hour.IsRange() {
 		minutes := minute.ListValues()
 		minuteStrs := make([]string, len(minutes))
@@ -155,13 +155,12 @@ func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
 			formatHourEnd(hour.RangeEnd()))
 	}
 
-	// Case 13: List minute with list hour (N,M,O, H,J,K) - cartesian product
+	// List minute with list hour (N,M,O, H,J,K) - cartesian product
 	if minute.IsList() && hour.IsList() {
 		times := h.generateTimeCombinations(minute.ListValues(), hour.ListValues())
 		return fmt.Sprintf("At %s", formatList(times))
 	}
 
-	// Default fallback
 	return "Runs periodically"
 }
 

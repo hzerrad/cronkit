@@ -66,14 +66,13 @@ func (p *parser) Parse(expression string) (*Schedule, error) {
 	// Store original for reference
 	original := expression
 
-	// Don't normalize aliases - robfig/cron expects them as-is
+	// robfig/cron expects aliases verbatim
 	normalized := expression
 	if !strings.HasPrefix(expression, "@") {
 		// Only normalize case for regular expressions (for day/month names)
 		normalized = strings.ToUpper(expression)
 	}
 
-	// Use robfig/cron to parse (BOUNDARY: only place we call external library)
 	_, err := p.cronParser.Parse(normalized)
 	if err != nil {
 		// Simplify error messages for expected cases
@@ -90,7 +89,6 @@ func (p *parser) Parse(expression string) (*Schedule, error) {
 	// Parse individual fields
 	var fields []string
 	if strings.HasPrefix(expression, "@") {
-		// Handle aliases (which robfig expands internally)
 		fields = aliasToFields(expression)
 	} else {
 		fields = strings.Fields(normalized)
