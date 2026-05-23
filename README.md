@@ -65,34 +65,56 @@ sudo mv cronkit /usr/local/bin/
 
 #### APT (Debian/Ubuntu)
 
-Download and install the `.deb` package:
+Add the repository once, then install and upgrade with `apt` like any other package:
 
 ```bash
-# For amd64
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_0.1.0_amd64.deb
-sudo dpkg -i cronkit_0.1.0_amd64.deb
-
-# For arm64
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_0.1.0_arm64.deb
-sudo dpkg -i cronkit_0.1.0_arm64.deb
-
-# Fix dependencies if needed
-sudo apt-get install -f
+echo "deb [trusted=yes] https://apt.fury.io/hzerrad/ /" | sudo tee /etc/apt/sources.list.d/cronkit.list
+sudo apt update
+sudo apt install cronkit
 ```
+
+<details>
+<summary>Or install a standalone <code>.deb</code> without adding the repo</summary>
+
+```bash
+# amd64
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_0.1.0_amd64.deb
+sudo dpkg -i cronkit_0.1.0_amd64.deb && sudo apt-get install -f
+
+# arm64
+wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_0.1.0_arm64.deb
+sudo dpkg -i cronkit_0.1.0_arm64.deb && sudo apt-get install -f
+```
+
+</details>
 
 #### DNF/YUM (Fedora/RHEL/CentOS)
 
-Download and install the `.rpm` package:
+Add the repository once, then install and upgrade with `dnf` like any other package:
 
 ```bash
-# For x86_64
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit-0.1.0-1.x86_64.rpm
-sudo dnf install cronkit-0.1.0-1.x86_64.rpm
-
-# For aarch64
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit-0.1.0-1.aarch64.rpm
-sudo dnf install cronkit-0.1.0-1.aarch64.rpm
+sudo tee /etc/yum.repos.d/cronkit.repo >/dev/null <<'EOF'
+[cronkit]
+name=Cronkit
+baseurl=https://yum.fury.io/hzerrad/
+enabled=1
+gpgcheck=0
+EOF
+sudo dnf install cronkit
 ```
+
+<details>
+<summary>Or install a standalone <code>.rpm</code> without adding the repo</summary>
+
+```bash
+# x86_64
+sudo dnf install https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit-0.1.0-1.x86_64.rpm
+
+# aarch64
+sudo dnf install https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit-0.1.0-1.aarch64.rpm
+```
+
+</details>
 
 #### Pacman/AUR (Arch Linux)
 

@@ -159,14 +159,20 @@ release:
 
     #### APT (Debian/Ubuntu)
     ```bash
-    wget https://github.com/hzerrad/cronkit/releases/download/{{ .Tag }}/cronkit_{{ .Version }}_linux_amd64.deb
-    sudo dpkg -i cronkit_{{ .Version }}_linux_amd64.deb
+    echo "deb [trusted=yes] https://apt.fury.io/hzerrad/ /" | sudo tee /etc/apt/sources.list.d/cronkit.list
+    sudo apt update && sudo apt install cronkit
     ```
 
     #### DNF/YUM (Fedora/RHEL)
     ```bash
-    wget https://github.com/hzerrad/cronkit/releases/download/{{ .Tag }}/cronkit_{{ .Version }}_linux_amd64.rpm
-    sudo dnf install cronkit_{{ .Version }}_linux_amd64.rpm
+    sudo tee /etc/yum.repos.d/cronkit.repo >/dev/null <<'EOF'
+    [cronkit]
+    name=Cronkit
+    baseurl=https://yum.fury.io/hzerrad/
+    enabled=1
+    gpgcheck=0
+    EOF
+    sudo dnf install cronkit
     ```
 
     #### Pacman/AUR (Arch Linux)
