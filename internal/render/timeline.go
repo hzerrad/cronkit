@@ -247,13 +247,13 @@ func (tl *Timeline) Render(showOverlaps bool) string {
 		endTimeDisplay = tl.endTime.Add(-1 * time.Minute) // Show 23:59 instead of 00:00 next day
 		timeRange = fmt.Sprintf("%s ──────────────────────────────────────────────────────────────── %s",
 			tl.startTime.Format("15:04"), endTimeDisplay.Format("15:04"))
-		sb.WriteString(fmt.Sprintf("Timeline for %s (Day View)\n", tl.startTime.Format("2006-01-02")))
+		fmt.Fprintf(&sb, "Timeline for %s (Day View)\n", tl.startTime.Format("2006-01-02"))
 	} else {
 		// For hour view, show 59 as the end time
 		endTimeDisplay = tl.endTime.Add(-1 * time.Minute) // Show 59 instead of 60
 		timeRange = fmt.Sprintf("%s ──────────────────────────────────────────────────────────────── %s",
 			tl.startTime.Format("15:04"), endTimeDisplay.Format("15:04"))
-		sb.WriteString(fmt.Sprintf("Timeline for %s (Hour View)\n", tl.startTime.Format("2006-01-02 15:04")))
+		fmt.Fprintf(&sb, "Timeline for %s (Hour View)\n", tl.startTime.Format("2006-01-02 15:04"))
 	}
 
 	// Display job descriptions right after the header
@@ -261,14 +261,14 @@ func (tl *Timeline) Render(showOverlaps bool) string {
 		if job.description != "" {
 			// For single expressions, show just the description
 			if strings.HasPrefix(job.jobID, "expr-") {
-				sb.WriteString(fmt.Sprintf("  • %s\n", job.description))
+				fmt.Fprintf(&sb, "  • %s\n", job.description)
 			} else {
 				// For crontab jobs, show description with expression in parentheses
-				sb.WriteString(fmt.Sprintf("  • %s (%s)\n", job.description, job.expression))
+				fmt.Fprintf(&sb, "  • %s (%s)\n", job.description, job.expression)
 			}
 		} else {
 			// Fallback to job ID if no description
-			sb.WriteString(fmt.Sprintf("  • %s\n", job.jobID))
+			fmt.Fprintf(&sb, "  • %s\n", job.jobID)
 		}
 	}
 
@@ -521,8 +521,8 @@ func (tl *Timeline) Render(showOverlaps bool) string {
 		if len(overlaps) == 0 {
 			sb.WriteString("No overlaps detected\n")
 		} else {
-			sb.WriteString(fmt.Sprintf("Total overlap windows: %d\n", stats.TotalWindows))
-			sb.WriteString(fmt.Sprintf("Maximum concurrent jobs: %d\n", stats.MaxConcurrent))
+			fmt.Fprintf(&sb, "Total overlap windows: %d\n", stats.TotalWindows)
+			fmt.Fprintf(&sb, "Maximum concurrent jobs: %d\n", stats.MaxConcurrent)
 			sb.WriteString("\n")
 			sb.WriteString("Overlaps:\n")
 
@@ -530,19 +530,19 @@ func (tl *Timeline) Render(showOverlaps bool) string {
 			displayOverlaps := overlaps
 			if len(displayOverlaps) > 50 {
 				displayOverlaps = displayOverlaps[:50]
-				sb.WriteString(fmt.Sprintf("  (showing first 50 of %d overlap windows)\n", len(overlaps)))
+				fmt.Fprintf(&sb, "  (showing first 50 of %d overlap windows)\n", len(overlaps))
 			}
 
 			for _, overlap := range displayOverlaps {
 				jobList := strings.Join(overlap.JobIDs, ", ")
-				sb.WriteString(fmt.Sprintf("  %s: %d job(s) (%s)\n",
+				fmt.Fprintf(&sb, "  %s: %d job(s) (%s)\n",
 					overlap.Time.Format("2006-01-02 15:04:05"),
 					overlap.Count,
-					jobList))
+					jobList)
 			}
 
 			if len(overlaps) > 50 {
-				sb.WriteString(fmt.Sprintf("  ... and %d more overlap window(s)\n", len(overlaps)-50))
+				fmt.Fprintf(&sb, "  ... and %d more overlap window(s)\n", len(overlaps)-50)
 			}
 		}
 	}

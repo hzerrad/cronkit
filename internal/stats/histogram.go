@@ -31,7 +31,7 @@ func GenerateHistogram(hourData []int, width int) string {
 		count := hourData[hour]
 		barWidth := int(float64(count) / float64(maxCount) * float64(width))
 		bar := strings.Repeat("█", barWidth)
-		sb.WriteString(fmt.Sprintf("%02d:00 │%s %d\n", hour, bar, count))
+		fmt.Fprintf(&sb, "%02d:00 │%s %d\n", hour, bar, count)
 	}
 
 	return sb.String()
