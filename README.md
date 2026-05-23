@@ -407,7 +407,7 @@ make install        # Install to GOPATH/bin
 
 ### Testing
 
-This project follows **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices with 95%+ test coverage.
+This project follows **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices with 90%+ test coverage.
 
 ```bash
 make test           # All tests (unit + integration + E2E)
