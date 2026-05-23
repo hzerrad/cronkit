@@ -8,6 +8,8 @@
 [![Go Version](https://img.shields.io/badge/go-1.25.2%2B-blue.svg)](https://golang.org/)
 [![codecov](https://codecov.io/gh/hzerrad/cronkit/branch/main/graph/badge.svg)](https://codecov.io/gh/hzerrad/cronkit)
 
+![Cronkit demo](docs/demo.gif)
+
 ## Why Cronkit?
 
 Cron syntax is hostile. You write `0 2 * * *` and three months later you're staring at it wondering what it does. You inherit a crontab with sixty lines and no comments. You miss the difference between `* * * * 1` (every Monday) and `0 0 1 * 1` (midnight on the 1st of the month *and* every Monday — because cron ORs day-of-month and day-of-week when both are set), and you find out at 3 AM on the wrong day.
