@@ -106,10 +106,11 @@ func analyzeSingleBudget(jobs []*crontab.Job, budget Budget, scheduler cronx.Sch
 	}
 	var allRuns []jobRun
 
-	for _, job := range validJobs {
+	for i, job := range validJobs {
 		jobID := fmt.Sprintf("line-%d", job.LineNumber)
 		if job.LineNumber == 0 {
-			jobID = job.Expression
+			// not job.Expression: identical schedules must count as separate jobs
+			jobID = fmt.Sprintf("job-%d", i)
 		}
 
 		times, err := scheduler.Next(job.Expression, startTime.Add(-1*time.Second), 10000)

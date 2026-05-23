@@ -180,6 +180,23 @@ func TestAnalyzeBudget(t *testing.T) {
 		assert.True(t, report.Passed)
 		assert.Equal(t, 0, report.Budgets[0].MaxFound)
 	})
+
+	t.Run("jobs without line numbers count separately", func(t *testing.T) {
+		// Two ad-hoc jobs share a schedule and have no line number. They must
+		// still count as two concurrent jobs, not collapse into one.
+		jobs := []*crontab.Job{
+			{Expression: "* * * * *", Command: "/usr/bin/a.sh", Valid: true},
+			{Expression: "* * * * *", Command: "/usr/bin/b.sh", Valid: true},
+		}
+		budgets := []Budget{
+			{MaxConcurrent: 1, TimeWindow: 1 * time.Hour, Name: "strict"},
+		}
+
+		report, err := AnalyzeBudget(jobs, budgets, scheduler, parser)
+		require.NoError(t, err)
+		assert.Equal(t, 2, report.Budgets[0].MaxFound)
+		assert.False(t, report.Passed)
+	})
 }
 
 func TestAnalyzeSingleBudget(t *testing.T) {
