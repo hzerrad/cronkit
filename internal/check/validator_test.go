@@ -1314,7 +1314,7 @@ func TestValidator_ValidateEntries(t *testing.T) {
 	})
 }
 
-func TestValidator_ValidateEntries_Comprehensive(t *testing.T) {
+func TestValidator_ValidateEntries_EntryHandling(t *testing.T) {
 	validator := NewValidator("en")
 
 	t.Run("should handle entry with nil job", func(t *testing.T) {

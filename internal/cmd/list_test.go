@@ -353,7 +353,7 @@ func TestListCommand_ErrorPaths(t *testing.T) {
 	})
 }
 
-func TestListCommand_ErrorCoverage(t *testing.T) {
+func TestListCommand_OutputErrors(t *testing.T) {
 	t.Run("should handle error in outputJSON", func(t *testing.T) {
 		// Test the error path in outputJSON (line 170-172)
 		// This tests when JSON encoding fails
@@ -486,7 +486,7 @@ func TestListCommand_OutputAllEntries(t *testing.T) {
 	})
 }
 
-func TestListCommand_AllPaths(t *testing.T) {
+func TestListCommand_FlagsAndSources(t *testing.T) {
 	t.Run("list with --all flag and file", func(t *testing.T) {
 		// Test the path where listAll is true and file is set
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
@@ -550,7 +550,7 @@ func TestListCommand_AllPaths(t *testing.T) {
 	})
 }
 
-func TestListCommand_MorePaths(t *testing.T) {
+func TestListCommand_TableOutput(t *testing.T) {
 	t.Run("should handle outputAllEntries with table output", func(t *testing.T) {
 		// Test the table output path in outputAllEntries (line 222-228)
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")

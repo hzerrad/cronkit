@@ -1063,7 +1063,7 @@ func TestCheckCommand_OutputJSON_InvalidResult(t *testing.T) {
 	assert.Equal(t, float64(1), output["totalJobs"])
 }
 
-func TestCheckCommand_MorePaths(t *testing.T) {
+func TestCheckCommand_GroupedOutput(t *testing.T) {
 	t.Run("should handle outputCheckText with warnings and verbose", func(t *testing.T) {
 		// Test the verbose output path in outputCheckText
 		cc := newCheckCommand()
