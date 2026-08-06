@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-06
+
+### Changed
+- `timeline` draws a lane per job instead of stacked density rows. Each job gets
+  its own labelled lane, so you can tell which job runs when, and markers sit at
+  their true proportional position rather than being nudged into a free cell
+- The header names what is being shown — the absolute file path, the expression
+  and what it means, or whose crontab — followed by the window range and the
+  resolved timezone. `Local` is gone in favour of the zone and offset, e.g.
+  `CET (UTC+01:00)`
+- Conflicts get a row of their own beneath the lanes, marked wherever two or more
+  jobs share a minute
+- The chart stops widening once more columns stop adding information: a day view
+  holds at 96 cells (15 minutes each), an hour view at 60 (one per minute)
+- Text output is not compatible with 0.1.x. `--json` is unchanged
+
+### Added
+- `--color auto|always|never`. Auto means colour only on a terminal, and never
+  when `NO_COLOR` or `TERM=dumb` is set. `--export` always writes a clean file
+- `--ascii` for terminals and log pipelines that mangle box drawing
+- Terminal width is read from the terminal, falling back to `$COLUMNS` and then
+  80. Off a terminal the output is byte-identical between runs, so CI diffs are
+  stable
+
+### Removed
+- The `░▒▓█` density scale and the legend line that explained it
+
+### Upgrade notes
+- Anything grepping timeline text needs a look. The header no longer begins with
+  "cronkit timeline" and the legend line is gone
+- `--json` consumers are unaffected
+
 ## [0.1.2] - 2026-08-06
 
 ### Changed
