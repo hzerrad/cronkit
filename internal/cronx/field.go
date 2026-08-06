@@ -39,6 +39,9 @@ type Field interface {
 
 	// Raw returns the raw field string
 	Raw() string
+
+	// Kind returns the single classification describing this field's shape
+	Kind() FieldKind
 }
 
 // fieldPart represents a component of a field (a single value, range, etc.)
@@ -71,7 +74,17 @@ func parseField(raw string, min, max int, registry SymbolRegistry) Field {
 	// Split by comma first - everything can be a list
 	rawParts := strings.Split(raw, ",")
 	for _, p := range rawParts {
-		f.parts = append(f.parts, parsePart(strings.TrimSpace(p), registry))
+		part := parsePart(strings.TrimSpace(p), registry)
+
+		// "N/step" is shorthand for "N-max/step"
+		if part.isSingle && part.step > 1 {
+			part.isSingle = false
+			part.isRange = true
+			part.rangeStart = part.value
+			part.rangeEnd = max
+		}
+
+		f.parts = append(f.parts, part)
 	}
 
 	return f
@@ -186,8 +199,11 @@ func (f *field) ListValues() []int {
 		if p.isSingle {
 			values = append(values, p.value)
 		} else if p.isRange {
-			// Expand range (this is simplified - doesn't handle steps in ranges)
-			for i := p.rangeStart; i <= p.rangeEnd; i++ {
+			step := p.step
+			if step < 1 {
+				step = 1
+			}
+			for i := p.rangeStart; i <= p.rangeEnd; i += step {
 				values = append(values, i)
 			}
 		}
