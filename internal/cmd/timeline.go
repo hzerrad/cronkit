@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -171,11 +172,13 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("failed to read crontab file: %w", err)
 			}
+			timeline.SetSource(absPath(tc.file), "")
 		} else {
 			jobs, err = reader.ReadUser()
 			if err != nil {
 				return fmt.Errorf("failed to read user crontab: %w", err)
 			}
+			timeline.SetSource(userCrontabSource(), "")
 		}
 	}
 
@@ -235,7 +238,7 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 				label = label + ":" + strconv.Itoa(job.LineNumber)
 			}
 		} else {
-			timeline.SetSubtitle(description)
+			timeline.SetSource(job.Expression, description)
 		}
 
 		// Set job info
@@ -343,6 +346,23 @@ func resolveColor(mode string, tty bool) (bool, error) {
 		return tty && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb", nil
 	}
 	return false, fmt.Errorf("invalid --color value: %s (must be auto, always, or never)", mode)
+}
+
+// absPath resolves a path for display, falling back to the input when resolution fails.
+func absPath(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	return abs
+}
+
+// userCrontabSource names whose crontab is being read.
+func userCrontabSource() string {
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return "crontab for " + u.Username
+	}
+	return "user crontab"
 }
 
 // laneLabel derives a job's lane label from the basename of its first command token.

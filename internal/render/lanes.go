@@ -85,11 +85,11 @@ type glyphset struct {
 	lhs, rhs                         rune
 	axis, tickMark, cornerL, cornerR rune
 	ellipsis                         rune
-	dash, dot                        string
+	dash, dot, arrow                 string
 }
 
-var uniGlyphs = glyphset{'╷', '┃', '▲', '┤', '├', '─', '┬', '└', '┘', '…', "—", "·"}
-var asciiGlyphs = glyphset{'|', '#', '^', '|', '|', '-', '+', '+', '+', '~', "-", "-"}
+var uniGlyphs = glyphset{'╷', '┃', '▲', '┤', '├', '─', '┬', '└', '┘', '…', "—", "·", "→"}
+var asciiGlyphs = glyphset{'|', '#', '^', '|', '|', '-', '+', '+', '+', '~', "-", "-", "->"}
 
 const (
 	ansiRed   = "\x1b[31m"
@@ -184,13 +184,27 @@ func axisRows(view TimelineView, start time.Time, b budget, g glyphset) (string,
 	return axisLine, labelLine
 }
 
-func (tl *Timeline) headerLine(g glyphset) string {
-	date := "2006-01-02"
-	if tl.view == HourView {
-		date = "2006-01-02 15:04"
+// zoneLabel names the timeline's zone, falling back to abbreviation and offset
+// when the location is Go's unnamed Local.
+func zoneLabel(t time.Time) string {
+	name := t.Location().String()
+	if name == "UTC" {
+		return name
 	}
-	return fmt.Sprintf("cronkit timeline %s %s %s %s %s %s",
-		g.dash, tl.startTime.Format(date), g.dot, tl.view.String(), g.dot, tl.startTime.Location().String())
+	if name == "" || name == "Local" {
+		name = t.Format("MST")
+	}
+	return fmt.Sprintf("%s (UTC%s)", name, t.Format("-07:00"))
+}
+
+func (tl *Timeline) windowLine(g glyphset) string {
+	return fmt.Sprintf("%s  %s %s %s %s %s",
+		tl.startTime.Format("2006-01-02"),
+		tl.startTime.Format("15:04"),
+		g.arrow,
+		tl.endTime.Add(-time.Minute).Format("15:04"),
+		g.dot,
+		zoneLabel(tl.startTime))
 }
 
 func (tl *Timeline) footerLine(overlapCount int, g glyphset) string {

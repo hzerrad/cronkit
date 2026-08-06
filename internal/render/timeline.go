@@ -62,7 +62,9 @@ type Timeline struct {
 	jobRuns   []JobRun
 	jobs      []jobEntry
 	jobIndex  map[string]int
-	subtitle  string
+
+	source       string
+	sourceDetail string
 }
 
 // laneExpr returns the expression to trail a lane with, empty when the label already carries it.
@@ -116,9 +118,11 @@ func (tl *Timeline) SetJobInfo(jobID, expression, description, label string) {
 	tl.jobs = append(tl.jobs, jobEntry{jobID, expression, description, label})
 }
 
-// SetSubtitle sets a line printed under the header, used for a single expression's description.
-func (tl *Timeline) SetSubtitle(s string) {
-	tl.subtitle = s
+// SetSource names what is being visualized, printed above the window line;
+// detail is appended after a dash when non-empty.
+func (tl *Timeline) SetSource(name, detail string) {
+	tl.source = name
+	tl.sourceDetail = detail
 }
 
 // DetectOverlaps finds times where multiple jobs run simultaneously
@@ -213,11 +217,14 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 		g = asciiGlyphs
 	}
 	var sb strings.Builder
-	sb.WriteString(tl.headerLine(g) + "\n")
-	if tl.subtitle != "" {
-		sb.WriteString(tl.subtitle + "\n")
+	if tl.source != "" {
+		line := tl.source
+		if tl.sourceDetail != "" {
+			line += " " + g.dash + " " + tl.sourceDetail
+		}
+		sb.WriteString(line + "\n")
 	}
-	sb.WriteString("\n")
+	sb.WriteString(tl.windowLine(g) + "\n\n")
 	if len(tl.jobRuns) == 0 {
 		sb.WriteString("no runs in this window\n")
 		return sb.String()
