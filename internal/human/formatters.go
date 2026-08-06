@@ -2,6 +2,7 @@ package human
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -34,6 +35,21 @@ func formatList(items []string) string {
 		rest := items[:len(items)-1]
 		return fmt.Sprintf("%s, and %s", strings.Join(rest, ", "), last)
 	}
+}
+
+func formatInts(values []int) []string {
+	out := make([]string, len(values))
+	for i, v := range values {
+		out[i] = strconv.Itoa(v)
+	}
+	return out
+}
+
+func pluralize(word string, count int) string {
+	if count == 1 {
+		return word
+	}
+	return word + "s"
 }
 
 // dayName returns the name for a day of week (0=Sunday, 6=Saturday)

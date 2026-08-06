@@ -754,3 +754,63 @@ func TestHumanizer_MissingTimePatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestHumanize_ListAndRangeMinutes(t *testing.T) {
+	parser := cronx.NewParser()
+	humanizer := human.NewHumanizer()
+
+	tests := []struct {
+		name       string
+		expression string
+		expected   string
+	}{
+		{
+			name:       "list minutes with wildcard hour",
+			expression: "1,31 * * * *",
+			expected:   "At 1 and 31 minutes past the hour",
+		},
+		{
+			name:       "list minutes with wildcard hour on a weekday",
+			expression: "1,31 * * * 1",
+			expected:   "At 1 and 31 minutes past the hour every Monday",
+		},
+		{
+			name:       "range minutes with wildcard hour",
+			expression: "1-5 * * * *",
+			expected:   "At minutes 1 through 5 past the hour",
+		},
+		{
+			name:       "stepped range keeps its bounds",
+			expression: "10-20/5 * * * *",
+			expected:   "At 10, 15, and 20 minutes past the hour",
+		},
+		{
+			name:       "single value with step runs to the field maximum",
+			expression: "5/20 * * * *",
+			expected:   "At 5, 25, and 45 minutes past the hour",
+		},
+		{
+			name:       "stepped hour range keeps its step",
+			expression: "0 9-17/2 * * *",
+			expected:   "At 0 minutes past the hour every 2 hours between 09:00 and 17:59 every day",
+		},
+		{
+			name:       "wildcard minutes within a single hour",
+			expression: "* 9 * * *",
+			expected:   "Every minute during the 09:00 hour every day",
+		},
+		{
+			name:       "wildcard minutes within an hour range",
+			expression: "* 9-17 * * *",
+			expected:   "Every minute between 09:00 and 17:59 every day",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schedule, err := parser.Parse(tt.expression)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, humanizer.Humanize(schedule))
+		})
+	}
+}
