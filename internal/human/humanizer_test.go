@@ -814,3 +814,58 @@ func TestHumanize_ListAndRangeMinutes(t *testing.T) {
 		})
 	}
 }
+
+func TestHumanize_SteppedCalendarFields(t *testing.T) {
+	parser := cronx.NewParser()
+	humanizer := human.NewHumanizer()
+
+	tests := []struct {
+		name       string
+		expression string
+		expected   string
+	}{
+		{
+			name:       "stepped day of week",
+			expression: "0 9 * * */2",
+			expected:   "At 09:00 on Sunday, Tuesday, Thursday, and Saturday",
+		},
+		{
+			name:       "stepped weekday range is not Mon-Fri",
+			expression: "0 9 * * 1-5/2",
+			expected:   "At 09:00 on Monday, Wednesday, and Friday",
+		},
+		{
+			name:       "stepped day of month",
+			expression: "0 9 */2 * *",
+			expected:   "At 09:00 on every 2nd day of the month",
+		},
+		{
+			name:       "stepped day of month range",
+			expression: "0 9 1-15/5 * *",
+			expected:   "At 09:00 on days 1, 6, and 11 of every month",
+		},
+		{
+			name:       "day of month list",
+			expression: "0 9 1,15 * *",
+			expected:   "At 09:00 on days 1 and 15 of every month",
+		},
+		{
+			name:       "stepped month",
+			expression: "0 9 * */2 *",
+			expected:   "At 09:00 every day in January, March, May, July, September, and November",
+		},
+		{
+			name:       "stepped month range",
+			expression: "0 9 * 1-6/2 *",
+			expected:   "At 09:00 every day in January, March, and May",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schedule, err := parser.Parse(tt.expression)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, humanizer.Humanize(schedule))
+		})
+	}
+}

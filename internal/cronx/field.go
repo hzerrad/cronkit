@@ -196,14 +196,20 @@ func (f *field) IsList() bool {
 func (f *field) ListValues() []int {
 	var values []int
 	for _, p := range f.parts {
-		if p.isSingle {
+		step := p.step
+		if step < 1 {
+			step = 1
+		}
+
+		switch {
+		case p.isSingle:
 			values = append(values, p.value)
-		} else if p.isRange {
-			step := p.step
-			if step < 1 {
-				step = 1
-			}
+		case p.isRange:
 			for i := p.rangeStart; i <= p.rangeEnd; i += step {
+				values = append(values, i)
+			}
+		case p.isEvery && step > 1:
+			for i := f.min; i <= f.max; i += step {
 				values = append(values, i)
 			}
 		}

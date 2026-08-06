@@ -149,18 +149,12 @@ func (h *humanizer) hourSuffix(hour cronx.Field, minuteKind cronx.FieldKind) str
 
 // buildDayPart constructs the day portion of the description
 func (h *humanizer) buildDayPart(dayOfWeek, dayOfMonth cronx.Field) string {
-	// If both are wildcard, return empty (every day)
-	if dayOfWeek.IsEvery() && dayOfMonth.IsEvery() {
-		return "every day"
-	}
-
 	// Day of week has priority
-	if !dayOfWeek.IsEvery() {
+	if dayOfWeek.Kind() != cronx.KindEvery {
 		return h.formatDayOfWeek(dayOfWeek)
 	}
 
-	// Day of month
-	if !dayOfMonth.IsEvery() {
+	if dayOfMonth.Kind() != cronx.KindEvery {
 		return h.formatDayOfMonth(dayOfMonth)
 	}
 
@@ -169,34 +163,35 @@ func (h *humanizer) buildDayPart(dayOfWeek, dayOfMonth cronx.Field) string {
 
 // buildMonthPart constructs the month portion of the description
 func (h *humanizer) buildMonthPart(month cronx.Field) string {
-	if month.IsEvery() {
+	switch month.Kind() {
+	case cronx.KindEvery:
 		return ""
-	}
 
-	if month.IsSingle() {
+	case cronx.KindSingle:
 		return fmt.Sprintf("in %s", formatMonth(month.Value()))
-	}
 
-	if month.IsRange() {
+	case cronx.KindRange:
 		return fmt.Sprintf("from %s to %s",
 			formatMonth(month.RangeStart()),
 			formatMonth(month.RangeEnd()))
-	}
 
-	if month.IsList() {
-		months := make([]string, len(month.ListValues()))
-		for i, m := range month.ListValues() {
+	default:
+		values := month.ListValues()
+		months := make([]string, len(values))
+		for i, m := range values {
 			months[i] = formatMonth(m)
 		}
 		return fmt.Sprintf("in %s", formatList(months))
 	}
-
-	return ""
 }
 
 // formatDayOfWeek formats day of week field
 func (h *humanizer) formatDayOfWeek(dow cronx.Field) string {
-	if dow.IsRange() {
+	switch dow.Kind() {
+	case cronx.KindEvery:
+		return ""
+
+	case cronx.KindRange:
 		// Special case for Mon-Fri (1-5)
 		if dow.RangeStart() == 1 && dow.RangeEnd() == 5 {
 			return "on weekdays (Mon-Fri)"
@@ -204,40 +199,44 @@ func (h *humanizer) formatDayOfWeek(dow cronx.Field) string {
 		return fmt.Sprintf("on %s-%s",
 			dayName(dow.RangeStart()),
 			dayName(dow.RangeEnd()))
-	}
 
-	if dow.IsList() {
-		days := make([]string, len(dow.ListValues()))
-		for i, d := range dow.ListValues() {
-			days[i] = dayName(d)
-		}
-		return fmt.Sprintf("on %s", formatList(days))
-	}
-
-	if dow.IsSingle() {
+	case cronx.KindSingle:
 		// Special case for Sunday (0)
 		if dow.Value() == 0 {
 			return "every Sunday"
 		}
 		return fmt.Sprintf("every %s", dayName(dow.Value()))
-	}
 
-	return ""
+	default:
+		values := dow.ListValues()
+		days := make([]string, len(values))
+		for i, d := range values {
+			days[i] = dayName(d)
+		}
+		return fmt.Sprintf("on %s", formatList(days))
+	}
 }
 
 // formatDayOfMonth formats day of month field
 func (h *humanizer) formatDayOfMonth(dom cronx.Field) string {
-	if dom.IsSingle() {
+	switch dom.Kind() {
+	case cronx.KindEvery:
+		return ""
+
+	case cronx.KindSingle:
 		if dom.Value() == 1 {
 			return "on the first day of every month"
 		}
 		return fmt.Sprintf("on day %d of every month", dom.Value())
-	}
 
-	if dom.IsRange() {
+	case cronx.KindRange:
 		return fmt.Sprintf("on days %d-%d of every month",
 			dom.RangeStart(), dom.RangeEnd())
-	}
 
-	return ""
+	case cronx.KindStep:
+		return fmt.Sprintf("on every %d%s day of the month", dom.Step(), ordinalSuffix(dom.Step()))
+
+	default:
+		return fmt.Sprintf("on days %s of every month", formatList(formatInts(dom.ListValues())))
+	}
 }

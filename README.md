@@ -63,17 +63,17 @@ Download the pre-built binary for your platform from [GitHub Releases](https://g
 
 ```bash
 # Linux (amd64)
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_linux_amd64.tar.gz
+wget https://github.com/hzerrad/cronkit/releases/latest/download/cronkit_linux_amd64.tar.gz
 tar -xzf cronkit_linux_amd64.tar.gz
 sudo mv cronkit /usr/local/bin/
 
 # macOS (Apple Silicon)
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_darwin_arm64.tar.gz
+wget https://github.com/hzerrad/cronkit/releases/latest/download/cronkit_darwin_arm64.tar.gz
 tar -xzf cronkit_darwin_arm64.tar.gz
 sudo mv cronkit /usr/local/bin/
 
 # macOS (Intel)
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_darwin_amd64.tar.gz
+wget https://github.com/hzerrad/cronkit/releases/latest/download/cronkit_darwin_amd64.tar.gz
 tar -xzf cronkit_darwin_amd64.tar.gz
 sudo mv cronkit /usr/local/bin/
 ```
@@ -94,13 +94,15 @@ sudo apt install cronkit
 <summary>Or install a standalone <code>.deb</code> without adding the repo</summary>
 
 ```bash
+VERSION=0.1.1
+
 # amd64
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_0.1.0_amd64.deb
-sudo dpkg -i cronkit_0.1.0_amd64.deb && sudo apt-get install -f
+wget https://github.com/hzerrad/cronkit/releases/download/v${VERSION}/cronkit_${VERSION}_amd64.deb
+sudo dpkg -i cronkit_${VERSION}_amd64.deb && sudo apt-get install -f
 
 # arm64
-wget https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit_0.1.0_arm64.deb
-sudo dpkg -i cronkit_0.1.0_arm64.deb && sudo apt-get install -f
+wget https://github.com/hzerrad/cronkit/releases/download/v${VERSION}/cronkit_${VERSION}_arm64.deb
+sudo dpkg -i cronkit_${VERSION}_arm64.deb && sudo apt-get install -f
 ```
 
 </details>
@@ -124,11 +126,13 @@ sudo dnf install cronkit
 <summary>Or install a standalone <code>.rpm</code> without adding the repo</summary>
 
 ```bash
+VERSION=0.1.1
+
 # x86_64
-sudo dnf install https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit-0.1.0-1.x86_64.rpm
+sudo dnf install https://github.com/hzerrad/cronkit/releases/download/v${VERSION}/cronkit-${VERSION}-1.x86_64.rpm
 
 # aarch64
-sudo dnf install https://github.com/hzerrad/cronkit/releases/download/v0.1.0/cronkit-0.1.0-1.aarch64.rpm
+sudo dnf install https://github.com/hzerrad/cronkit/releases/download/v${VERSION}/cronkit-${VERSION}-1.aarch64.rpm
 ```
 
 </details>
