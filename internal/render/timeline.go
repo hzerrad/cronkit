@@ -205,7 +205,13 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 		return sb.String()
 	}
 
+	overlaps := tl.DetectOverlaps()
+	hasConflictRow := len(overlaps) > 0 && len(tl.jobs) > 1
+
 	maxLabel, maxExpr := 0, 0
+	if hasConflictRow {
+		maxLabel = len([]rune("conflicts"))
+	}
 	for _, j := range tl.jobs {
 		if n := len([]rune(j.label)); n > maxLabel {
 			maxLabel = n
@@ -236,8 +242,7 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 		sb.WriteString(laneRow(j.label, j.expression, cells, b, g, laneColor(i, opts.Color)) + "\n")
 	}
 
-	overlaps := tl.DetectOverlaps()
-	if len(overlaps) > 0 && len(tl.jobs) > 1 {
+	if hasConflictRow {
 		cells := blankCells(b.plot)
 		for _, o := range overlaps {
 			cells[cellPos(o.Time, tl.startTime, dur, b.plot)] = g.conflict

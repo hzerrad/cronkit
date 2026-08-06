@@ -122,9 +122,18 @@ func laneRow(label, expr string, cells []rune, b budget, g glyphset, code string
 	row := padLabel(label, b.gutter, g.ellipsis) + string(g.lhs) +
 		colorize(string(cells), code) + string(g.rhs)
 	if b.expr > 0 && expr != "" {
-		row += " " + expr
+		row += " " + truncExpr(expr, b.expr, g.ellipsis)
 	}
 	return strings.TrimRight(row, " ")
+}
+
+// truncExpr truncates s to at most w runes, ending in the ellipsis when it overflows.
+func truncExpr(s string, w int, ellipsis rune) string {
+	r := []rune(s)
+	if len(r) <= w {
+		return s
+	}
+	return string(r[:w-1]) + string(ellipsis)
 }
 
 // axisRows draws the tick axis and its centered, collision-skipping label row.

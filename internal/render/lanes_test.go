@@ -112,6 +112,26 @@ func laneFixture() *Timeline {
 	return tl
 }
 
+// laneFixtureLongExpr adds a third job whose expression exceeds the 17-rune expr budget.
+func laneFixtureLongExpr() *Timeline {
+	tl := laneFixture()
+	tl.SetJobInfo("job-3", "0,15,30,45 2-6 * * 1-5", "every 15m weekday mornings", "cron3")
+	tl.AddJobRun("job-3", tl.startTime.Add(2*time.Hour))
+	return tl
+}
+
+// laneFixtureShortLabels sets up two jobs with 4-rune labels that overlap, so the
+// conflicts row renders against a gutter that would otherwise floor below "conflicts".
+func laneFixtureShortLabels() *Timeline {
+	start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+	tl := NewTimeline(DayView, start, 80)
+	tl.SetJobInfo("job-1", "0 2 * * *", "At 02:00 every day", "a.sh")
+	tl.SetJobInfo("job-2", "0 2 * * *", "At 02:00 every day", "b.sh")
+	tl.AddJobRun("job-1", start.Add(2*time.Hour))
+	tl.AddJobRun("job-2", start.Add(2*time.Hour))
+	return tl
+}
+
 func TestRenderLanes(t *testing.T) {
 	t.Run("should render one lane per job in order", func(t *testing.T) {
 		out := laneFixture().Render(RenderOptions{})
@@ -121,10 +141,22 @@ func TestRenderLanes(t *testing.T) {
 		assert.True(t, strings.HasPrefix(lines[3], "verify.sh"))
 	})
 	t.Run("should keep every body line within total width", func(t *testing.T) {
-		out := laneFixture().Render(RenderOptions{})
+		out := laneFixtureLongExpr().Render(RenderOptions{})
 		for _, ln := range strings.Split(out, "\n") {
 			assert.LessOrEqual(t, len([]rune(ln)), 80, ln)
 		}
+	})
+	t.Run("should truncate an expression that overflows the expr budget", func(t *testing.T) {
+		out := laneFixtureLongExpr().Render(RenderOptions{})
+		var row string
+		for _, ln := range strings.Split(out, "\n") {
+			if strings.HasPrefix(ln, "cron3") {
+				row = ln
+			}
+		}
+		r := []rune(row)
+		assert.NotEmpty(t, r)
+		assert.Equal(t, '…', r[len(r)-1])
 	})
 	t.Run("should put both 02:00 markers in the same column", func(t *testing.T) {
 		out := laneFixture().Render(RenderOptions{})
@@ -138,6 +170,16 @@ func TestRenderLanes(t *testing.T) {
 		out := laneFixture().Render(RenderOptions{})
 		assert.Contains(t, out, "conflicts")
 		assert.Contains(t, out, "▲")
+	})
+	t.Run("should keep the conflicts label whole even with short job labels", func(t *testing.T) {
+		out := laneFixtureShortLabels().Render(RenderOptions{})
+		var row string
+		for _, ln := range strings.Split(out, "\n") {
+			if strings.HasPrefix(ln, "conflic") {
+				row = ln
+			}
+		}
+		assert.True(t, strings.HasPrefix(row, "conflicts"), row)
 	})
 	t.Run("should merge same-job same-cell runs into a heavy mark", func(t *testing.T) {
 		tl := laneFixture()
