@@ -69,3 +69,33 @@ func TestAxisTicks(t *testing.T) {
 		}, ticks)
 	})
 }
+
+func TestPadLabel(t *testing.T) {
+	t.Run("should pad short labels", func(t *testing.T) {
+		assert.Equal(t, "backup.sh ", padLabel("backup.sh", 10, '…'))
+	})
+	t.Run("should truncate long labels with ellipsis", func(t *testing.T) {
+		assert.Equal(t, "At 12:00 …", padLabel("At 12:00 every day", 10, '…'))
+		assert.Equal(t, 10, len([]rune(padLabel("At 12:00 every day", 10, '…'))))
+	})
+}
+
+func TestColorize(t *testing.T) {
+	t.Run("should wrap with reset", func(t *testing.T) {
+		assert.Equal(t, "\x1b[31mx\x1b[0m", colorize("x", ansiRed))
+	})
+	t.Run("should be a no-op without a code", func(t *testing.T) {
+		assert.Equal(t, "x", colorize("x", ""))
+	})
+}
+
+func TestJobRegistryOrder(t *testing.T) {
+	t.Run("should keep insertion order", func(t *testing.T) {
+		tl := NewTimeline(DayView, time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC), 80)
+		tl.SetJobInfo("job-9", "0 2 * * *", "At 02:00 every day", "backup.sh")
+		tl.SetJobInfo("job-2", "0 * * * *", "At the start of every hour", "report")
+		tl.SetJobInfo("job-9", "0 2 * * *", "At 02:00 every day", "backup.sh")
+		assert.Equal(t, []string{"job-9", "job-2"}, []string{tl.jobs[0].id, tl.jobs[1].id})
+		assert.Len(t, tl.jobs, 2)
+	})
+}

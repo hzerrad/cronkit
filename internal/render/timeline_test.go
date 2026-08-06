@@ -248,7 +248,7 @@ func TestTimeline_RenderJSON(t *testing.T) {
 		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 		tl := NewTimeline(DayView, startTime, 80)
 
-		tl.SetJobInfo("job-1", "0 9 * * *", "Daily at 9am")
+		tl.SetJobInfo("job-1", "0 9 * * *", "Daily at 9am", "morning-report")
 		tl.AddJobRun("job-1", startTime.Add(1*time.Hour))
 
 		result := tl.RenderJSON()
@@ -364,25 +364,27 @@ func TestTimeline_SetJobInfo(t *testing.T) {
 		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 		tl := NewTimeline(DayView, startTime, 80)
 
-		tl.SetJobInfo("job-1", "*/15 * * * *", "Every 15 minutes")
+		tl.SetJobInfo("job-1", "*/15 * * * *", "Every 15 minutes", "quarter-hour")
 
-		info, exists := tl.jobInfo["job-1"]
+		idx, exists := tl.jobIndex["job-1"]
 		require.True(t, exists)
-		assert.Equal(t, "*/15 * * * *", info.Expression)
-		assert.Equal(t, "Every 15 minutes", info.Description)
+		assert.Equal(t, "*/15 * * * *", tl.jobs[idx].expression)
+		assert.Equal(t, "Every 15 minutes", tl.jobs[idx].description)
+		assert.Equal(t, "quarter-hour", tl.jobs[idx].label)
 	})
 
-	t.Run("should update existing job info", func(t *testing.T) {
+	t.Run("should keep the first job info on repeated calls", func(t *testing.T) {
 		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 		tl := NewTimeline(DayView, startTime, 80)
 
-		tl.SetJobInfo("job-1", "*/15 * * * *", "Every 15 minutes")
-		tl.SetJobInfo("job-1", "*/30 * * * *", "Every 30 minutes")
+		tl.SetJobInfo("job-1", "*/15 * * * *", "Every 15 minutes", "quarter-hour")
+		tl.SetJobInfo("job-1", "*/30 * * * *", "Every 30 minutes", "half-hour")
 
-		info, exists := tl.jobInfo["job-1"]
+		idx, exists := tl.jobIndex["job-1"]
 		require.True(t, exists)
-		assert.Equal(t, "*/30 * * * *", info.Expression)
-		assert.Equal(t, "Every 30 minutes", info.Description)
+		assert.Equal(t, "*/15 * * * *", tl.jobs[idx].expression)
+		assert.Equal(t, "Every 15 minutes", tl.jobs[idx].description)
+		assert.Len(t, tl.jobs, 1)
 	})
 }
 
@@ -1044,7 +1046,7 @@ func TestTimeline_Render_EdgeCases(t *testing.T) {
 		tl := NewTimeline(DayView, startTime, 80)
 
 		tl.AddJobRun("expr-test", startTime.Add(1*time.Hour))
-		tl.SetJobInfo("expr-test", "0 * * * *", "Hourly job")
+		tl.SetJobInfo("expr-test", "0 * * * *", "Hourly job", "hourly")
 		output := tl.Render(false)
 		// Should show just description without expression in parentheses for expr- prefix
 		assert.Contains(t, output, "Hourly job")

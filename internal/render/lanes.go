@@ -1,6 +1,9 @@
 package render
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type budget struct {
 	gutter, plot, expr int
@@ -61,4 +64,40 @@ func axisTicks(view TimelineView, start time.Time, plotW int) []tick {
 	end := start.Add(dur - time.Minute)
 	ticks = append(ticks, tick{plotW - 1, end.Format("15:04")})
 	return ticks
+}
+
+type glyphset struct { // nolint:unused // consumed by Task 3's renderer
+	run, merged, conflict            rune
+	lhs, rhs                         rune
+	axis, tickMark, cornerL, cornerR rune
+	ellipsis                         rune
+	dash, dot                        string
+}
+
+var uniGlyphs = glyphset{'╷', '┃', '▲', '┤', '├', '─', '┬', '└', '┘', '…', "—", "·"}   // nolint:unused // consumed by Task 3's renderer
+var asciiGlyphs = glyphset{'|', '#', '^', '|', '|', '-', '+', '+', '+', '~', "-", "-"} // nolint:unused // consumed by Task 3's renderer
+
+const (
+	ansiRed   = "\x1b[31m"
+	ansiDim   = "\x1b[2m"
+	ansiReset = "\x1b[0m"
+)
+
+var laneColors = []string{"\x1b[36m", "\x1b[32m", "\x1b[33m", "\x1b[35m", "\x1b[34m", "\x1b[90m"} // nolint:unused // consumed by Task 3's renderer
+
+// colorize wraps s with an ANSI code and reset, or leaves it untouched when code is empty.
+func colorize(s, code string) string {
+	if code == "" {
+		return s
+	}
+	return code + s + ansiReset
+}
+
+// padLabel pads s to width w with spaces, or truncates with ellipsis when too long.
+func padLabel(s string, w int, ellipsis rune) string {
+	r := []rune(s)
+	if len(r) > w {
+		return string(r[:w-1]) + string(ellipsis)
+	}
+	return s + strings.Repeat(" ", w-len(r))
 }

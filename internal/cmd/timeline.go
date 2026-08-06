@@ -204,7 +204,7 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 		}
 
 		// Set job info
-		timeline.SetJobInfo(jobID, job.Expression, description)
+		timeline.SetJobInfo(jobID, job.Expression, description, description)
 
 		// Calculate next runs
 		times, err := scheduler.Next(job.Expression, startTime, runCount)

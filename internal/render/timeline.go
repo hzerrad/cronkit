@@ -49,10 +49,9 @@ type OverlapStats struct {
 	MostProblematic []Overlap // Top N overlaps sorted by count
 }
 
-// JobInfo contains metadata about a job
-type JobInfo struct {
-	Expression  string
-	Description string
+// jobEntry holds a job's metadata in first-seen order.
+type jobEntry struct {
+	id, expression, description, label string
 }
 
 // Timeline represents a timeline with time slots and job runs
@@ -62,7 +61,8 @@ type Timeline struct {
 	endTime   time.Time
 	width     int
 	jobRuns   []JobRun
-	jobInfo   map[string]JobInfo
+	jobs      []jobEntry
+	jobIndex  map[string]int
 	slots     []time.Time
 }
 
@@ -94,7 +94,8 @@ func NewTimeline(view TimelineView, startTime time.Time, width int) *Timeline {
 		endTime:   endTime,
 		width:     width,
 		jobRuns:   make([]JobRun, 0),
-		jobInfo:   make(map[string]JobInfo),
+		jobs:      make([]jobEntry, 0),
+		jobIndex:  make(map[string]int),
 		slots:     slots,
 	}
 }
@@ -111,12 +112,13 @@ func (tl *Timeline) AddJobRun(jobID string, runTime time.Time) {
 	})
 }
 
-// SetJobInfo sets metadata for a job
-func (tl *Timeline) SetJobInfo(jobID, expression, description string) {
-	tl.jobInfo[jobID] = JobInfo{
-		Expression:  expression,
-		Description: description,
+// SetJobInfo registers a job's metadata and lane label, keeping first-seen order.
+func (tl *Timeline) SetJobInfo(jobID, expression, description, label string) {
+	if _, ok := tl.jobIndex[jobID]; ok {
+		return
 	}
+	tl.jobIndex[jobID] = len(tl.jobs)
+	tl.jobs = append(tl.jobs, jobEntry{jobID, expression, description, label})
 }
 
 // DetectOverlaps finds times where multiple jobs run simultaneously
@@ -214,28 +216,20 @@ func (tl *Timeline) Render(showOverlaps bool) string {
 	for _, run := range tl.jobRuns {
 		if !jobIDsSeen[run.JobID] {
 			jobIDsSeen[run.JobID] = true
-			info, hasInfo := tl.jobInfo[run.JobID]
-			if hasInfo {
-				jobList = append(jobList, struct {
-					jobID       string
-					expression  string
-					description string
-				}{
-					jobID:       run.JobID,
-					expression:  info.Expression,
-					description: info.Description,
-				})
-			} else {
-				jobList = append(jobList, struct {
-					jobID       string
-					expression  string
-					description string
-				}{
-					jobID:       run.JobID,
-					expression:  "",
-					description: "",
-				})
+			var expression, description string
+			if idx, hasInfo := tl.jobIndex[run.JobID]; hasInfo {
+				expression = tl.jobs[idx].expression
+				description = tl.jobs[idx].description
 			}
+			jobList = append(jobList, struct {
+				jobID       string
+				expression  string
+				description string
+			}{
+				jobID:       run.JobID,
+				expression:  expression,
+				description: description,
+			})
 		}
 	}
 
@@ -572,9 +566,9 @@ func (tl *Timeline) RenderJSON() map[string]interface{} {
 		}
 
 		// Add job info if available
-		if info, hasInfo := tl.jobInfo[jobID]; hasInfo {
-			jobData["expression"] = info.Expression
-			jobData["description"] = info.Description
+		if idx, hasInfo := tl.jobIndex[jobID]; hasInfo {
+			jobData["expression"] = tl.jobs[idx].expression
+			jobData["description"] = tl.jobs[idx].description
 		}
 
 		// Add runs
