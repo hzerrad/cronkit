@@ -62,6 +62,15 @@ type Timeline struct {
 	jobRuns   []JobRun
 	jobs      []jobEntry
 	jobIndex  map[string]int
+	subtitle  string
+}
+
+// laneExpr returns the expression to trail a lane with, empty when the label already carries it.
+func laneExpr(j jobEntry) string {
+	if j.expression == j.label {
+		return ""
+	}
+	return j.expression
 }
 
 // NewTimeline creates a new timeline with the specified view, start time, and width
@@ -105,6 +114,11 @@ func (tl *Timeline) SetJobInfo(jobID, expression, description, label string) {
 	}
 	tl.jobIndex[jobID] = len(tl.jobs)
 	tl.jobs = append(tl.jobs, jobEntry{jobID, expression, description, label})
+}
+
+// SetSubtitle sets a line printed under the header, used for a single expression's description.
+func (tl *Timeline) SetSubtitle(s string) {
+	tl.subtitle = s
 }
 
 // DetectOverlaps finds times where multiple jobs run simultaneously
@@ -199,7 +213,11 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 		g = asciiGlyphs
 	}
 	var sb strings.Builder
-	sb.WriteString(tl.headerLine(g) + "\n\n")
+	sb.WriteString(tl.headerLine(g) + "\n")
+	if tl.subtitle != "" {
+		sb.WriteString(tl.subtitle + "\n")
+	}
+	sb.WriteString("\n")
 	if len(tl.jobRuns) == 0 {
 		sb.WriteString("no runs in this window\n")
 		return sb.String()
@@ -216,7 +234,7 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 		if n := len([]rune(j.label)); n > maxLabel {
 			maxLabel = n
 		}
-		if n := len([]rune(j.expression)); n > maxExpr {
+		if n := len([]rune(laneExpr(j))); n > maxExpr {
 			maxExpr = n
 		}
 	}
@@ -239,7 +257,7 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 				cells[col] = g.merged
 			}
 		}
-		sb.WriteString(laneRow(j.label, j.expression, cells, b, g, laneColor(i, opts.Color)) + "\n")
+		sb.WriteString(laneRow(j.label, laneExpr(j), cells, b, g, laneColor(i, opts.Color)) + "\n")
 	}
 
 	if hasConflictRow {

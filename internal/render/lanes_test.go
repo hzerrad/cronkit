@@ -154,6 +154,22 @@ func TestRenderLanes(t *testing.T) {
 			assert.LessOrEqual(t, len([]rune(ln)), 80, ln)
 		}
 	})
+	t.Run("should print a subtitle under the header", func(t *testing.T) {
+		tl := laneFixture()
+		tl.SetSubtitle("Every 15 minutes")
+		lines := strings.Split(tl.Render(RenderOptions{}), "\n")
+		assert.Equal(t, "Every 15 minutes", lines[1])
+		assert.Empty(t, lines[2])
+	})
+	t.Run("should not trail a lane with an expression its label already carries", func(t *testing.T) {
+		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, start, 80)
+		tl.SetJobInfo("job-1", "0 2 * * *", "At 02:00 every day", "0 2 * * *")
+		tl.AddJobRun("job-1", start.Add(2*time.Hour))
+
+		lane := strings.Split(tl.Render(RenderOptions{}), "\n")[2]
+		assert.Equal(t, 1, strings.Count(lane, "0 2 * * *"))
+	})
 	t.Run("should stop stretching the plot on a very wide terminal", func(t *testing.T) {
 		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
 		tl := NewTimeline(DayView, start, 200)

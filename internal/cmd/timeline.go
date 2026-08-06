@@ -225,14 +225,17 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 			jobID = fmt.Sprintf("expr-%s", job.Expression)
 		}
 
-		// Lane label: description for the single-expression path, else the command basename
-		// (deduped with a :LINE suffix when two jobs share one).
-		label := description
+		// Lane label: the expression itself for the single-expression path (its
+		// description goes above the chart), else the command basename deduped
+		// with a :LINE suffix when two jobs share one.
+		label := job.Expression
 		if len(args) == 0 {
 			label = laneLabel(job)
 			if labelCounts[label] > 1 {
 				label = label + ":" + strconv.Itoa(job.LineNumber)
 			}
+		} else {
+			timeline.SetSubtitle(description)
 		}
 
 		// Set job info
