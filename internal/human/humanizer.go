@@ -37,11 +37,8 @@ func (h *humanizer) Humanize(schedule *cronx.Schedule) string {
 
 	parts = append(parts, timePart)
 
-	// For simple patterns (minute-based with wildcard hours/days),
-	// skip "every day" as it's implied
-	minuteBasedPattern := (minute.IsEvery() || minute.IsStep() ||
-		(minute.IsSingle() && minute.Value() == 0)) && hour.IsEvery()
-	isSimplePattern := minuteBasedPattern && dayOfWeek.IsEvery() && dayOfMonth.IsEvery()
+	// A wildcard hour already covers every day
+	isSimplePattern := hour.Kind() == cronx.KindEvery && dayOfWeek.IsEvery() && dayOfMonth.IsEvery()
 
 	// Special case: specific day + specific month (e.g., @yearly)
 	month := schedule.Month
@@ -66,114 +63,88 @@ func (h *humanizer) Humanize(schedule *cronx.Schedule) string {
 
 // buildTimePart constructs the time portion of the description
 func (h *humanizer) buildTimePart(minute, hour cronx.Field) string {
-	// Every minute (*, *)
-	if minute.IsEvery() && hour.IsEvery() {
-		return "Every minute"
+	minuteKind, hourKind := minute.Kind(), hour.Kind()
+
+	if isClockPoint(minuteKind) && isClockPoint(hourKind) {
+		return h.fusedClockTimes(minute, hour)
 	}
 
-	// Minute intervals with wildcard hour (*/N, *)
-	if minute.IsStep() && hour.IsEvery() {
-		return fmt.Sprintf("Every %d minutes", minute.Step())
+	clause := h.minuteClause(minute, hourKind)
+	if suffix := h.hourSuffix(hour, minuteKind); suffix != "" {
+		return clause + " " + suffix
 	}
-
-	// Minute intervals within hour range (*/N, N-M)
-	if minute.IsStep() && hour.IsRange() {
-		return fmt.Sprintf("Every %d minutes between %s and %s",
-			minute.Step(),
-			formatHour(hour.RangeStart()),
-			formatHourEnd(hour.RangeEnd()))
-	}
-
-	// Start of every hour (0, *)
-	if minute.IsSingle() && minute.Value() == 0 && hour.IsEvery() {
-		return "At the start of every hour"
-	}
-
-	// Specific minute of every hour (N, *)
-	if minute.IsSingle() && hour.IsEvery() {
-		return fmt.Sprintf("At minute %d of every hour", minute.Value())
-	}
-
-	// Specific time (N, M)
-	if minute.IsSingle() && hour.IsSingle() {
-		if minute.Value() == 0 && hour.Value() == 0 {
-			return "At midnight"
-		}
-		return fmt.Sprintf("At %s", formatTime(hour.Value(), minute.Value()))
-	}
-
-	// Specific time with multiple hours (N, M,N,O)
-	if minute.IsSingle() && hour.IsList() {
-		times := make([]string, len(hour.ListValues()))
-		for i, h := range hour.ListValues() {
-			times[i] = formatTime(h, minute.Value())
-		}
-		return fmt.Sprintf("At %s", formatList(times))
-	}
-
-	// Step minutes with single hour (*/N, M)
-	if minute.IsStep() && hour.IsSingle() {
-		return fmt.Sprintf("Every %d minutes at %s", minute.Step(), formatHour(hour.Value()))
-	}
-
-	// Step minutes with list hour (*/N, M,N,O)
-	if minute.IsStep() && hour.IsList() {
-		times := make([]string, len(hour.ListValues()))
-		for i, h := range hour.ListValues() {
-			times[i] = formatHour(h)
-		}
-		return fmt.Sprintf("Every %d minutes at %s", minute.Step(), formatList(times))
-	}
-
-	// Single minute with range hour (N, M-O)
-	if minute.IsSingle() && hour.IsRange() {
-		return fmt.Sprintf("At %d minutes past the hour between %s and %s",
-			minute.Value(),
-			formatHour(hour.RangeStart()),
-			formatHourEnd(hour.RangeEnd()))
-	}
-
-	// List minute with single hour (N,M,O, H)
-	if minute.IsList() && hour.IsSingle() {
-		times := make([]string, len(minute.ListValues()))
-		for i, m := range minute.ListValues() {
-			times[i] = formatTime(hour.Value(), m)
-		}
-		return fmt.Sprintf("At %s", formatList(times))
-	}
-
-	// List minute with range hour (N,M,O, H-J)
-	if minute.IsList() && hour.IsRange() {
-		minutes := minute.ListValues()
-		minuteStrs := make([]string, len(minutes))
-		for i, m := range minutes {
-			minuteStrs[i] = fmt.Sprintf("%d", m)
-		}
-		return fmt.Sprintf("At %s minutes past the hour between %s and %s",
-			formatList(minuteStrs),
-			formatHour(hour.RangeStart()),
-			formatHourEnd(hour.RangeEnd()))
-	}
-
-	// List minute with list hour (N,M,O, H,J,K) - cartesian product
-	if minute.IsList() && hour.IsList() {
-		times := h.generateTimeCombinations(minute.ListValues(), hour.ListValues())
-		return fmt.Sprintf("At %s", formatList(times))
-	}
-
-	return "Runs periodically"
+	return clause
 }
 
-// generateTimeCombinations creates a cartesian product of minutes and hours
-// and returns formatted time strings sorted by hour then minute
-func (h *humanizer) generateTimeCombinations(minutes, hours []int) []string {
+func isClockPoint(k cronx.FieldKind) bool {
+	return k == cronx.KindSingle || k == cronx.KindList
+}
+
+func (h *humanizer) fusedClockTimes(minute, hour cronx.Field) string {
+	if minute.Kind() == cronx.KindSingle && hour.Kind() == cronx.KindSingle &&
+		minute.Value() == 0 && hour.Value() == 0 {
+		return "At midnight"
+	}
+
 	var times []string
-	for _, hour := range hours {
-		for _, minute := range minutes {
-			times = append(times, formatTime(hour, minute))
+	for _, hr := range hour.ListValues() {
+		for _, min := range minute.ListValues() {
+			times = append(times, formatTime(hr, min))
 		}
 	}
-	return times
+	return fmt.Sprintf("At %s", formatList(times))
+}
+
+func (h *humanizer) minuteClause(minute cronx.Field, hourKind cronx.FieldKind) string {
+	switch minute.Kind() {
+	case cronx.KindEvery:
+		return "Every minute"
+
+	case cronx.KindStep:
+		return fmt.Sprintf("Every %d minutes", minute.Step())
+
+	case cronx.KindSingle:
+		if minute.Value() == 0 && hourKind == cronx.KindEvery {
+			return "At the start of every hour"
+		}
+		return fmt.Sprintf("At %d minutes past the hour", minute.Value())
+
+	case cronx.KindRange:
+		return fmt.Sprintf("At minutes %d through %d past the hour",
+			minute.RangeStart(), minute.RangeEnd())
+
+	default:
+		return fmt.Sprintf("At %s minutes past the hour", formatList(formatInts(minute.ListValues())))
+	}
+}
+
+func (h *humanizer) hourSuffix(hour cronx.Field, minuteKind cronx.FieldKind) string {
+	switch hour.Kind() {
+	case cronx.KindEvery:
+		return ""
+
+	case cronx.KindStep:
+		return fmt.Sprintf("every %d hours", hour.Step())
+
+	case cronx.KindRange:
+		return fmt.Sprintf("between %s and %s",
+			formatHour(hour.RangeStart()), formatHourEnd(hour.RangeEnd()))
+
+	case cronx.KindBoundedStep:
+		return fmt.Sprintf("every %d hours between %s and %s",
+			hour.Step(), formatHour(hour.RangeStart()), formatHourEnd(hour.RangeEnd()))
+
+	default:
+		hours := hour.ListValues()
+		formatted := make([]string, len(hours))
+		for i, hr := range hours {
+			formatted[i] = formatHour(hr)
+		}
+		if minuteKind == cronx.KindEvery {
+			return fmt.Sprintf("during the %s %s", formatList(formatted), pluralize("hour", len(hours)))
+		}
+		return fmt.Sprintf("at %s", formatList(formatted))
+	}
 }
 
 // buildDayPart constructs the day portion of the description
