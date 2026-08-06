@@ -50,7 +50,7 @@ cronkit list --json                       # JSON output
 
 ### `timeline`
 
-Display ASCII timeline visualization of cron job schedules.
+Display an ASCII lane chart of cron job schedules — one lane per job on a shared time axis, with a `conflicts` lane marking runs that collide.
 
 ```bash
 cronkit timeline [cron-expression] [flags]
@@ -68,7 +68,25 @@ cronkit timeline --file jobs.cron --json     # JSON output
 - `--width <cols>` - Terminal width (0 = auto-detect, defaults to 80 if detection fails)
 - `--export <path>` - Export timeline to file (format determined by extension: .txt, .json)
 - `--show-overlaps` - Show detailed overlap information in output
+- `--color <mode>` - Color output: `auto` (default, on when stdout is a TTY), `always`, or `never`
+- `--ascii` - Use plain 7-bit ASCII glyphs instead of Unicode box-drawing characters
 - `-j, --json` - Output as JSON
+
+**Example Output:**
+```
+$ cronkit timeline "*/15 * * * *" --from 2025-01-15T00:00:00Z --timezone UTC
+cronkit timeline — 2025-01-15 · day · UTC
+
+Every 15 minutes┤╷┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃╷┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃╷├ */15 * * * *
+                └┬───────────┬───────────┬───────────┬───────────┬┘
+                00:00      06:00       12:00       18:00      23:59
+
+1 job · 95 runs · no conflicts
+```
+
+With `--show-overlaps` and more than one job, an `overlaps:` section lists each colliding time and the jobs involved. When the window has no runs, the command prints `no runs in this window` and exits `0`.
+
+**CI/non-interactive behavior:** when stdout isn't a terminal, output is plain (no ANSI escapes) and defaults to 80 columns unless `--width` or `$COLUMNS` say otherwise.
 
 ### `check`
 

@@ -237,14 +237,16 @@ $ cronkit list --stdin < /etc/crontab
 
 ```bash
 $ cronkit timeline "*/15 * * * *" --view day
-Timeline for 2025-12-28 (Day View)
-00:00 ──────────────────────────────────────────────────────────────── 24:00
-      │                                                                    │
-      │  ████  ████  ████  ████  ████  ████  ████  ████  ████  ████  ████  │
-      │                                                                    │
-      └──────────────────────────────────────────────────────────────────┘
-      expr-*/15 * * * *: Every 15 minutes
+cronkit timeline — 2025-01-15 · day · UTC
+
+Every 15 minutes┤╷┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃╷┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃╷├ */15 * * * *
+                └┬───────────┬───────────┬───────────┬───────────┬┘
+                00:00      06:00       12:00       18:00      23:59
+
+1 job · 95 runs · no conflicts
 ```
+
+Each job gets its own lane against a shared time axis; a `conflicts` lane appears when runs collide (add `--show-overlaps` for the time-by-time breakdown). Non-interactive output (piped, redirected, or CI) is plain ASCII with no color by default — use `--color always` or `--ascii` to force either behavior.
 
 ### Validate Crontab
 

@@ -253,7 +253,7 @@ var _ = Describe("E2E Scenarios", func() {
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("Timeline"))
+				Expect(session.Out).To(gbytes.Say("cronkit timeline"))
 
 				By("visualizing with custom width")
 				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--width", "120")
@@ -274,12 +274,15 @@ var _ = Describe("E2E Scenarios", func() {
 				Eventually(session).Should(gexec.Exit(0))
 
 				By("showing overlap information")
-				command = exec.Command(pathToCLI, "timeline", "0 * * * *", "--show-overlaps")
+				// A single expression never collides with itself, so use the
+				// overlapping sample crontab to exercise this path.
+				overlapFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
+				command = exec.Command(pathToCLI, "timeline", "--file", overlapFile, "--show-overlaps")
 				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				Expect(output).To(ContainSubstring("Overlap Summary"))
+				Expect(output).To(ContainSubstring("overlaps:"))
 
 				By("exporting timeline to file")
 				exportFile := filepath.Join(tempDir, "timeline.txt")
@@ -307,7 +310,7 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				Expect(output).To(ContainSubstring("Overlap Summary"))
+				Expect(output).To(ContainSubstring("overlaps:"))
 
 				By("getting JSON output for programmatic analysis")
 				command = exec.Command(pathToCLI, "timeline", "--file", testFile, "--json")
@@ -349,7 +352,7 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				Expect(output).To(ContainSubstring("Hour View"))
+				Expect(output).To(ContainSubstring("· hour ·"))
 
 				By("exporting hour view to JSON")
 				exportFile := filepath.Join(tempDir, "timeline-hour.json")
@@ -422,7 +425,7 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				content, err := os.ReadFile(textFile)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(string(content)).To(ContainSubstring("Timeline"))
+				Expect(string(content)).To(ContainSubstring("cronkit timeline"))
 
 				By("exporting JSON format")
 				jsonFile := filepath.Join(tempDir, "timeline.json")
@@ -440,8 +443,11 @@ var _ = Describe("E2E Scenarios", func() {
 			})
 
 			It("should export with all flags combined", func() {
+				// A single expression never collides with itself, so export the
+				// overlapping sample crontab to exercise --show-overlaps here too.
+				overlapFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 				exportFile := filepath.Join(tempDir, "timeline-full.txt")
-				command := exec.Command(pathToCLI, "timeline", "*/15 * * * *",
+				command := exec.Command(pathToCLI, "timeline", "--file", overlapFile,
 					"--width", "120",
 					"--timezone", "UTC",
 					"--from", "2025-01-15T00:00:00Z",
@@ -456,8 +462,8 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				content, err := os.ReadFile(exportFile)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(string(content)).To(ContainSubstring("Timeline"))
-				Expect(string(content)).To(ContainSubstring("Overlap Summary"))
+				Expect(string(content)).To(ContainSubstring("cronkit timeline"))
+				Expect(string(content)).To(ContainSubstring("overlaps:"))
 			})
 		})
 	})
