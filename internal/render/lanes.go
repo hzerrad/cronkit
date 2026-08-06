@@ -10,17 +10,30 @@ type budget struct {
 	gutter, plot, expr int
 }
 
-// planWidths splits total columns into gutter, plot, and optional expr widths.
-func planWidths(total, label, expr int) budget {
+// maxPlotCells returns the widest useful plot for a view: 15 minutes per cell
+// for a day, one minute per cell for an hour.
+func maxPlotCells(view TimelineView) int {
+	if view == HourView {
+		return 60
+	}
+	return 96
+}
+
+// planWidths splits total columns into gutter, plot, and optional expr widths,
+// holding the plot to maxPlot so wide terminals stop stretching the chart.
+func planWidths(total, label, expr, maxPlot int) budget {
 	g := label
 	if g < 8 {
 		g = 8
 	}
-	if g > 17 {
-		g = 17
+	maxGutter := 32
+	if total < 60 {
+		maxGutter = 10
+	} else if total < 100 {
+		maxGutter = 17
 	}
-	if total < 60 && g > 10 {
-		g = 10
+	if g > maxGutter {
+		g = maxGutter
 	}
 	if total >= 80 && expr > 0 {
 		e := expr
@@ -28,10 +41,10 @@ func planWidths(total, label, expr int) budget {
 			e = 17
 		}
 		if p := total - g - 2 - 1 - e; p >= 30 {
-			return budget{gutter: g, plot: p, expr: e}
+			return budget{gutter: g, plot: min(p, maxPlot), expr: e}
 		}
 	}
-	return budget{gutter: g, plot: total - g - 2}
+	return budget{gutter: g, plot: min(total-g-2, maxPlot)}
 }
 
 // cellPos maps a time to a clamped column within the plot width.

@@ -220,7 +220,7 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 			maxExpr = n
 		}
 	}
-	b := planWidths(tl.width, maxLabel, maxExpr)
+	b := planWidths(tl.width, maxLabel, maxExpr, maxPlotCells(tl.view))
 	dur := tl.endTime.Sub(tl.startTime)
 
 	counts := make(map[string]map[int]int)

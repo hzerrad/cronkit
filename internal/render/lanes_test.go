@@ -11,29 +11,37 @@ import (
 
 func TestPlanWidths(t *testing.T) {
 	t.Run("should give full layout at 80 cols", func(t *testing.T) {
-		b := planWidths(80, 13, 16)
+		b := planWidths(80, 13, 16, 96)
 		assert.Equal(t, budget{gutter: 13, plot: 48, expr: 16}, b)
 		assert.Equal(t, 80, b.gutter+1+b.plot+1+1+b.expr)
 	})
 	t.Run("should drop expr column below 80", func(t *testing.T) {
-		b := planWidths(79, 13, 16)
+		b := planWidths(79, 13, 16, 96)
 		assert.Equal(t, budget{gutter: 13, plot: 64, expr: 0}, b)
 	})
 	t.Run("should cap gutter at 10 below 60", func(t *testing.T) {
-		b := planWidths(44, 13, 16)
+		b := planWidths(44, 13, 16, 96)
 		assert.Equal(t, budget{gutter: 10, plot: 32, expr: 0}, b)
 	})
 	t.Run("should clamp tiny labels up to 8", func(t *testing.T) {
-		assert.Equal(t, 8, planWidths(80, 3, 0).gutter)
+		assert.Equal(t, 8, planWidths(80, 3, 0, 96).gutter)
 	})
-	t.Run("should cap wide labels at 17", func(t *testing.T) {
-		assert.Equal(t, 17, planWidths(120, 40, 0).gutter)
+	t.Run("should cap gutter at 17 under 100 cols", func(t *testing.T) {
+		assert.Equal(t, 17, planWidths(90, 40, 0, 96).gutter)
+	})
+	t.Run("should let the gutter reach 32 once there is room", func(t *testing.T) {
+		assert.Equal(t, 24, planWidths(160, 24, 0, 96).gutter)
+		assert.Equal(t, 32, planWidths(160, 40, 0, 96).gutter)
+	})
+	t.Run("should hold the plot to the view's useful resolution", func(t *testing.T) {
+		assert.Equal(t, 96, planWidths(200, 18, 9, 96).plot)
+		assert.Equal(t, 60, planWidths(200, 18, 9, 60).plot)
 	})
 	t.Run("should drop expr when plot would fall under 30", func(t *testing.T) {
-		b := planWidths(80, 17, 17)
+		b := planWidths(80, 17, 17, 96)
 		assert.Equal(t, budget{gutter: 17, plot: 43, expr: 17}, b)
 		for total := 80; total <= 140; total++ {
-			b := planWidths(total, 17, 17)
+			b := planWidths(total, 17, 17, 96)
 			if b.expr > 0 {
 				assert.GreaterOrEqual(t, b.plot, 30)
 			}
@@ -145,6 +153,16 @@ func TestRenderLanes(t *testing.T) {
 		for _, ln := range strings.Split(out, "\n") {
 			assert.LessOrEqual(t, len([]rune(ln)), 80, ln)
 		}
+	})
+	t.Run("should stop stretching the plot on a very wide terminal", func(t *testing.T) {
+		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, start, 200)
+		tl.SetJobInfo("job-1", "0 2 * * *", "At 02:00 every day", "At 02:00 every day")
+		tl.AddJobRun("job-1", start.Add(2*time.Hour))
+
+		lines := strings.Split(tl.Render(RenderOptions{}), "\n")
+		assert.True(t, strings.HasPrefix(lines[2], "At 02:00 every day┤"), lines[2])
+		assert.Equal(t, 96, strings.Count(lines[3], "─")+strings.Count(lines[3], "┬"))
 	})
 	t.Run("should truncate an expression that overflows the expr budget", func(t *testing.T) {
 		out := laneFixtureLongExpr().Render(RenderOptions{})
