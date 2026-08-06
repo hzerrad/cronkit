@@ -144,7 +144,7 @@ func TestRenderLanes(t *testing.T) {
 	t.Run("should render one lane per job in order", func(t *testing.T) {
 		out := laneFixture().Render(RenderOptions{})
 		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-		assert.True(t, strings.HasPrefix(lines[0], "cronkit timeline — 2026-08-06 · day · UTC"))
+		assert.True(t, strings.HasPrefix(lines[0], "2026-08-06  00:00 → 23:59 · UTC"))
 		assert.True(t, strings.HasPrefix(lines[2], "backup.sh"))
 		assert.True(t, strings.HasPrefix(lines[3], "verify.sh"))
 	})
@@ -154,12 +154,17 @@ func TestRenderLanes(t *testing.T) {
 			assert.LessOrEqual(t, len([]rune(ln)), 80, ln)
 		}
 	})
-	t.Run("should print a subtitle under the header", func(t *testing.T) {
+	t.Run("should print the source above the window line", func(t *testing.T) {
 		tl := laneFixture()
-		tl.SetSubtitle("Every 15 minutes")
+		tl.SetSource("/etc/crontab", "")
 		lines := strings.Split(tl.Render(RenderOptions{}), "\n")
-		assert.Equal(t, "Every 15 minutes", lines[1])
+		assert.Equal(t, "/etc/crontab", lines[0])
+		assert.Equal(t, "2026-08-06  00:00 → 23:59 · UTC", lines[1])
 		assert.Empty(t, lines[2])
+	})
+	t.Run("should name the window range and zone without a source", func(t *testing.T) {
+		lines := strings.Split(laneFixture().Render(RenderOptions{}), "\n")
+		assert.Equal(t, "2026-08-06  00:00 → 23:59 · UTC", lines[0])
 	})
 	t.Run("should not trail a lane with an expression its label already carries", func(t *testing.T) {
 		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
@@ -240,7 +245,7 @@ func TestRenderLanes(t *testing.T) {
 		assert.Contains(t, out, "02:00  backup.sh, verify.sh")
 	})
 	t.Run("should match the frozen 80-col day view", func(t *testing.T) {
-		want := `cronkit timeline — 2026-08-06 · day · UTC
+		want := `2026-08-06  00:00 → 23:59 · UTC
 
 backup.sh┤    ╷                                                      ├ 0 2 * * *
 verify.sh┤    ╷                                                      ├ 0 2 * * *
@@ -253,7 +258,7 @@ conflicts┤    ▲                                                      ├
 		assert.Equal(t, want, laneFixture().Render(RenderOptions{}))
 	})
 	t.Run("should match the frozen 44-col hour view", func(t *testing.T) {
-		want := `cronkit timeline — 2026-08-06 09:00 · hour · UTC
+		want := `2026-08-06  09:00 → 09:59 · UTC
 
 backup.sh┤           ╷                     ├
 verify.sh┤           ╷                     ├

@@ -253,7 +253,7 @@ var _ = Describe("E2E Scenarios", func() {
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
-				Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+				Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 
 				By("visualizing with custom width")
 				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--width", "120")
@@ -268,7 +268,8 @@ var _ = Describe("E2E Scenarios", func() {
 				Eventually(session).Should(gexec.Exit(0))
 
 				By("visualizing with specific start time")
-				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--from", "2025-01-15T00:00:00Z")
+				command = exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--from", "2025-01-15T00:00:00Z",
+					"--timezone", "UTC", "--timezone", "UTC")
 				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
@@ -347,12 +348,12 @@ var _ = Describe("E2E Scenarios", func() {
 
 			It("should support hour view for detailed minute-by-minute analysis", func() {
 				By("creating hour view timeline")
-				command := exec.Command(pathToCLI, "timeline", "*/5 * * * *", "--view", "hour", "--from", "2025-01-15T14:00:00Z")
+				command := exec.Command(pathToCLI, "timeline", "*/5 * * * *", "--view", "hour", "--from", "2025-01-15T14:00:00Z", "--timezone", "UTC")
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				Expect(output).To(ContainSubstring("· hour ·"))
+				Expect(output).To(MatchRegexp(`14:00 → 14:59`))
 
 				By("exporting hour view to JSON")
 				exportFile := filepath.Join(tempDir, "timeline-hour.json")
@@ -425,7 +426,7 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				content, err := os.ReadFile(textFile)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(string(content)).To(ContainSubstring("cronkit timeline"))
+				Expect(string(content)).To(MatchRegexp(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 
 				By("exporting JSON format")
 				jsonFile := filepath.Join(tempDir, "timeline.json")
@@ -451,6 +452,7 @@ var _ = Describe("E2E Scenarios", func() {
 					"--width", "120",
 					"--timezone", "UTC",
 					"--from", "2025-01-15T00:00:00Z",
+					"--timezone", "UTC",
 					"--show-overlaps",
 					"--export", exportFile)
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -462,7 +464,7 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				content, err := os.ReadFile(exportFile)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(string(content)).To(ContainSubstring("cronkit timeline"))
+				Expect(string(content)).To(MatchRegexp(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 				Expect(string(content)).To(ContainSubstring("overlaps:"))
 			})
 		})

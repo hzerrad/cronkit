@@ -21,7 +21,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should display day view by default", func() {
@@ -30,7 +30,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("· day ·"))
+			Expect(session.Out).To(gbytes.Say(`00:00 → 23:59`))
 		})
 
 		It("should display hour view with --view hour", func() {
@@ -39,7 +39,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("· hour ·"))
+			Expect(session.Out).To(gbytes.Say(`\d{2}:00 → \d{2}:59`))
 		})
 	})
 
@@ -99,7 +99,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should output JSON for crontab file", func() {
@@ -220,7 +220,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should handle narrow width gracefully", func() {
@@ -229,7 +229,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should enforce minimum width", func() {
@@ -239,7 +239,7 @@ var _ = Describe("Timeline Command", func() {
 
 			Eventually(session).Should(gexec.Exit(0))
 			// Should still render successfully with minimum width enforcement
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 	})
 
@@ -250,7 +250,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should use America/New_York timezone", func() {
@@ -259,7 +259,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should use Europe/London timezone", func() {
@@ -268,7 +268,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should reject invalid timezone", func() {
@@ -286,7 +286,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should work with timezone and crontab file", func() {
@@ -296,13 +296,14 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 	})
 
 	Context("when running 'cronkit timeline' with --from flag", func() {
 		It("should use specified start time", func() {
-			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--from", "2025-01-15T00:00:00Z")
+			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--from", "2025-01-15T00:00:00Z",
+				"--timezone", "UTC", "--timezone", "UTC")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -321,13 +322,13 @@ var _ = Describe("Timeline Command", func() {
 		})
 
 		It("should work with --from and hour view", func() {
-			command := exec.Command(pathToCLI, "timeline", "*/5 * * * *", "--from", "2025-01-15T14:00:00Z", "--view", "hour")
+			command := exec.Command(pathToCLI, "timeline", "*/5 * * * *", "--from", "2025-01-15T14:00:00Z", "--view", "hour", "--timezone", "UTC")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
 			output := string(session.Out.Contents())
-			Expect(output).To(ContainSubstring("· hour ·"))
+			Expect(output).To(MatchRegexp(`14:00 → 14:59`))
 			Expect(output).To(ContainSubstring("2025-01-15"))
 		})
 	})
@@ -363,7 +364,7 @@ var _ = Describe("Timeline Command", func() {
 			// Check file content
 			content, err := os.ReadFile(exportFile)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(string(content)).To(ContainSubstring("cronkit timeline"))
+			Expect(string(content)).To(MatchRegexp(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should export timeline to JSON file", func() {
@@ -396,7 +397,7 @@ var _ = Describe("Timeline Command", func() {
 			Eventually(session).Should(gexec.Exit(0))
 
 			// Should have output in stdout
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 
 			// And file should exist
 			_, err = os.Stat(exportFile)
@@ -437,7 +438,7 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			Expect(session.Out).To(gbytes.Say("cronkit timeline"))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 
 		It("should work with all flags including export", func() {
@@ -452,6 +453,7 @@ var _ = Describe("Timeline Command", func() {
 				"--width", "120",
 				"--timezone", "UTC",
 				"--from", "2025-01-15T00:00:00Z",
+				"--timezone", "UTC",
 				"--view", "day",
 				"--show-overlaps",
 				"--export", exportFile)
