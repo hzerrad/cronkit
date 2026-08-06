@@ -48,29 +48,40 @@ changelog:
       - "^test:"
       - "^chore:"
 
-# Homebrew formula (tap: hzerrad/homebrew-cronkit -> brew tap hzerrad/cronkit)
-brews:
+# Homebrew cask (tap: hzerrad/homebrew-cronkit -> brew tap hzerrad/cronkit)
+homebrew_casks:
   - name: cronkit
     homepage: https://github.com/hzerrad/cronkit
     description: Make cron human again - CLI tool for cron job management
     license: Apache-2.0
 
-    # Ensure formula downloads the correct release asset
-    url_template: "https://github.com/hzerrad/cronkit/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url:
+      template: "https://github.com/hzerrad/cronkit/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
-    # Ensure GoReleaser writes the formula where taps expect it
-    directory: Formula
+    # Ensure GoReleaser writes the cask where taps expect it
+    directory: Casks
+
+    binaries:
+      - cronkit
+
+    # Supersedes the formula this cask replaces
+    conflicts:
+      - formula: cronkit
+
+    # The binaries are not signed or notarised, so macOS quarantines them on
+    # download and reports "cronkit is damaged" unless the flag is cleared.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cronkit"]
+          end
 
     repository:
       owner: hzerrad
       name: homebrew-cronkit
       # Use a PAT that has write access to hzerrad/homebrew-cronkit
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-
-    install: |
-      bin.install "cronkit"
-    test: |
-      system "#{bin}/cronkit", "version"
 
     commit_author:
       name: goreleaserbot
@@ -158,7 +169,7 @@ release:
     #### Homebrew
     ```bash
     brew tap hzerrad/cronkit
-    brew install cronkit
+    brew install --cask cronkit
     ```
 
     #### APT (Debian/Ubuntu)
