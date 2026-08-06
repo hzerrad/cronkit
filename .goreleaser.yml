@@ -169,7 +169,7 @@ release:
     #### Homebrew
     ```bash
     brew tap hzerrad/cronkit
-    brew install cronkit
+    brew install --cask cronkit
     ```
 
     #### APT (Debian/Ubuntu)

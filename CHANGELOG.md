@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-06
+
+### Changed
+- Homebrew now ships a cask instead of a formula. GoReleaser deprecated `brews`,
+  and a cask is the correct package type for prebuilt binaries. Install with
+  `brew install --cask cronkit`
+
+### Upgrade notes
+- Homebrew clients older than October 2025 cannot migrate a formula to a cask in
+  the same tap automatically. If `brew upgrade` does not pick up the new version,
+  run `brew uninstall cronkit && brew install --cask cronkit`
+- The cask clears the macOS quarantine flag on install. The binaries are not
+  signed or notarised, so without this macOS reports "cronkit is damaged"
+- Arch packages remain at 0.1.1 while AUR pushes are disabled upstream
+
 ## [0.1.1] - 2026-08-06
 
 ### Fixed
