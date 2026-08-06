@@ -264,8 +264,9 @@ var _ = Describe("Next Command", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
 
-				// Should contain timestamp pattern (YYYY-MM-DD HH:MM:SS TZ)
-				Expect(output).To(MatchRegexp(`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \w+`))
+				// Should contain timestamp pattern (YYYY-MM-DD HH:MM:SS TZ). Zones
+				// without an abbreviation print a numeric offset instead, e.g. +14.
+				Expect(output).To(MatchRegexp(`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([A-Za-z]{2,}|[+-]\d{2}(\d{2})?)`))
 			})
 
 			It("should show numbered list of runs", func() {
