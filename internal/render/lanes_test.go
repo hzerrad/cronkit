@@ -1,6 +1,7 @@
 package render
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -198,4 +199,43 @@ func laneFixtureHour() *Timeline {
 	tl.AddJobRun("job-1", start.Add(20*time.Minute))
 	tl.AddJobRun("job-2", start.Add(20*time.Minute))
 	return tl
+}
+
+var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func TestRenderModes(t *testing.T) {
+	t.Run("should emit identical text with color stripped", func(t *testing.T) {
+		plain := laneFixture().Render(RenderOptions{})
+		colored := laneFixture().Render(RenderOptions{Color: true})
+		assert.NotEqual(t, plain, colored)
+		assert.Equal(t, plain, ansiRE.ReplaceAllString(colored, ""))
+	})
+	t.Run("should color conflicts red", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{Color: true})
+		assert.Contains(t, out, ansiRed)
+	})
+	t.Run("should stay pure ascii in ascii mode", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{ASCII: true})
+		for _, r := range out {
+			assert.Less(t, r, rune(128), "non-ascii rune %q", r)
+		}
+	})
+	t.Run("should keep ascii marks aligned with unicode marks", func(t *testing.T) {
+		uni := laneFixture().Render(RenderOptions{})
+		asc := laneFixture().Render(RenderOptions{ASCII: true})
+		uniLines, ascLines := strings.Split(uni, "\n"), strings.Split(asc, "\n")
+		uniCol := runeIndex(uniLines[2], '╷')
+		assert.Positive(t, uniCol)
+		assert.Equal(t, '|', []rune(ascLines[2])[uniCol]) // same cell, different glyph
+	})
+}
+
+// runeIndex finds target's rune (not byte) offset in s, or -1 if absent.
+func runeIndex(s string, target rune) int {
+	for i, r := range []rune(s) {
+		if r == target {
+			return i
+		}
+	}
+	return -1
 }
