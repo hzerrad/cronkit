@@ -68,7 +68,7 @@ cronkit timeline --file jobs.cron --json     # JSON output
 - `--width <cols>` - Terminal width (0 = auto-detect, defaults to 80 if detection fails)
 - `--export <path>` - Export timeline to file (format determined by extension: .txt, .json)
 - `--show-overlaps` - Show detailed overlap information in output
-- `--color <mode>` - Color output: `auto` (default, on when stdout is a TTY), `always`, or `never`
+- `--color <mode>` - Color output: `auto` (default, on when stdout is a TTY), `always`, or `never` (forced off when `--export` is set, even with `always`, to keep the exported file clean)
 - `--ascii` - Use plain 7-bit ASCII glyphs instead of Unicode box-drawing characters
 - `-j, --json` - Output as JSON
 

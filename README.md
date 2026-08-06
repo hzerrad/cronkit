@@ -246,7 +246,7 @@ Every 15 minutes┤╷┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃�
 1 job · 95 runs · no conflicts
 ```
 
-Each job gets its own lane against a shared time axis; a `conflicts` lane appears when runs collide (add `--show-overlaps` for the time-by-time breakdown). Non-interactive output (piped, redirected, or CI) is plain ASCII with no color by default — use `--color always` or `--ascii` to force either behavior.
+Each job gets its own lane against a shared time axis; a `conflicts` lane appears when runs collide (add `--show-overlaps` for the time-by-time breakdown). Non-interactive output (piped, redirected, or CI) is plain (uncolored) Unicode with no color by default — use `--color always` or `--ascii` to force either behavior.
 
 ### Validate Crontab
 
