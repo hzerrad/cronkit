@@ -103,6 +103,8 @@ func TestListValuesHonoursStep(t *testing.T) {
 		{"plain range unaffected", "1-4 * * * *", minuteOf, []int{1, 2, 3, 4}},
 		{"stepped range inside list", "1-5/2,30 * * * *", minuteOf, []int{1, 3, 5, 30}},
 		{"stepped hour range", "0 9-17/2 * * *", hourOf, []int{9, 11, 13, 15, 17}},
+		{"wildcard with step", "*/15 * * * *", minuteOf, []int{0, 15, 30, 45}},
+		{"wildcard with step on day of week", "0 9 * * */2", dayOfWeekOf, []int{0, 2, 4, 6}},
 	}
 
 	for _, tt := range tests {
@@ -114,5 +116,6 @@ func TestListValuesHonoursStep(t *testing.T) {
 	}
 }
 
-func minuteOf(s *cronx.Schedule) cronx.Field { return s.Minute }
-func hourOf(s *cronx.Schedule) cronx.Field   { return s.Hour }
+func minuteOf(s *cronx.Schedule) cronx.Field    { return s.Minute }
+func hourOf(s *cronx.Schedule) cronx.Field      { return s.Hour }
+func dayOfWeekOf(s *cronx.Schedule) cronx.Field { return s.DayOfWeek }
