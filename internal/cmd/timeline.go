@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hzerrad/cronkit/internal/crontab"
@@ -12,6 +14,7 @@ import (
 	"github.com/hzerrad/cronkit/internal/human"
 	"github.com/hzerrad/cronkit/internal/render"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // TimelineCommand wraps cobra.Command with timeline-specific functionality
@@ -26,6 +29,8 @@ type TimelineCommand struct {
 	export       string
 	locale       string
 	showOverlaps bool
+	color        string
+	ascii        bool
 }
 
 func init() {
@@ -68,6 +73,8 @@ Examples:
 	tc.Command.Flags().StringVar(&tc.timezone, "timezone", "", "Timezone for timeline (e.g., 'America/New_York', 'UTC', defaults to local timezone)")
 	tc.Command.Flags().StringVar(&tc.export, "export", "", "Export timeline to file (format determined by extension: .txt, .json)")
 	tc.Command.Flags().BoolVar(&tc.showOverlaps, "show-overlaps", false, "Show detailed overlap information in output")
+	tc.Command.Flags().StringVar(&tc.color, "color", "auto", "Color output: auto, always, or never")
+	tc.Command.Flags().BoolVar(&tc.ascii, "ascii", false, "Plain ASCII glyphs")
 
 	return tc
 }
@@ -82,6 +89,15 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 		timelineView = render.HourView
 	default:
 		return fmt.Errorf("invalid view type: %s (must be 'day' or 'hour')", tc.view)
+	}
+
+	tty := stdoutTTY()
+	colorOn, err := resolveColor(tc.color, tty)
+	if err != nil {
+		return err
+	}
+	if tc.export != "" {
+		colorOn = false // one render feeds both the export file and the stdout echo; keep the file clean
 	}
 
 	// Determine timezone
@@ -112,10 +128,7 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	}
 
 	// Determine width (auto-detect if not specified)
-	width := detectTerminalWidth()
-	if tc.width > 0 {
-		width = tc.width
-	}
+	width := resolveWidth(tc.width, tty)
 	if width < 40 {
 		width = 40 // Minimum width for readability
 	}
@@ -131,7 +144,6 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 
 	// Parse jobs
 	var jobs []*crontab.Job
-	var err error
 
 	if len(args) > 0 {
 		// Single expression provided
@@ -172,6 +184,16 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	humanizer := human.NewHumanizer()
 	scheduler := cronx.NewScheduler()
 
+	// Pre-count lane label basenames so duplicates can be disambiguated with a :LINE suffix.
+	labelCounts := make(map[string]int)
+	if len(args) == 0 {
+		for _, job := range jobs {
+			if job.Valid {
+				labelCounts[laneLabel(job)]++
+			}
+		}
+	}
+
 	// Calculate how many runs to get based on view
 	var runCount int
 	var timeRange time.Duration
@@ -203,8 +225,18 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 			jobID = fmt.Sprintf("expr-%s", job.Expression)
 		}
 
+		// Lane label: description for the single-expression path, else the command basename
+		// (deduped with a :LINE suffix when two jobs share one).
+		label := description
+		if len(args) == 0 {
+			label = laneLabel(job)
+			if labelCounts[label] > 1 {
+				label = label + ":" + strconv.Itoa(job.LineNumber)
+			}
+		}
+
 		// Set job info
-		timeline.SetJobInfo(jobID, job.Expression, description, description)
+		timeline.SetJobInfo(jobID, job.Expression, description, label)
 
 		// Calculate next runs
 		times, err := scheduler.Next(job.Expression, startTime, runCount)
@@ -259,7 +291,7 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	}
 
 	// Text output
-	output = timeline.Render(render.RenderOptions{ShowOverlaps: tc.showOverlaps})
+	output = timeline.Render(render.RenderOptions{Color: colorOn, ASCII: tc.ascii, ShowOverlaps: tc.showOverlaps})
 
 	// Handle export if specified
 	if tc.export != "" {
@@ -276,20 +308,47 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-// detectTerminalWidth attempts to detect the terminal width
-func detectTerminalWidth() int {
-	// Try COLUMNS environment variable first
-	if colsStr := os.Getenv("COLUMNS"); colsStr != "" {
-		if cols, err := strconv.Atoi(colsStr); err == nil && cols > 0 {
-			return cols
+// stdoutTTY reports whether stdout is attached to a terminal.
+func stdoutTTY() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+// resolveWidth picks the timeline width: flag, then terminal size, then $COLUMNS, then 80.
+func resolveWidth(flagW int, tty bool) int {
+	if flagW > 0 {
+		return flagW
+	}
+	if tty {
+		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+			return w
 		}
 	}
-
-	// Try to get terminal size (Unix-like systems)
-	// TODO: This is a simple implementation; for cross-platform support,
-	// we'd need a library like golang.org/x/term
-	// For now, default to 80
+	if c, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && c > 0 {
+		return c
+	}
 	return 80
+}
+
+// resolveColor decides whether color output is on for the given --color mode.
+func resolveColor(mode string, tty bool) (bool, error) {
+	switch mode {
+	case "always":
+		return true, nil
+	case "never":
+		return false, nil
+	case "auto":
+		return tty && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb", nil
+	}
+	return false, fmt.Errorf("invalid --color value: %s (must be auto, always, or never)", mode)
+}
+
+// laneLabel derives a job's lane label from the basename of its first command token.
+func laneLabel(job *crontab.Job) string {
+	f := strings.Fields(job.Command)
+	if len(f) == 0 {
+		return fmt.Sprintf("job-%d", job.LineNumber)
+	}
+	return filepath.Base(f[0])
 }
 
 // exportTimeline exports the timeline to a file (text format only, JSON handled separately)

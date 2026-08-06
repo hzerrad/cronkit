@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -581,6 +582,25 @@ func TestTimelineCommand(t *testing.T) {
 		assert.Contains(t, output, "cronkit timeline")
 	})
 
+	t.Run("timeline dedupes duplicate command basenames with a :LINE suffix", func(t *testing.T) {
+		tempFile := createTempCrontab(t, "# comment\n* * * * * /usr/local/bin/backup.sh --full\n# comment\n# comment\n0 2 * * * /opt/scripts/backup.sh\n")
+		defer func() {
+			_ = os.Remove(tempFile)
+		}()
+
+		tc := newTimelineCommand()
+		buf := new(bytes.Buffer)
+		tc.SetOut(buf)
+		tc.SetArgs([]string{"--file", tempFile})
+
+		err := tc.Execute()
+		require.NoError(t, err)
+
+		output := buf.String()
+		assert.Contains(t, output, "backup.sh:2")
+		assert.Contains(t, output, "backup.sh:5")
+	})
+
 	t.Run("timeline handles zero COLUMNS env var", func(t *testing.T) {
 		// Set zero COLUMNS environment variable
 		oldCols := os.Getenv("COLUMNS")
@@ -603,6 +623,52 @@ func TestTimelineCommand(t *testing.T) {
 		// Should fall back to default width
 		output := buf.String()
 		assert.Contains(t, output, "cronkit timeline")
+	})
+}
+
+func TestResolveWidth(t *testing.T) {
+	t.Run("should prefer the flag", func(t *testing.T) {
+		assert.Equal(t, 120, resolveWidth(120, true))
+	})
+	t.Run("should fall back to COLUMNS off-tty", func(t *testing.T) {
+		t.Setenv("COLUMNS", "100")
+		assert.Equal(t, 100, resolveWidth(0, false))
+	})
+	t.Run("should default to 80", func(t *testing.T) {
+		t.Setenv("COLUMNS", "")
+		assert.Equal(t, 80, resolveWidth(0, false))
+	})
+}
+
+func TestResolveColor(t *testing.T) {
+	t.Run("should honor always and never regardless of tty", func(t *testing.T) {
+		on, err := resolveColor("always", false)
+		assert.NoError(t, err)
+		assert.True(t, on)
+		on, _ = resolveColor("never", true)
+		assert.False(t, on)
+	})
+	t.Run("should auto-disable off-tty and under NO_COLOR", func(t *testing.T) {
+		on, _ := resolveColor("auto", false)
+		assert.False(t, on)
+		t.Setenv("NO_COLOR", "1")
+		on, _ = resolveColor("auto", true)
+		assert.False(t, on)
+	})
+	t.Run("should reject unknown modes", func(t *testing.T) {
+		_, err := resolveColor("rainbow", true)
+		assert.Error(t, err)
+	})
+}
+
+func TestLaneLabel(t *testing.T) {
+	t.Run("should use the command basename", func(t *testing.T) {
+		j := &crontab.Job{LineNumber: 3, Command: "/usr/local/bin/backup.sh --full"}
+		assert.Equal(t, "backup.sh", laneLabel(j))
+	})
+	t.Run("should fall back to job-N", func(t *testing.T) {
+		j := &crontab.Job{LineNumber: 7, Command: "   "}
+		assert.Equal(t, "job-7", laneLabel(j))
 	})
 }
 
