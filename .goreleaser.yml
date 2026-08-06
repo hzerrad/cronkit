@@ -89,6 +89,10 @@ aurs:
 
     private_key: "{{ .Env.AUR_SSH_PRIVATE_KEY }}"
 
+    # AUR pushes have been disabled upstream since 2026-08-01 after the malware
+    # waves. The PKGBUILD is still written to dist/ - drop this once they reopen.
+    skip_upload: true
+
     provides:
       - cronkit
     conflicts:
