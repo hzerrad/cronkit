@@ -54,7 +54,7 @@ Cronkit's distinguishing position: a single static binary, offline, with machine
 
 ```bash
 brew tap hzerrad/cronkit
-brew install cronkit
+brew install --cask cronkit
 ```
 
 #### Direct Binary Download
