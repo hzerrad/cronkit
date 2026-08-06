@@ -1,6 +1,7 @@
 package render
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -98,4 +99,103 @@ func TestJobRegistryOrder(t *testing.T) {
 		assert.Equal(t, []string{"job-9", "job-2"}, []string{tl.jobs[0].id, tl.jobs[1].id})
 		assert.Len(t, tl.jobs, 2)
 	})
+}
+
+func laneFixture() *Timeline {
+	start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+	tl := NewTimeline(DayView, start, 80)
+	tl.SetJobInfo("job-1", "0 2 * * *", "At 02:00 every day", "backup.sh")
+	tl.SetJobInfo("job-2", "0 2 * * *", "At 02:00 every day", "verify.sh")
+	tl.AddJobRun("job-1", start.Add(2*time.Hour))
+	tl.AddJobRun("job-2", start.Add(2*time.Hour))
+	return tl
+}
+
+func TestRenderLanes(t *testing.T) {
+	t.Run("should render one lane per job in order", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{})
+		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+		assert.True(t, strings.HasPrefix(lines[0], "cronkit timeline — 2026-08-06 · day · UTC"))
+		assert.True(t, strings.HasPrefix(lines[2], "backup.sh"))
+		assert.True(t, strings.HasPrefix(lines[3], "verify.sh"))
+	})
+	t.Run("should keep every body line within total width", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{})
+		for _, ln := range strings.Split(out, "\n") {
+			assert.LessOrEqual(t, len([]rune(ln)), 80, ln)
+		}
+	})
+	t.Run("should put both 02:00 markers in the same column", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{})
+		lines := strings.Split(out, "\n")
+		c1 := strings.IndexRune(lines[2], '╷')
+		c2 := strings.IndexRune(lines[3], '╷')
+		assert.Equal(t, c1, c2)
+		assert.Positive(t, c1)
+	})
+	t.Run("should flag the conflict column", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{})
+		assert.Contains(t, out, "conflicts")
+		assert.Contains(t, out, "▲")
+	})
+	t.Run("should merge same-job same-cell runs into a heavy mark", func(t *testing.T) {
+		tl := laneFixture()
+		tl.AddJobRun("job-1", tl.startTime.Add(2*time.Hour+time.Minute))
+		assert.Contains(t, tl.Render(RenderOptions{}), "┃")
+	})
+	t.Run("should say when the window is empty", func(t *testing.T) {
+		tl := NewTimeline(DayView, time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC), 80)
+		tl.SetJobInfo("job-1", "0 2 * * 0", "At 02:00 on Sunday", "weekly.sh")
+		assert.Contains(t, tl.Render(RenderOptions{}), "no runs in this window")
+	})
+	t.Run("should render an empty lane for a job with no runs", func(t *testing.T) {
+		tl := laneFixture()
+		tl.SetJobInfo("job-3", "0 2 * * 0", "At 02:00 on Sunday", "weekly.sh")
+		assert.Contains(t, tl.Render(RenderOptions{}), "weekly.sh")
+	})
+	t.Run("should show the footer stats", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{})
+		assert.Contains(t, out, "2 jobs · 2 runs · 1 conflict window · max 2 concurrent")
+	})
+	t.Run("should list overlap windows when asked", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{ShowOverlaps: true})
+		assert.Contains(t, out, "overlaps:")
+		assert.Contains(t, out, "02:00  backup.sh, verify.sh")
+	})
+	t.Run("should match the frozen 80-col day view", func(t *testing.T) {
+		want := `cronkit timeline — 2026-08-06 · day · UTC
+
+backup.sh┤    ╷                                                      ├ 0 2 * * *
+verify.sh┤    ╷                                                      ├ 0 2 * * *
+conflicts┤    ▲                                                      ├
+         └┬─────────────┬──────────────┬──────────────┬─────────────┬┘
+         00:00        06:00          12:00          18:00        23:59
+
+2 jobs · 2 runs · 1 conflict window · max 2 concurrent
+`
+		assert.Equal(t, want, laneFixture().Render(RenderOptions{}))
+	})
+	t.Run("should match the frozen 44-col hour view", func(t *testing.T) {
+		want := `cronkit timeline — 2026-08-06 09:00 · hour · UTC
+
+backup.sh┤           ╷                     ├
+verify.sh┤           ╷                     ├
+conflicts┤           ▲                     ├
+         └┬───────┬───────┬───────┬───────┬┘
+         09:00  09:15   09:30   09:45  09:59
+
+2 jobs · 2 runs · 1 conflict window · max 2 concurrent
+`
+		assert.Equal(t, want, laneFixtureHour().Render(RenderOptions{}))
+	})
+}
+
+func laneFixtureHour() *Timeline {
+	start := time.Date(2026, 8, 6, 9, 0, 0, 0, time.UTC)
+	tl := NewTimeline(HourView, start, 44)
+	tl.SetJobInfo("job-1", "0 2 * * *", "At 02:00 every day", "backup.sh")
+	tl.SetJobInfo("job-2", "0 2 * * *", "At 02:00 every day", "verify.sh")
+	tl.AddJobRun("job-1", start.Add(20*time.Minute))
+	tl.AddJobRun("job-2", start.Add(20*time.Minute))
+	return tl
 }

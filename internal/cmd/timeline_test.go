@@ -35,7 +35,7 @@ func TestTimelineCommand(t *testing.T) {
 		require.NoError(t, err)
 
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 		assert.Contains(t, output, "Every 15 minutes") // Check for humanized description
 	})
 
@@ -49,8 +49,8 @@ func TestTimelineCommand(t *testing.T) {
 		require.NoError(t, err)
 
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
-		assert.Contains(t, output, "Hour View")
+		assert.Contains(t, output, "cronkit timeline")
+		assert.Contains(t, output, "· hour ·")
 	})
 
 	t.Run("timeline with --json flag", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestTimelineCommand(t *testing.T) {
 		require.NoError(t, err)
 
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline with empty crontab file", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestTimelineCommand(t *testing.T) {
 		require.NoError(t, err)
 
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline with non-existent file", func(t *testing.T) {
@@ -215,7 +215,7 @@ func TestTimelineCommand(t *testing.T) {
 		require.NoError(t, err)
 
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline JSON output error handling", func(t *testing.T) {
@@ -241,7 +241,9 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Overlap Summary")
+		assert.Contains(t, output, "cronkit timeline")
+		// A single job can't overlap with itself, so no overlaps section.
+		assert.NotContains(t, output, "overlaps:")
 	})
 
 	t.Run("timeline without --show-overlaps flag (backward compatibility)", func(t *testing.T) {
@@ -253,7 +255,7 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.NotContains(t, output, "Overlap Summary")
+		assert.NotContains(t, output, "overlaps:")
 	})
 
 	t.Run("timeline with --show-overlaps and --json", func(t *testing.T) {
@@ -289,8 +291,8 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Overlap Summary")
-		assert.Contains(t, output, "Total overlap windows")
+		assert.Contains(t, output, "overlaps:")
+		assert.Contains(t, output, "conflict window")
 	})
 
 	t.Run("timeline with --width flag", func(t *testing.T) {
@@ -302,7 +304,7 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline with --timezone flag", func(t *testing.T) {
@@ -314,7 +316,7 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline with invalid --timezone flag", func(t *testing.T) {
@@ -354,7 +356,7 @@ func TestTimelineCommand(t *testing.T) {
 		// Check file has content
 		content, err := os.ReadFile(exportFile)
 		require.NoError(t, err)
-		assert.Contains(t, string(content), "Timeline")
+		assert.Contains(t, string(content), "cronkit timeline")
 	})
 
 	t.Run("timeline with --export flag (JSON)", func(t *testing.T) {
@@ -395,7 +397,7 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline with --width flag set to minimum", func(t *testing.T) {
@@ -407,7 +409,7 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 		// Should enforce minimum width of 40
 	})
 
@@ -420,8 +422,8 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
-		assert.Contains(t, output, "Hour View")
+		assert.Contains(t, output, "cronkit timeline")
+		assert.Contains(t, output, "· hour ·")
 	})
 
 	t.Run("timeline with crontab file and timezone", func(t *testing.T) {
@@ -438,11 +440,11 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline export with text format and show-overlaps", func(t *testing.T) {
-		tempFile := createTempCrontab(t, "")
+		tempFile := createTempCrontab(t, "0 * * * * /usr/bin/job1.sh\n0 * * * * /usr/bin/job2.sh\n")
 		defer func() {
 			_ = os.Remove(tempFile)
 		}()
@@ -455,7 +457,7 @@ func TestTimelineCommand(t *testing.T) {
 		tc := newTimelineCommand()
 		buf := new(bytes.Buffer)
 		tc.SetOut(buf)
-		tc.SetArgs([]string{"0 * * * *", "--export", exportFile, "--show-overlaps"})
+		tc.SetArgs([]string{"--file", tempFile, "--export", exportFile, "--show-overlaps"})
 
 		err := tc.Execute()
 		require.NoError(t, err)
@@ -463,8 +465,8 @@ func TestTimelineCommand(t *testing.T) {
 		// Check file was created and has overlap info
 		content, err := os.ReadFile(exportFile)
 		require.NoError(t, err)
-		assert.Contains(t, string(content), "Timeline")
-		assert.Contains(t, string(content), "Overlap Summary")
+		assert.Contains(t, string(content), "cronkit timeline")
+		assert.Contains(t, string(content), "overlaps:")
 	})
 
 	t.Run("timeline with --timezone America/New_York", func(t *testing.T) {
@@ -476,7 +478,7 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline with --from and --timezone", func(t *testing.T) {
@@ -488,7 +490,7 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline export with invalid file path", func(t *testing.T) {
@@ -552,7 +554,7 @@ func TestTimelineCommand(t *testing.T) {
 		err := tc.Execute()
 		require.NoError(t, err)
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline handles invalid COLUMNS env var", func(t *testing.T) {
@@ -576,7 +578,7 @@ func TestTimelineCommand(t *testing.T) {
 		require.NoError(t, err)
 		// Should fall back to default width
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 
 	t.Run("timeline handles zero COLUMNS env var", func(t *testing.T) {
@@ -600,7 +602,7 @@ func TestTimelineCommand(t *testing.T) {
 		require.NoError(t, err)
 		// Should fall back to default width
 		output := buf.String()
-		assert.Contains(t, output, "Timeline")
+		assert.Contains(t, output, "cronkit timeline")
 	})
 }
 
@@ -653,7 +655,7 @@ func TestTimelineCommand_Export(t *testing.T) {
 		content, err := os.ReadFile(exportFile)
 		require.NoError(t, err)
 		assert.NotEmpty(t, content)
-		assert.Contains(t, string(content), "Timeline")
+		assert.Contains(t, string(content), "cronkit timeline")
 	})
 
 	t.Run("should handle export file creation error", func(t *testing.T) {

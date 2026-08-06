@@ -259,7 +259,7 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	}
 
 	// Text output
-	output = timeline.Render(tc.showOverlaps)
+	output = timeline.Render(render.RenderOptions{ShowOverlaps: tc.showOverlaps})
 
 	// Handle export if specified
 	if tc.export != "" {

@@ -1,7 +1,6 @@
 package render
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -63,29 +62,17 @@ type Timeline struct {
 	jobRuns   []JobRun
 	jobs      []jobEntry
 	jobIndex  map[string]int
-	slots     []time.Time
 }
 
 // NewTimeline creates a new timeline with the specified view, start time, and width
 func NewTimeline(view TimelineView, startTime time.Time, width int) *Timeline {
 	var endTime time.Time
-	var slots []time.Time
 
 	switch view {
 	case DayView:
 		endTime = startTime.Add(24 * time.Hour)
-		// Create slots for each hour in a day (24 slots)
-		slots = make([]time.Time, 24)
-		for i := 0; i < 24; i++ {
-			slots[i] = startTime.Add(time.Duration(i) * time.Hour)
-		}
 	case HourView:
 		endTime = startTime.Add(time.Hour)
-		// Create slots for each minute in an hour (60 slots)
-		slots = make([]time.Time, 60)
-		for i := 0; i < 60; i++ {
-			slots[i] = startTime.Add(time.Duration(i) * time.Minute)
-		}
 	}
 
 	return &Timeline{
@@ -96,7 +83,6 @@ func NewTimeline(view TimelineView, startTime time.Time, width int) *Timeline {
 		jobRuns:   make([]JobRun, 0),
 		jobs:      make([]jobEntry, 0),
 		jobIndex:  make(map[string]int),
-		slots:     slots,
 	}
 }
 
@@ -201,346 +187,77 @@ func (tl *Timeline) GetOverlapStats() OverlapStats {
 	}
 }
 
-// Render generates an ASCII timeline string with optional overlap reporting
-func (tl *Timeline) Render(showOverlaps bool) string {
+// RenderOptions controls text rendering; JSON output is unaffected.
+type RenderOptions struct {
+	Color, ASCII, ShowOverlaps bool
+}
+
+// Render draws the lane chart timeline as plain text.
+func (tl *Timeline) Render(opts RenderOptions) string {
+	g := uniGlyphs
+	if opts.ASCII {
+		g = asciiGlyphs
+	}
 	var sb strings.Builder
+	sb.WriteString(tl.headerLine(g) + "\n\n")
+	if len(tl.jobRuns) == 0 {
+		sb.WriteString("no runs in this window\n")
+		return sb.String()
+	}
 
-	// Collect job descriptions early
-	jobIDsSeen := make(map[string]bool)
-	jobList := make([]struct {
-		jobID       string
-		expression  string
-		description string
-	}, 0)
-
-	for _, run := range tl.jobRuns {
-		if !jobIDsSeen[run.JobID] {
-			jobIDsSeen[run.JobID] = true
-			var expression, description string
-			if idx, hasInfo := tl.jobIndex[run.JobID]; hasInfo {
-				expression = tl.jobs[idx].expression
-				description = tl.jobs[idx].description
-			}
-			jobList = append(jobList, struct {
-				jobID       string
-				expression  string
-				description string
-			}{
-				jobID:       run.JobID,
-				expression:  expression,
-				description: description,
-			})
+	maxLabel, maxExpr := 0, 0
+	for _, j := range tl.jobs {
+		if n := len([]rune(j.label)); n > maxLabel {
+			maxLabel = n
+		}
+		if n := len([]rune(j.expression)); n > maxExpr {
+			maxExpr = n
 		}
 	}
+	b := planWidths(tl.width, maxLabel, maxExpr)
+	dur := tl.endTime.Sub(tl.startTime)
 
-	// Header
-	var timeRange string
-	var endTimeDisplay time.Time
-	if tl.view == DayView {
-		// For day view, show 23:59 as the end time
-		endTimeDisplay = tl.endTime.Add(-1 * time.Minute) // Show 23:59 instead of 00:00 next day
-		timeRange = fmt.Sprintf("%s ──────────────────────────────────────────────────────────────── %s",
-			tl.startTime.Format("15:04"), endTimeDisplay.Format("15:04"))
-		fmt.Fprintf(&sb, "Timeline for %s (Day View)\n", tl.startTime.Format("2006-01-02"))
-	} else {
-		// For hour view, show 59 as the end time
-		endTimeDisplay = tl.endTime.Add(-1 * time.Minute) // Show 59 instead of 60
-		timeRange = fmt.Sprintf("%s ──────────────────────────────────────────────────────────────── %s",
-			tl.startTime.Format("15:04"), endTimeDisplay.Format("15:04"))
-		fmt.Fprintf(&sb, "Timeline for %s (Hour View)\n", tl.startTime.Format("2006-01-02 15:04"))
-	}
-
-	// Display job descriptions right after the header
-	for _, job := range jobList {
-		if job.description != "" {
-			// For single expressions, show just the description
-			if strings.HasPrefix(job.jobID, "expr-") {
-				fmt.Fprintf(&sb, "  • %s\n", job.description)
-			} else {
-				// For crontab jobs, show description with expression in parentheses
-				fmt.Fprintf(&sb, "  • %s (%s)\n", job.description, job.expression)
-			}
-		} else {
-			// Fallback to job ID if no description
-			fmt.Fprintf(&sb, "  • %s\n", job.jobID)
+	counts := make(map[string]map[int]int)
+	for _, r := range tl.jobRuns {
+		if counts[r.JobID] == nil {
+			counts[r.JobID] = make(map[int]int)
 		}
+		counts[r.JobID][cellPos(r.RunTime, tl.startTime, dur, b.plot)]++
 	}
 
-	sb.WriteString(timeRange + "\n")
-
-	// Calculate available width for timeline bars
-	// Account for: "      │" (7 chars) + "  │" (3 chars) = 10 chars fixed
-	availableWidth := tl.width - 10
-	if availableWidth < 0 {
-		availableWidth = 0
-	}
-
-	// Draw top border with adaptive width
-	sb.WriteString("      │")
-	for i := 0; i < availableWidth; i++ {
-		sb.WriteString(" ")
-	}
-	sb.WriteString("  │\n")
-
-	// Group runs by time (rounded to minute for grouping)
-	timeRuns := make(map[time.Time][]string) // time -> job IDs
-	for _, run := range tl.jobRuns {
-		// Round to minute for grouping
-		roundedTime := run.RunTime.Truncate(time.Minute)
-		timeRuns[roundedTime] = append(timeRuns[roundedTime], run.JobID)
-	}
-
-	// Render timeline bars
-	maxOverlaps := 1
-	for _, jobIDs := range timeRuns {
-		uniqueCount := len(uniqueStrings(jobIDs))
-		if uniqueCount > maxOverlaps {
-			maxOverlaps = uniqueCount
-		}
-	}
-
-	// Calculate time range for proportional mapping
-	durationRange := tl.endTime.Sub(tl.startTime)
-
-	// Draw execution markers for each overlap level
-	// Use discrete markers (|) to show individual executions
-	for level := 0; level < maxOverlaps; level++ {
-		sb.WriteString("      │")
-
-		// Handle edge case when availableWidth is 0 or very small
-		if availableWidth <= 0 {
-			sb.WriteString("  │\n")
-			continue
-		}
-
-		// Create a character array for the timeline
-		timelineChars := make([]rune, availableWidth)
-		for i := range timelineChars {
-			timelineChars[i] = ' '
-		}
-
-		// Map each execution time directly to its proportional position
-		// Sort execution times to handle overlaps better
-		sortedTimes := make([]time.Time, 0, len(timeRuns))
-		for execTime := range timeRuns {
-			if !execTime.Before(tl.startTime) && execTime.Before(tl.endTime) {
-				sortedTimes = append(sortedTimes, execTime)
+	for i, j := range tl.jobs {
+		cells := blankCells(b.plot)
+		for col, n := range counts[j.id] {
+			cells[col] = g.run
+			if n > 1 {
+				cells[col] = g.merged
 			}
 		}
-		sort.Slice(sortedTimes, func(i, j int) bool {
-			return sortedTimes[i].Before(sortedTimes[j])
-		})
-
-		for _, execTime := range sortedTimes {
-			jobIDs := timeRuns[execTime]
-			uniqueJobs := uniqueStrings(jobIDs)
-			if level < len(uniqueJobs) {
-				// Calculate position based on time offset from start
-				timeOffset := execTime.Sub(tl.startTime)
-				if durationRange > 0 {
-					// Map time offset proportionally to timeline width
-					posFloat := float64(timeOffset) / float64(durationRange) * float64(availableWidth)
-					pos := int(posFloat + 0.5) // Round to nearest
-					if pos < 0 {
-						pos = 0
-					}
-					if pos >= availableWidth {
-						pos = availableWidth - 1
-					}
-
-					// Try to place marker, avoiding overlaps when possible
-					// If position is occupied, try adjacent positions
-					placed := false
-					for offset := 0; offset < 3 && !placed; offset++ {
-						for direction := -1; direction <= 1 && !placed; direction += 2 {
-							if offset == 0 && direction == -1 {
-								continue // Skip offset 0, direction -1 (already tried)
-							}
-							tryPos := pos + (offset * direction)
-							if tryPos >= 0 && tryPos < availableWidth {
-								if timelineChars[tryPos] == ' ' {
-									if len(uniqueJobs) > 1 {
-										// Multiple jobs at same time - use density character
-										timelineChars[tryPos] = []rune(getDensityChar(len(uniqueJobs), maxOverlaps))[0]
-									} else {
-										// Single execution - use discrete marker
-										timelineChars[tryPos] = '│'
-									}
-									placed = true
-								}
-							}
-						}
-					}
-					// If still not placed (all positions occupied), just overwrite
-					if !placed {
-						if len(uniqueJobs) > 1 {
-							timelineChars[pos] = []rune(getDensityChar(len(uniqueJobs), maxOverlaps))[0]
-						} else {
-							timelineChars[pos] = '│'
-						}
-					}
-				}
-			}
-		}
-
-		// Write the timeline line
-		sb.WriteString(string(timelineChars))
-		sb.WriteString("  │\n")
+		sb.WriteString(laneRow(j.label, j.expression, cells, b, g, laneColor(i, opts.Color)) + "\n")
 	}
 
-	// Draw bottom border with adaptive width
-	sb.WriteString("      │")
-	for i := 0; i < availableWidth; i++ {
-		sb.WriteString(" ")
-	}
-	sb.WriteString("  │\n")
-
-	// Draw bottom edge with time markers
-	sb.WriteString("      └")
-	for i := 0; i < availableWidth; i++ {
-		sb.WriteString("─")
-	}
-	sb.WriteString("──┘\n")
-
-	// Add time markers below the timeline
-	if tl.view == DayView && availableWidth >= 40 {
-		// Show markers at 0, 6, 12, 18, 24 hours for day view
-		// Calculate marker times
-		markerTimes := []time.Time{
-			tl.startTime,
-			tl.startTime.Add(6 * time.Hour),
-			tl.startTime.Add(12 * time.Hour),
-			tl.startTime.Add(18 * time.Hour),
-			tl.startTime.Add(23*time.Hour + 59*time.Minute),
+	overlaps := tl.DetectOverlaps()
+	if len(overlaps) > 0 && len(tl.jobs) > 1 {
+		cells := blankCells(b.plot)
+		for _, o := range overlaps {
+			cells[cellPos(o.Time, tl.startTime, dur, b.plot)] = g.conflict
 		}
-		markerLabels := []string{"00:00", "06:00", "12:00", "18:00", "23:59"}
-		sb.WriteString("      ")
-		lastPos := 0
-		for i, markerTime := range markerTimes {
-			if !markerTime.Before(tl.startTime) && markerTime.Before(tl.endTime) {
-				// Map time position proportionally to timeline width
-				timeOffset := markerTime.Sub(tl.startTime)
-				markerX := int(float64(timeOffset) / float64(durationRange) * float64(availableWidth))
-				if markerX >= availableWidth {
-					markerX = availableWidth - 1
-				}
-				// Add spaces to reach marker position
-				for j := lastPos; j < markerX && j < availableWidth; j++ {
-					sb.WriteString(" ")
-				}
-				// Write marker label
-				label := markerLabels[i]
-				// Center the label on the marker position if there's room
-				labelStart := markerX
-				if markerX+len(label) > availableWidth {
-					labelStart = availableWidth - len(label)
-					if labelStart < 0 {
-						labelStart = 0
-					}
-				}
-				// Fill gap if needed
-				for j := lastPos; j < labelStart && j < availableWidth; j++ {
-					sb.WriteString(" ")
-				}
-				if labelStart+len(label) <= availableWidth {
-					sb.WriteString(label)
-					lastPos = labelStart + len(label)
-				} else {
-					lastPos = markerX
-				}
-			}
+		code := ""
+		if opts.Color {
+			code = ansiRed
 		}
-		sb.WriteString("\n")
-	} else if tl.view == HourView && availableWidth >= 40 {
-		// Show markers at 0, 15, 30, 45, 60 minutes for hour view
-		// Calculate marker times
-		markerTimes := []time.Time{
-			tl.startTime,
-			tl.startTime.Add(15 * time.Minute),
-			tl.startTime.Add(30 * time.Minute),
-			tl.startTime.Add(45 * time.Minute),
-			tl.startTime.Add(59 * time.Minute),
-		}
-		markerLabels := []string{"00", "15", "30", "45", "59"}
-		sb.WriteString("      ")
-		lastPos := 0
-		for i, markerTime := range markerTimes {
-			if !markerTime.Before(tl.startTime) && markerTime.Before(tl.endTime) {
-				// Map time position proportionally to timeline width
-				timeOffset := markerTime.Sub(tl.startTime)
-				markerX := int(float64(timeOffset) / float64(durationRange) * float64(availableWidth))
-				if markerX >= availableWidth {
-					markerX = availableWidth - 1
-				}
-				// Add spaces to reach marker position
-				for j := lastPos; j < markerX && j < availableWidth; j++ {
-					sb.WriteString(" ")
-				}
-				// Write marker label
-				label := markerLabels[i]
-				labelStart := markerX
-				if markerX+len(label) > availableWidth {
-					labelStart = availableWidth - len(label)
-					if labelStart < 0 {
-						labelStart = 0
-					}
-				}
-				// Fill gap if needed
-				for j := lastPos; j < labelStart && j < availableWidth; j++ {
-					sb.WriteString(" ")
-				}
-				if labelStart+len(label) <= availableWidth {
-					sb.WriteString(label)
-					lastPos = labelStart + len(label)
-				} else {
-					lastPos = markerX
-				}
-			}
-		}
-		sb.WriteString("\n")
+		sb.WriteString(laneRow("conflicts", "", cells, b, g, code) + "\n")
 	}
 
-	// Add legend
-	sb.WriteString("\n")
-	sb.WriteString("Legend: │ = Job execution time | Each marker represents one execution\n")
-
-	// Add overlap summary if requested
-	if showOverlaps {
-		overlaps := tl.DetectOverlaps()
-		stats := tl.GetOverlapStats()
-
-		sb.WriteString("\n")
-		sb.WriteString("━━━ Overlap Summary ━━━\n")
-
-		if len(overlaps) == 0 {
-			sb.WriteString("No overlaps detected\n")
-		} else {
-			fmt.Fprintf(&sb, "Total overlap windows: %d\n", stats.TotalWindows)
-			fmt.Fprintf(&sb, "Maximum concurrent jobs: %d\n", stats.MaxConcurrent)
-			sb.WriteString("\n")
-			sb.WriteString("Overlaps:\n")
-
-			// Show all overlaps, or limit to first 50 if too many
-			displayOverlaps := overlaps
-			if len(displayOverlaps) > 50 {
-				displayOverlaps = displayOverlaps[:50]
-				fmt.Fprintf(&sb, "  (showing first 50 of %d overlap windows)\n", len(overlaps))
-			}
-
-			for _, overlap := range displayOverlaps {
-				jobList := strings.Join(overlap.JobIDs, ", ")
-				fmt.Fprintf(&sb, "  %s: %d job(s) (%s)\n",
-					overlap.Time.Format("2006-01-02 15:04:05"),
-					overlap.Count,
-					jobList)
-			}
-
-			if len(overlaps) > 50 {
-				fmt.Fprintf(&sb, "  ... and %d more overlap window(s)\n", len(overlaps)-50)
-			}
-		}
+	axis, labels := axisRows(tl.view, tl.startTime, b, g)
+	if opts.Color {
+		axis, labels = colorize(axis, ansiDim), colorize(labels, ansiDim)
 	}
-
+	sb.WriteString(axis + "\n" + labels + "\n\n")
+	sb.WriteString(tl.footerLine(len(overlaps), g) + "\n")
+	if opts.ShowOverlaps && len(overlaps) > 0 {
+		sb.WriteString(tl.overlapLines(overlaps, g))
+	}
 	return sb.String()
 }
 
@@ -630,64 +347,4 @@ func (tl *Timeline) RenderJSON() map[string]interface{} {
 		"overlaps":     overlapsJSON,
 		"overlapStats": overlapStatsJSON,
 	}
-}
-
-// findSlotIndex finds the slot index for a given time
-func (tl *Timeline) findSlotIndex(t time.Time) int {
-	if t.Before(tl.startTime) || !t.Before(tl.endTime) {
-		return -1
-	}
-
-	switch tl.view {
-	case DayView:
-		// Find which hour slot
-		hours := int(t.Sub(tl.startTime).Hours())
-		if hours >= 0 && hours < 24 {
-			return hours
-		}
-	case HourView:
-		// Find which minute slot
-		minutes := int(t.Sub(tl.startTime).Minutes())
-		if minutes >= 0 && minutes < 60 {
-			return minutes
-		}
-	}
-
-	return -1
-}
-
-// getDensityChar returns a character representing density level
-// Higher density = darker/more solid character
-func getDensityChar(overlapCount, maxOverlaps int) string {
-	if maxOverlaps == 0 {
-		return "█"
-	}
-
-	// Normalize to 0-1 range
-	density := float64(overlapCount) / float64(maxOverlaps)
-
-	// Use different characters based on density
-	if density >= 0.8 {
-		return "█" // Full block for high density
-	} else if density >= 0.6 {
-		return "▓" // Dark shade
-	} else if density >= 0.4 {
-		return "▒" // Medium shade
-	} else if density >= 0.2 {
-		return "░" // Light shade
-	}
-	return "·" // Dot for very low density
-}
-
-// uniqueStrings returns unique strings from a slice
-func uniqueStrings(strs []string) []string {
-	seen := make(map[string]bool)
-	result := make([]string, 0)
-	for _, s := range strs {
-		if !seen[s] {
-			seen[s] = true
-			result = append(result, s)
-		}
-	}
-	return result
 }
