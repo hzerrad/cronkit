@@ -61,6 +61,38 @@ func TestCellPos(t *testing.T) {
 	t.Run("should clamp the last minute into the final cell", func(t *testing.T) {
 		assert.Equal(t, 47, cellPos(start.Add(day-time.Minute), start, day, 48))
 	})
+	t.Run("should clamp a time before start to col 0", func(t *testing.T) {
+		assert.Equal(t, 0, cellPos(start.Add(-time.Hour), start, day, 48))
+	})
+}
+
+func TestZoneLabel(t *testing.T) {
+	t.Run("should return UTC bare", func(t *testing.T) {
+		assert.Equal(t, "UTC", zoneLabel(time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)))
+	})
+	t.Run("should name a loaded zone with its UTC offset", func(t *testing.T) {
+		loc, err := time.LoadLocation("America/New_York")
+		if err != nil {
+			t.Skip("America/New_York not available")
+		}
+		got := zoneLabel(time.Date(2026, 8, 6, 12, 0, 0, 0, loc))
+		assert.Equal(t, "America/New_York (UTC-04:00)", got)
+	})
+	t.Run("should fall back to the abbreviation for an unnamed local", func(t *testing.T) {
+		loc := time.FixedZone("", -5*3600)
+		got := zoneLabel(time.Date(2026, 8, 6, 12, 0, 0, 0, loc))
+		assert.Equal(t, "-0500 (UTC-05:00)", got)
+	})
+}
+
+func TestJobLabel(t *testing.T) {
+	tl := laneFixture()
+	t.Run("should look up the stored label", func(t *testing.T) {
+		assert.Equal(t, "backup.sh", tl.jobLabel("job-1"))
+	})
+	t.Run("should return the id when unknown", func(t *testing.T) {
+		assert.Equal(t, "job-missing", tl.jobLabel("job-missing"))
+	})
 }
 
 func TestAxisTicks(t *testing.T) {

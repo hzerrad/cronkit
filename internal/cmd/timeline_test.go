@@ -661,6 +661,24 @@ func TestResolveColor(t *testing.T) {
 	})
 }
 
+func TestUserCrontabSource(t *testing.T) {
+	t.Run("should always name a crontab source", func(t *testing.T) {
+		got := userCrontabSource()
+		assert.NotEmpty(t, got)
+		assert.Contains(t, got, "crontab")
+	})
+}
+
+func TestAbsPath(t *testing.T) {
+	t.Run("should resolve a relative path", func(t *testing.T) {
+		got := absPath("timeline_test.go")
+		assert.True(t, filepath.IsAbs(got), "want absolute, got %q", got)
+	})
+	t.Run("should pass an already-absolute path through", func(t *testing.T) {
+		assert.Equal(t, "/etc/crontab", absPath("/etc/crontab"))
+	})
+}
+
 func TestLaneLabel(t *testing.T) {
 	t.Run("should use the command basename", func(t *testing.T) {
 		j := &crontab.Job{LineNumber: 3, Command: "/usr/local/bin/backup.sh --full"}
