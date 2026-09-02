@@ -1,0 +1,27 @@
+[
+  {
+    "expression": "@every 1h",
+    "source": "crontab",
+    "dialect": "vixie",
+    "command": "/usr/bin/poll.sh",
+    "shell": true,
+    "comment": "hourly poll",
+    "state": "active",
+    "locator": {
+      "file": "input.cron",
+      "line": 2
+    }
+  },
+  {
+    "expression": "0 2 * * *",
+    "source": "crontab",
+    "dialect": "vixie",
+    "command": "/usr/bin/backup.sh",
+    "shell": true,
+    "state": "active",
+    "locator": {
+      "file": "input.cron",
+      "line": 3
+    }
+  }
+]

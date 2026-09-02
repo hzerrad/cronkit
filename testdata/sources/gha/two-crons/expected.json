@@ -1,0 +1,20 @@
+[
+  {
+    "expression": "0 4 * * *",
+    "source": "gha",
+    "dialect": "vixie",
+    "shell": false,
+    "timezone": "UTC",
+    "state": "active",
+    "locator": {"file": ".github/workflows/input.yaml", "line": 5, "path": "on.schedule[0].cron"}
+  },
+  {
+    "expression": "0 16 * * *",
+    "source": "gha",
+    "dialect": "vixie",
+    "shell": false,
+    "timezone": "UTC",
+    "state": "active",
+    "locator": {"file": ".github/workflows/input.yaml", "line": 6, "path": "on.schedule[1].cron"}
+  }
+]

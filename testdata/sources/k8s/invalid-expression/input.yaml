@@ -1,0 +1,6 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: broken
+spec:
+  schedule: "99 99 * * *"

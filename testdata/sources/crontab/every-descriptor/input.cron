@@ -1,0 +1,3 @@
+# poll frequently
+@every 1h /usr/bin/poll.sh # hourly poll
+0 2 * * * /usr/bin/backup.sh

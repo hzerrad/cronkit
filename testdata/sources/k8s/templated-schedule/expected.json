@@ -1,0 +1,11 @@
+[
+  {
+    "expression": "{{ .Values.backup.cron }}",
+    "source": "k8s",
+    "dialect": "vixie",
+    "shell": false,
+    "state": "unresolved",
+    "reason": "the expression is templated and cannot be read",
+    "locator": {"file": "input.yaml", "line": 6, "path": "spec.schedule"}
+  }
+]

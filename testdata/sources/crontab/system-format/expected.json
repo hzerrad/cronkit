@@ -1,0 +1,15 @@
+[
+  {
+    "expression": "0 2 * * *",
+    "source": "crontab",
+    "dialect": "vixie",
+    "command": "/usr/bin/backup.sh",
+    "shell": true,
+    "runAs": "root",
+    "state": "active",
+    "locator": {
+      "file": "etc/cron.d/input.txt",
+      "line": 2
+    }
+  }
+]

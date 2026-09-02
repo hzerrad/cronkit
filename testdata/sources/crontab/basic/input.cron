@@ -1,0 +1,3 @@
+# nightly maintenance
+0 2 * * * /usr/bin/backup.sh  # about an hour
+*/15 * * * * /usr/bin/poll.sh

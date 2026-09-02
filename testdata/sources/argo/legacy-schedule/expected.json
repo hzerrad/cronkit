@@ -1,0 +1,11 @@
+[
+  {
+    "expression": "30 3 * * *",
+    "source": "argo",
+    "dialect": "vixie",
+    "shell": false,
+    "timezone": "UTC",
+    "state": "active",
+    "locator": {"file": "input.yaml", "line": 6, "path": "spec.schedule"}
+  }
+]

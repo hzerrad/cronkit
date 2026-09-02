@@ -1,0 +1,8 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: legacy-backup
+spec:
+  schedule: "30 3 * * *"
+  timezone: UTC
+  suspend: false

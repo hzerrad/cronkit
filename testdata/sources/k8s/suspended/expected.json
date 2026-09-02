@@ -1,0 +1,12 @@
+[
+  {
+    "expression": "*/15 * * * *",
+    "source": "k8s",
+    "dialect": "vixie",
+    "shell": false,
+    "state": "suspended",
+    "reason": "the schedule is suspended",
+    "concurrency": "allow",
+    "locator": {"file": "input.yaml", "line": 6, "path": "spec.schedule"}
+  }
+]
