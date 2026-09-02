@@ -406,9 +406,9 @@ cleared here for brevity — a real run against that fixture returns six):
 
 ### Version History
 
-- **v0.3.0**: Added `doc` and `stats` command schemas, enhanced `check` command with new diagnostic codes (CRON-006 through CRON-012)
+- **v0.3.0**: Added the `scan` inventory contract, and `--inventory` input to `check`, `list`, `stats`, `budget` and `timeline`. A job id in `budget`, `stats` and `timeline` is now the schedule's address rather than its line number alone
 - **v0.2.0**: Added `locale` field to all outputs, standardized field naming (camelCase), added `timezone` to timeline output
-- **v0.1.0**: Initial JSON schema
+- **v0.1.0**: Initial JSON schema, covering every command shipped in the initial release
 
 ## Error Responses
 
@@ -946,7 +946,11 @@ non-executable Kubernetes locator):
 
 ## Version History
 
-### v0.6.0
+### v0.3.0
+- Added `scan` command JSON schema (the discovery inventory contract)
+- `check`, `list`, `stats`, `budget`, and `timeline` all accept
+  `--inventory <path|->`, reading the `scan` command's inventory
+  contract described below instead of a crontab
 - Added an optional `locator` to each `check` issue, additive alongside
   the existing `lineNumber`, present once an issue's source can't be
   told apart from a line number alone (a `--inventory` run spanning
@@ -956,21 +960,15 @@ non-executable Kubernetes locator):
   every crontab-derived source (the user's own crontab, `--stdin`,
   `--file`) as well as `--inventory` -- with `file` present only once the
   source recorded one (`--file` or `--inventory`)
-- `check`, `list`, `stats`, `budget`, and `timeline` all accept
-  `--inventory <path|->`, reading the `scan` command's inventory
-  contract described below instead of a crontab
-
-### v0.5.0
-- Added `scan` command JSON schema (the discovery inventory contract)
-
-### v0.4.0
-- Added `diff` command JSON schema
-- Added `budget` command JSON schema
-
-### v0.3.0
-- Added `doc` command JSON schema
-- Added `stats` command JSON schema
+- A job id in `budget`, `stats` and `timeline` is now the schedule's
+  address -- file, line and structural path -- rather than its line
+  number alone
 
 ### v0.2.0
+- Added `locale` to all outputs, standardized field naming on camelCase,
+  added `timezone` to `timeline`
+
+### v0.1.0
 - Initial JSON schema documentation
-- Added `explain`, `next`, `list`, `timeline`, and `check` command schemas
+- Added `explain`, `next`, `list`, `timeline`, `check`, `doc`, `stats`, `diff` and
+  `budget` command schemas
