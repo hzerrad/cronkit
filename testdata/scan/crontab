@@ -1,0 +1,2 @@
+# nightly backup
+0 2 * * * /usr/bin/backup.sh

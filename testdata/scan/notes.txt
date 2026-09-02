@@ -1,0 +1,2 @@
+Just a plain text file. No source recognises it: not a crontab by name or
+extension, not YAML, and not under .github/workflows.
