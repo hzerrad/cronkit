@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `scan` no longer opens a file no source recognises. A path is offered to
+  each source by name before anything is stat'ed or read, so scanning a large
+  repository stops reading 8 KiB of every file in it. An unreadable or
+  oversized file that no source would have parsed is no longer reported as a
+  per-file problem either — it was noise, not a diagnostic
+
+### Fixed
+- A malformed YAML file reported its decode failure once per source that
+  matched it by name, so a broken manifest printed the same error twice
+  (`k8s` and `argo` both claim `.yaml`, and share one decode). A source that
+  fails differently still gets its own problem
+- `scan --help` and the command reference listed exit code `1` twice instead
+  of once with both causes
+
 ## [0.3.0] - 2026-09-02
 
 ### Added
