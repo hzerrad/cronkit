@@ -85,8 +85,7 @@ cronkit scan --strict                 # fail the exit code on any per-file probl
 
 **Exit Codes:**
 - `0` - The walk completed, including when it found no schedules at all (a repository with none is a true answer, not a failure)
-- `1` - The walk could not run at all: an unreadable root, an unknown `--source`/`--exclude-source` id, or a malformed flag
-- `1` - With `--strict`, the walk completed but reported one or more per-file problems
+- `1` - The walk could not run at all: an unreadable root, an unknown `--source`/`--exclude-source` id, or a malformed flag; or, with `--strict`, the walk completed but reported one or more per-file problems
 
 **Example Output:**
 
