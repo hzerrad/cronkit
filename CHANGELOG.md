@@ -7,6 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `scan` discovers cron schedules across a whole repository instead of
+  one crontab at a time. It walks crontabs, Kubernetes CronJobs, GitHub
+  Actions workflows, and Argo CronWorkflows, and reports what it finds as
+  a table or as JSON
+- `check`, `list`, `stats`, `budget`, and `timeline` can all read the
+  inventory that `scan` produces with `--inventory <path|->`, so a
+  whole repository gets the same linting, listing, statistics,
+  timelines, and concurrency-budget analysis a single crontab always
+  had. The pipeline is `cronkit scan . --json | cronkit check --inventory -`
+- `check`'s shell-hygiene rules apply only to a schedule with a real
+  shell command behind it, so a Kubernetes container image or a GitHub
+  Actions workflow name is never flagged as one. An overlap warning is
+  also suppressed when every schedule involved already forbids running
+  concurrently, since the platform serialises those runs itself
+- A schedule whose timezone cannot be resolved is now reported as
+  invalid, with the reason, instead of vanishing silently. A suspended
+  or templated schedule is excluded from analysis and reported as
+  such, rather than drawn on a `timeline` chart as though it runs
+- `next --json` gains a `note` field, set only for a schedule with no
+  computable next runs (currently `@reboot`, a boot trigger rather than a
+  wall-clock schedule), explaining why `nextRuns` is empty
+
+### Changed
+- `timeline`'s plain-text footer now reports invalid crontab lines as
+  e.g. "1 invalid job excluded" instead of silently dropping them, the
+  same way a suspended or unresolvable schedule already was
+- `timeline --json` now includes an optional per-job `locator` (and
+  `aggregated` on a collapsed lane) for crontab input too, not only
+  `--inventory` — additive, so an existing consumer is unaffected unless
+  it rejects unrecognised keys
+- A job id published in `budget --json`, `stats --json`, and
+  `timeline --json` is now the schedule's address in the input rather
+  than its line number alone: `line-<file>:<line>`, suffixed
+  `#<structural path>` for a source that has one. The same schedule
+  resolves to the same id on every run — previously an id could change
+  when an unrelated schedule elsewhere in the repository happened to
+  land on the same line number, and two schedules on one line (an Argo
+  `schedules: ["...", "..."]` sequence, say) were told apart only by a
+  positional suffix that moved whenever a schedule was added above them.
+  This affects `--file` crontab input for these three commands;
+  `--stdin` and the user's own crontab are unaffected, since neither
+  carries a file to fold in
+- A `--file` path no longer reaches the job id as typed: `x.cron`,
+  `./x.cron` and an absolute path to the same file now all produce the
+  same id, where they previously produced three
+- `timeline --json` publishes the structural path on a job's `locator`,
+  so every part of an id can be related back to where it came from
+- An overlap finding (CRON-012) names the jobs that collided instead of
+  only counting them, which is what makes it actionable once the input
+  spans more than one file
+
+### Fixed
+- `@every` schedules were described as "every minute" instead of their actual
+  interval. `explain "@every 1h"` said "Every minute", and `next` printed
+  correct run times under that wrong description
+- `@reboot` could not be explained at all; it failed to parse with an error
+  instead of being recognised as a boot trigger
+- An `@every` line in a crontab was silently dropped or misparsed instead
+  of being recognised as an interval schedule, depending on how many words
+  followed it — the line parser did not know the `@every` alias at all. A
+  short line such as `@every 5m /usr/local/bin/poll.sh`, the common case,
+  had too few tokens to match any line shape and vanished entirely:
+  `list` reported "No cron jobs found" and `check` said "All valid". A
+  line with six or more whitespace-separated tokens was instead read as
+  an ordinary five-field expression, leaving both the expression and the
+  command wrong — `list` showed a garbled row and `check` reported
+  CRON-003
+- A timezone written inline in a schedule, e.g. Kubernetes'
+  `CRON_TZ=Asia/Tokyo 0 2 * * *`, is now reported in the timezone field
+  instead of being left inside the expression, where it made the job
+  indistinguishable from one running in UTC
+
 ## [0.2.0] - 2026-08-06
 
 ### Changed
