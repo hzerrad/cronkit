@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-02
+
 ### Changed
+- Arch users get `cronkit-bin` from the AUR again, at the current version. AUR
+  uploads were skipped while pushes were frozen upstream after the August
+  malware waves, which left the package stranded on 0.1.0
 - `scan` no longer opens a file no source recognises. A path is offered to
   each source by name before anything is stat'ed or read, so scanning a large
   repository stops reading 8 KiB of every file in it. An unreadable or
