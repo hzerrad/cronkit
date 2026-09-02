@@ -23,6 +23,13 @@ func NewHumanizer() Humanizer {
 
 // Humanize converts a parsed cron schedule to human-readable text
 func (h *humanizer) Humanize(schedule *cronx.Schedule) string {
+	switch schedule.Kind {
+	case cronx.KindInterval:
+		return formatInterval(schedule.Every)
+	case cronx.KindReboot:
+		return "At system startup"
+	}
+
 	var parts []string
 
 	minute := schedule.Minute

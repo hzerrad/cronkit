@@ -1,0 +1,10 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: nightly-reports
+spec:
+  schedules:
+    - "0 1 * * *"
+    - "0 13 * * *"
+  timezone: America/New_York
+  concurrencyPolicy: Replace

@@ -1,22 +1,23 @@
 package stats
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
-	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/hzerrad/cronkit/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/inventory"
+	"github.com/hzerrad/cronkit/internal/timeutil"
 )
 
 // ReferenceDate is a fixed date used for consistent calculations
 // Using 2025-01-01 00:00:00 UTC as a reference point
 var ReferenceDate = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
-// Calculator calculates statistics for crontab jobs
+// Calculator calculates statistics for a set of discovered schedules
 type Calculator struct {
 	scheduler cronx.Scheduler
 	parser    cronx.Parser
+	now       func() time.Time
 }
 
 // NewCalculator creates a new statistics calculator
@@ -24,32 +25,36 @@ func NewCalculator() *Calculator {
 	return &Calculator{
 		scheduler: cronx.NewScheduler(),
 		parser:    cronx.NewParser(),
+		now:       time.Now,
 	}
 }
 
-// CalculateMetrics calculates comprehensive metrics for a set of jobs
-func (c *Calculator) CalculateMetrics(jobs []*crontab.Job, timeWindow time.Duration) (*Metrics, error) {
+// SetClock replaces the source of the current time, so callers and tests can
+// evaluate schedules from a fixed origin.
+func (c *Calculator) SetClock(now func() time.Time) {
+	c.now = now
+}
+
+// CalculateMetrics calculates comprehensive metrics for active items; callers
+// must run items through inventory.ResolveTimezones first, or items with an
+// unresolved timezone are silently excluded instead of reported.
+func (c *Calculator) CalculateMetrics(items []inventory.Item, timeWindow time.Duration) (*Metrics, error) {
 	metrics := &Metrics{
 		JobFrequencies: []JobFrequency{},
 		HourHistogram:  make([]int, HoursInDay),
 		Collisions:     CollisionStats{},
 	}
 
-	// Calculate per-job frequencies
-	for _, job := range jobs {
-		if !job.Valid {
+	// Calculate per-item frequencies
+	for i, item := range items {
+		if item.State != inventory.StateActive {
 			continue
 		}
 
-		jobID := fmt.Sprintf("line-%d", job.LineNumber)
-		if job.LineNumber == 0 {
-			jobID = job.Expression
-		}
-
-		runsPerDay, runsPerHour := c.calculateJobFrequency(job.Expression)
+		runsPerDay, runsPerHour := c.calculateJobFrequency(item.Expression, item.Timezone)
 		metrics.JobFrequencies = append(metrics.JobFrequencies, JobFrequency{
-			JobID:       jobID,
-			Expression:  job.Expression,
+			JobID:       item.Locator.Identity(i, "job-", "line-"),
+			Expression:  item.Expression,
 			RunsPerDay:  runsPerDay,
 			RunsPerHour: runsPerHour,
 		})
@@ -59,18 +64,24 @@ func (c *Calculator) CalculateMetrics(jobs []*crontab.Job, timeWindow time.Durat
 	}
 
 	// Calculate hour histogram
-	c.calculateHourHistogram(jobs, metrics)
+	c.calculateHourHistogram(items, metrics)
 
 	// Calculate collisions
-	collisions := c.CalculateCollisions(jobs, timeWindow)
+	collisions := c.CalculateCollisions(items, timeWindow)
 	metrics.Collisions = collisions
 
 	return metrics, nil
 }
 
-// calculateJobFrequency calculates runs per day and per hour for a job
-func (c *Calculator) calculateJobFrequency(expression string) (runsPerDay, runsPerHour int) {
-	startTime := ReferenceDate
+// calculateJobFrequency calculates runs per day and per hour for a schedule,
+// evaluated in its own timezone (empty means UTC).
+func (c *Calculator) calculateJobFrequency(expression, timezone string) (runsPerDay, runsPerHour int) {
+	loc, err := timeutil.ResolveLocation(timezone, ReferenceDate.Location())
+	if err != nil {
+		return 0, 0
+	}
+
+	startTime := ReferenceDate.In(loc)
 	endTime := startTime.Add(OneDay)
 
 	// Use optimized counting with smart estimates
@@ -122,20 +133,28 @@ func (c *Calculator) countRunsInWindow(expression string, startTime, endTime tim
 	return count
 }
 
-// calculateHourHistogram calculates the distribution of runs across hours
-func (c *Calculator) calculateHourHistogram(jobs []*crontab.Job, metrics *Metrics) {
+// calculateHourHistogram buckets runs (converted to UTC) across a fixed
+// reference day; it deliberately anchors differently from CalculateCollisions,
+// so HourHistogram and Collisions.BusiestHours may disagree for DST-observing
+// zones.
+func (c *Calculator) calculateHourHistogram(items []inventory.Item, metrics *Metrics) {
 	startTime := ReferenceDate
 	endTime := startTime.Add(OneDay)
 
 	// Use optimized count: worst case is every minute
 	maxRuns := MaxRunsPerDay
 
-	for _, job := range jobs {
-		if !job.Valid {
+	for _, item := range items {
+		if item.State != inventory.StateActive {
 			continue
 		}
 
-		times, err := c.scheduler.Next(job.Expression, startTime, maxRuns)
+		loc, err := timeutil.ResolveLocation(item.Timezone, ReferenceDate.Location())
+		if err != nil {
+			continue
+		}
+
+		times, err := c.scheduler.Next(item.Expression, startTime.In(loc), maxRuns)
 		if err != nil {
 			continue
 		}
@@ -145,31 +164,27 @@ func (c *Calculator) calculateHourHistogram(jobs []*crontab.Job, metrics *Metric
 				break
 			}
 			if !t.Before(startTime) {
-				hour := t.Hour()
+				hour := t.UTC().Hour()
 				metrics.HourHistogram[hour]++
 			}
 		}
 	}
 }
 
-// IdentifyMostFrequent returns the top N most frequent jobs
-func (c *Calculator) IdentifyMostFrequent(jobs []*crontab.Job, topN int) []JobFrequency {
-	frequencies := make([]JobFrequency, 0, len(jobs))
+// IdentifyMostFrequent returns the top N most frequent active items; see
+// CalculateMetrics for the admission requirement.
+func (c *Calculator) IdentifyMostFrequent(items []inventory.Item, topN int) []JobFrequency {
+	frequencies := make([]JobFrequency, 0, len(items))
 
-	for _, job := range jobs {
-		if !job.Valid {
+	for i, item := range items {
+		if item.State != inventory.StateActive {
 			continue
 		}
 
-		jobID := fmt.Sprintf("line-%d", job.LineNumber)
-		if job.LineNumber == 0 {
-			jobID = job.Expression
-		}
-
-		runsPerDay, runsPerHour := c.calculateJobFrequency(job.Expression)
+		runsPerDay, runsPerHour := c.calculateJobFrequency(item.Expression, item.Timezone)
 		frequencies = append(frequencies, JobFrequency{
-			JobID:       jobID,
-			Expression:  job.Expression,
+			JobID:       item.Locator.Identity(i, "job-", "line-"),
+			Expression:  item.Expression,
 			RunsPerDay:  runsPerDay,
 			RunsPerHour: runsPerHour,
 		})
@@ -187,9 +202,9 @@ func (c *Calculator) IdentifyMostFrequent(jobs []*crontab.Job, topN int) []JobFr
 	return frequencies
 }
 
-// IdentifyLeastFrequent returns the top N least frequent jobs
-func (c *Calculator) IdentifyLeastFrequent(jobs []*crontab.Job, topN int) []JobFrequency {
-	frequencies := c.IdentifyMostFrequent(jobs, 0) // Get all
+// IdentifyLeastFrequent returns the top N least frequent items
+func (c *Calculator) IdentifyLeastFrequent(items []inventory.Item, topN int) []JobFrequency {
+	frequencies := c.IdentifyMostFrequent(items, 0) // Get all
 
 	// Sort by runs per day (ascending)
 	sort.Slice(frequencies, func(i, j int) bool {
@@ -203,8 +218,11 @@ func (c *Calculator) IdentifyLeastFrequent(jobs []*crontab.Job, topN int) []JobF
 	return frequencies
 }
 
-// CalculateCollisions calculates collision statistics
-func (c *Calculator) CalculateCollisions(jobs []*crontab.Job, timeWindow time.Duration) CollisionStats {
+// CalculateCollisions calculates collision statistics for active items,
+// anchored on c.now() truncated to the minute rather than ReferenceDate, and
+// compares each item's occurrences in absolute time so schedules in different
+// zones landing on the same moment count as concurrent.
+func (c *Calculator) CalculateCollisions(items []inventory.Item, timeWindow time.Duration) CollisionStats {
 	stats := CollisionStats{
 		BusiestHours:       []HourStats{},
 		QuietWindows:       []TimeWindow{},
@@ -212,25 +230,28 @@ func (c *Calculator) CalculateCollisions(jobs []*crontab.Job, timeWindow time.Du
 		MaxConcurrent:      0,
 	}
 
-	// Use overlap analysis from check package
-	// For now, simplified implementation
-	startTime := time.Now().Truncate(time.Minute)
+	startTime := c.now().Truncate(time.Minute)
 	endTime := startTime.Add(timeWindow)
 
-	// Group runs by minute
-	minuteRuns := make(map[time.Time]int)
+	// Group runs by minute, keyed by instant so runs in different zones collide
+	minuteRuns := make(map[int64]int)
 	// Estimate max runs based on time window (worst case: every minute)
 	maxRuns := int(timeWindow.Minutes()) + 1
 	if maxRuns > MaxRunsForLongWindow {
 		maxRuns = MaxRunsForLongWindow // Cap at reasonable maximum
 	}
 
-	for _, job := range jobs {
-		if !job.Valid {
+	for _, item := range items {
+		if item.State != inventory.StateActive {
 			continue
 		}
 
-		times, err := c.scheduler.Next(job.Expression, startTime, maxRuns)
+		loc, err := timeutil.ResolveLocation(item.Timezone, startTime.Location())
+		if err != nil {
+			continue
+		}
+
+		times, err := c.scheduler.Next(item.Expression, startTime.In(loc), maxRuns)
 		if err != nil {
 			continue
 		}
@@ -240,16 +261,15 @@ func (c *Calculator) CalculateCollisions(jobs []*crontab.Job, timeWindow time.Du
 				break
 			}
 			if !t.Before(startTime) {
-				minute := t.Truncate(time.Minute)
-				minuteRuns[minute]++
+				minuteRuns[timeutil.MinuteKey(t)]++
 			}
 		}
 	}
 
-	// Calculate busiest hours
+	// Calculate busiest hours in the origin's zone
 	hourRuns := make(map[int]int)
-	for minute, count := range minuteRuns {
-		hour := minute.Hour()
+	for key, count := range minuteRuns {
+		hour := time.Unix(key, 0).In(startTime.Location()).Hour()
 		hourRuns[hour] += count
 		if count > stats.MaxConcurrent {
 			stats.MaxConcurrent = count
@@ -264,9 +284,13 @@ func (c *Calculator) CalculateCollisions(jobs []*crontab.Job, timeWindow time.Du
 		})
 	}
 
-	// Sort by run count (descending)
+	// Sort by run count (descending), breaking ties by hour (ascending) so the
+	// result is deterministic regardless of map iteration order.
 	sort.Slice(stats.BusiestHours, func(i, j int) bool {
-		return stats.BusiestHours[i].RunCount > stats.BusiestHours[j].RunCount
+		if stats.BusiestHours[i].RunCount != stats.BusiestHours[j].RunCount {
+			return stats.BusiestHours[i].RunCount > stats.BusiestHours[j].RunCount
+		}
+		return stats.BusiestHours[i].Hour < stats.BusiestHours[j].Hour
 	})
 
 	// Calculate collision frequency
@@ -286,7 +310,7 @@ func (c *Calculator) CalculateCollisions(jobs []*crontab.Job, timeWindow time.Du
 }
 
 // IdentifyBusiestHours returns the busiest hours
-func (c *Calculator) IdentifyBusiestHours(jobs []*crontab.Job) []HourStats {
-	stats := c.CalculateCollisions(jobs, OneDay)
+func (c *Calculator) IdentifyBusiestHours(items []inventory.Item) []HourStats {
+	stats := c.CalculateCollisions(items, OneDay)
 	return stats.BusiestHours
 }

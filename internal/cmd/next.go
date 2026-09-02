@@ -32,6 +32,8 @@ type NextResult struct {
 	Timezone    string    `json:"timezone"`
 	Locale      string    `json:"locale"`
 	NextRuns    []NextRun `json:"nextRuns"`
+	// Note explains an empty NextRuns that isn't an error, currently set only for @reboot.
+	Note string `json:"note,omitempty"`
 }
 
 func init() {
@@ -115,13 +117,20 @@ func (nc *NextCommand) runNext(_ *cobra.Command, args []string) error {
 
 	// Output based on format
 	if nc.json {
-		return nc.outputNextJSON(expression, description, times, now, loc)
+		return nc.outputNextJSON(expression, description, schedule.Kind, times, now, loc)
 	}
 
-	return nc.outputNextText(expression, description, times, loc)
+	return nc.outputNextText(expression, description, schedule.Kind, times, loc)
 }
 
-func (nc *NextCommand) outputNextText(expression, description string, times []time.Time, loc *time.Location) error {
+func (nc *NextCommand) outputNextText(expression, description string, kind cronx.ScheduleKind, times []time.Time, loc *time.Location) error {
+	// @reboot fires once at boot, not on a schedule Next() can compute; say that instead of "Next 0 runs".
+	if kind == cronx.KindReboot {
+		nc.Printf("\"%s\" (%s) has no computed next run: it fires once at system startup, not on a wall-clock schedule.\n",
+			expression, description)
+		return nil
+	}
+
 	// Header with count
 	runWord := "runs"
 	if len(times) == 1 {
@@ -140,7 +149,7 @@ func (nc *NextCommand) outputNextText(expression, description string, times []ti
 	return nil
 }
 
-func (nc *NextCommand) outputNextJSON(expression, description string, times []time.Time, now time.Time, loc *time.Location) error {
+func (nc *NextCommand) outputNextJSON(expression, description string, kind cronx.ScheduleKind, times []time.Time, now time.Time, loc *time.Location) error {
 	// Build next runs array
 	runs := make([]NextRun, len(times))
 	for i, t := range times {
@@ -159,6 +168,9 @@ func (nc *NextCommand) outputNextJSON(expression, description string, times []ti
 		Timezone:    loc.String(),
 		Locale:      GetLocale(),
 		NextRuns:    runs,
+	}
+	if kind == cronx.KindReboot {
+		result.Note = "runs at system startup; no wall-clock next run to compute"
 	}
 
 	// Encode as JSON with indentation

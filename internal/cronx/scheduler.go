@@ -38,8 +38,14 @@ func NewRobfigScheduler() Scheduler {
 func (s *robfigScheduler) Next(expression string, from time.Time, count int) ([]time.Time, error) {
 	// Step 1: Validate the expression using our internal parser
 	// This ensures consistent error messages across all implementations
-	if _, err := s.parser.Parse(expression); err != nil {
+	parsed, err := s.parser.Parse(expression)
+	if err != nil {
 		return nil, err
+	}
+
+	// @reboot has no wall-clock "next run" to compute, and robfig doesn't recognize it as a descriptor at all.
+	if parsed.Kind == KindReboot {
+		return []time.Time{}, nil
 	}
 
 	// Step 2: Parse the expression with robfig/cron to get a Schedule

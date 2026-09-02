@@ -2,9 +2,11 @@ package budget
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -229,6 +231,157 @@ func TestTextRenderer_NoName(t *testing.T) {
 	output := buf.String()
 
 	assert.Contains(t, output, "Max 10 concurrent jobs")
+}
+
+// TestTextRenderer_UnresolvedExplainsAFailureWithNoViolations confirms the
+// Unresolved section explains a "FAILED, Violations: 0" result, always shown, not just under --verbose.
+func TestTextRenderer_UnresolvedExplainsAFailureWithNoViolations(t *testing.T) {
+	report := &BudgetReport{
+		Passed: false,
+		Budgets: []BudgetResult{
+			{
+				Budget:     Budget{Name: "strict", MaxConcurrent: 1, TimeWindow: 1 * time.Hour},
+				MaxFound:   2,
+				Passed:     false,
+				Violations: []Violation{},
+				Unresolved: []UnresolvedItem{
+					{
+						Expression: "* * * * *",
+						Locator:    inventory.Locator{File: "ops/crontab", Line: 2},
+						Reason:     `unresolvable timezone "Not/AZone": unknown time zone Not/AZone`,
+					},
+				},
+			},
+		},
+	}
+
+	renderer := &TextRenderer{Verbose: false}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, report)
+
+	require.NoError(t, err)
+	output := buf.String()
+
+	assert.Contains(t, output, "FAILED")
+	assert.Contains(t, output, "Violations: 0")
+	assert.Contains(t, output, "Unresolved: 1 item(s)")
+	assert.Contains(t, output, "ops/crontab:2")
+	assert.Contains(t, output, "Not/AZone")
+}
+
+// TestTextRenderer_UnresolvedWithoutFile confirms a locator-less item still renders something legible.
+func TestTextRenderer_UnresolvedWithoutFile(t *testing.T) {
+	report := &BudgetReport{
+		Passed: false,
+		Budgets: []BudgetResult{
+			{
+				Budget:     Budget{Name: "strict", MaxConcurrent: 1, TimeWindow: 1 * time.Hour},
+				MaxFound:   1,
+				Passed:     false,
+				Violations: []Violation{},
+				Unresolved: []UnresolvedItem{
+					{Expression: "* * * * *", Reason: `unresolvable timezone "Not/AZone": unknown time zone Not/AZone`},
+				},
+			},
+		},
+	}
+
+	renderer := &TextRenderer{Verbose: false}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, report)
+
+	require.NoError(t, err)
+	output := buf.String()
+
+	assert.Contains(t, output, "* * * * * (unresolvable timezone")
+	assert.NotContains(t, output, "    - : *")
+}
+
+// TestTextRenderer_NoUnresolvedSection confirms a plain failure doesn't grow an empty "Unresolved" section.
+func TestTextRenderer_NoUnresolvedSection(t *testing.T) {
+	report := &BudgetReport{
+		Passed: false,
+		Budgets: []BudgetResult{
+			{
+				Budget:   Budget{Name: "test-budget", MaxConcurrent: 2, TimeWindow: 1 * time.Hour},
+				MaxFound: 3,
+				Passed:   false,
+				Violations: []Violation{
+					{Time: time.Now(), Count: 3, Jobs: []string{"line-1", "line-2", "line-3"}},
+				},
+			},
+		},
+	}
+
+	renderer := &TextRenderer{Verbose: false}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, report)
+
+	require.NoError(t, err)
+	assert.NotContains(t, buf.String(), "Unresolved")
+}
+
+// TestJSONRenderer_Unresolved confirms unresolved is an array naming the expression, locator, and reason.
+func TestJSONRenderer_Unresolved(t *testing.T) {
+	report := &BudgetReport{
+		Passed: false,
+		Budgets: []BudgetResult{
+			{
+				Budget:     Budget{Name: "strict", MaxConcurrent: 1, TimeWindow: 1 * time.Hour},
+				MaxFound:   2,
+				Passed:     false,
+				Violations: []Violation{},
+				Unresolved: []UnresolvedItem{
+					{
+						Expression: "* * * * *",
+						Locator:    inventory.Locator{File: "ops/crontab", Line: 2},
+						Reason:     `unresolvable timezone "Not/AZone": unknown time zone Not/AZone`,
+					},
+				},
+			},
+		},
+	}
+
+	renderer := &JSONRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, report)
+	require.NoError(t, err)
+
+	var decoded struct {
+		Budgets []struct {
+			Unresolved []struct {
+				Expression string            `json:"expression"`
+				Locator    inventory.Locator `json:"locator"`
+				Reason     string            `json:"reason"`
+			} `json:"unresolved"`
+		} `json:"budgets"`
+	}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &decoded))
+
+	require.Len(t, decoded.Budgets, 1)
+	require.Len(t, decoded.Budgets[0].Unresolved, 1)
+	u := decoded.Budgets[0].Unresolved[0]
+	assert.Equal(t, "* * * * *", u.Expression)
+	assert.Equal(t, "ops/crontab", u.Locator.File)
+	assert.Equal(t, 2, u.Locator.Line)
+	assert.Contains(t, u.Reason, "Not/AZone")
+}
+
+// TestJSONRenderer_UnresolvedOmittedWhenEmpty confirms the field is an empty array, not absent or null.
+func TestJSONRenderer_UnresolvedOmittedWhenEmpty(t *testing.T) {
+	report := &BudgetReport{
+		Passed: true,
+		Budgets: []BudgetResult{
+			{Budget: Budget{Name: "test-budget", MaxConcurrent: 10, TimeWindow: 1 * time.Hour}, MaxFound: 1, Passed: true},
+		},
+	}
+
+	renderer := &JSONRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, report)
+	require.NoError(t, err)
+
+	assert.Contains(t, buf.String(), `"unresolved": []`)
 }
 
 func TestJSONRenderer_WithViolations(t *testing.T) {

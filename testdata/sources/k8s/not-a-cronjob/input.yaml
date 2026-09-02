@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: not-a-schedule
+spec:
+  schedule: "0 2 * * *"
+  containers:
+    - name: app
+      image: myregistry/app:1.0.0

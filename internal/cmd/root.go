@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 )
@@ -59,11 +60,11 @@ func GetLocale() string {
 }
 
 // SetOutput sets the output and error writers for the root command
-func SetOutput(out, err interface{}) {
-	if w, ok := out.(interface{ Write([]byte) (int, error) }); ok {
-		rootCmd.SetOut(w)
+func SetOutput(out, err io.Writer) {
+	if out != nil {
+		rootCmd.SetOut(out)
 	}
-	if w, ok := err.(interface{ Write([]byte) (int, error) }); ok {
-		rootCmd.SetErr(w)
+	if err != nil {
+		rootCmd.SetErr(err)
 	}
 }

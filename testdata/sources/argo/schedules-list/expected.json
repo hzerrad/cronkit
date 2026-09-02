@@ -1,0 +1,22 @@
+[
+  {
+    "expression": "0 1 * * *",
+    "source": "argo",
+    "dialect": "vixie",
+    "shell": false,
+    "timezone": "America/New_York",
+    "state": "active",
+    "concurrency": "replace",
+    "locator": {"file": "input.yaml", "line": 7, "path": "spec.schedules[0]"}
+  },
+  {
+    "expression": "0 13 * * *",
+    "source": "argo",
+    "dialect": "vixie",
+    "shell": false,
+    "timezone": "America/New_York",
+    "state": "active",
+    "concurrency": "replace",
+    "locator": {"file": "input.yaml", "line": 8, "path": "spec.schedules[1]"}
+  }
+]

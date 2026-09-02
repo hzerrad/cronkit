@@ -1,0 +1,7 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup
+spec:
+  schedule: "CRON_TZ=Asia/Tokyo 0 2 * * *"
+  concurrencyPolicy: Forbid

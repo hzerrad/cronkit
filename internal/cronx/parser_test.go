@@ -3,6 +3,7 @@ package cronx_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hzerrad/cronkit/internal/cronx"
 	"github.com/stretchr/testify/assert"
@@ -138,6 +139,143 @@ func TestParser_ParseAlias(t *testing.T) {
 	}
 }
 
+func TestParse_FieldScheduleHasKindFields(t *testing.T) {
+	s, err := cronx.NewParser().Parse("0 2 * * *")
+	require.NoError(t, err)
+	assert.Equal(t, cronx.KindFields, s.Kind)
+	assert.Zero(t, s.Every)
+	assert.NotNil(t, s.Minute, "field schedules still decompose")
+}
+
+func TestParse_AliasesAreFieldSchedules(t *testing.T) {
+	for _, alias := range []string{"@daily", "@hourly", "@weekly", "@monthly", "@yearly", "@midnight", "@annually"} {
+		t.Run(alias, func(t *testing.T) {
+			s, err := cronx.NewParser().Parse(alias)
+			require.NoError(t, err)
+			assert.Equal(t, cronx.KindFields, s.Kind, "named aliases expand to real fields")
+		})
+	}
+}
+
+func TestParse_Interval(t *testing.T) {
+	tests := []struct {
+		expression string
+		every      time.Duration
+	}{
+		{"@every 1h", time.Hour},
+		{"@every 30m", 30 * time.Minute},
+		{"@every 1h30m", 90 * time.Minute},
+		{"@every 45s", 45 * time.Second},
+		{"@every 1s", time.Second},
+		{"@every 500ms", 500 * time.Millisecond},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expression, func(t *testing.T) {
+			s, err := cronx.NewParser().Parse(tt.expression)
+			require.NoError(t, err)
+			assert.Equal(t, cronx.KindInterval, s.Kind)
+			assert.Equal(t, tt.every, s.Every)
+			assert.Equal(t, tt.expression, s.Original)
+		})
+	}
+}
+
+func TestParse_Reboot(t *testing.T) {
+	s, err := cronx.NewParser().Parse("@reboot")
+	require.NoError(t, err, "@reboot is a legitimate crontab form, not a syntax error")
+	assert.Equal(t, cronx.KindReboot, s.Kind)
+}
+
+func TestParse_UnknownDescriptorIsAnError(t *testing.T) {
+	_, err := cronx.NewParser().Parse("@nonsense")
+	require.Error(t, err, "an unknown descriptor must not silently become every-minute")
+	assert.NotContains(t, err.Error(), "every")
+}
+
+// TestParse_DescriptorsAreCaseInsensitive covers every descriptor kind with uppercase and mixed case.
+func TestParse_DescriptorsAreCaseInsensitive(t *testing.T) {
+	tests := []struct {
+		name       string
+		expression string
+	}{
+		{"uppercase reboot", "@REBOOT"},
+		{"mixed case reboot", "@Reboot"},
+		{"uppercase every", "@EVERY 1h"},
+		{"mixed case every", "@Every 1h"},
+		{"uppercase daily", "@DAILY"},
+		{"mixed case daily", "@Daily"},
+		{"uppercase hourly", "@HOURLY"},
+		{"uppercase weekly", "@WEEKLY"},
+		{"uppercase monthly", "@MONTHLY"},
+		{"uppercase yearly", "@YEARLY"},
+		{"uppercase annually", "@ANNUALLY"},
+		{"uppercase midnight", "@MIDNIGHT"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := cronx.NewParser().Parse(tt.expression)
+			require.NoError(t, err)
+			assert.NotNil(t, s)
+		})
+	}
+}
+
+// TestParse_UppercaseAliasWithTimezonePrefixStillValidatesTheZone validates the zone despite uppercase.
+func TestParse_UppercaseAliasWithTimezonePrefixStillValidatesTheZone(t *testing.T) {
+	_, err := cronx.NewParser().Parse("CRON_TZ=Not/AZone @DAILY")
+	require.Error(t, err, "an invalid zone must still be rejected for an uppercase alias")
+	assert.Contains(t, err.Error(), "Not/AZone")
+
+	s, err := cronx.NewParser().Parse("CRON_TZ=Asia/Tokyo @DAILY")
+	require.NoError(t, err, "a valid zone paired with an uppercase alias must parse")
+	assert.Equal(t, "CRON_TZ=Asia/Tokyo @DAILY", s.Original)
+}
+
+// TestParse_TimezonePrefixWithIrregularWhitespaceAroundAlias guards against irregular alias whitespace.
+func TestParse_TimezonePrefixWithIrregularWhitespaceAroundAlias(t *testing.T) {
+	tests := []struct {
+		name       string
+		expression string
+	}{
+		{name: "trailing space after the alias", expression: "CRON_TZ=Asia/Tokyo @daily "},
+		{name: "multiple trailing spaces after the alias", expression: "TZ=Asia/Tokyo @daily  "},
+		{name: "multiple internal spaces before the alias", expression: "CRON_TZ=Asia/Tokyo   @daily"},
+		{name: "trailing tab after the alias", expression: "TZ=Asia/Tokyo @daily\t"},
+		{name: "trailing space after an uppercase alias", expression: "CRON_TZ=Asia/Tokyo @DAILY "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schedule, err := cronx.NewParser().Parse(tt.expression)
+			require.NoError(t, err, "irregular whitespace around a valid alias must not corrupt the expression")
+			require.NotNil(t, schedule)
+			assert.Equal(t, cronx.KindFields, schedule.Kind)
+		})
+	}
+}
+
+func TestParse_MalformedInterval(t *testing.T) {
+	for _, expr := range []string{"@every", "@every nonsense", "@every 1x"} {
+		t.Run(expr, func(t *testing.T) {
+			_, err := cronx.NewParser().Parse(expr)
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestParse_NonPositiveIntervalIsAnError(t *testing.T) {
+	// "@every 0s" and "@every -1h" must be rejected, not silently clamped to a 1-second delay.
+	for _, expr := range []string{"@every 0s", "@every -1h"} {
+		t.Run(expr, func(t *testing.T) {
+			_, err := cronx.NewParser().Parse(expr)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "positive")
+		})
+	}
+}
+
 func TestParser_ParseCaseInsensitive(t *testing.T) {
 	parser := cronx.NewParser()
 
@@ -166,6 +304,112 @@ func TestParser_ParseCaseInsensitive(t *testing.T) {
 				assert.Equal(t, 1, schedule.Month.RangeStart())
 				assert.Equal(t, 12, schedule.Month.RangeEnd())
 			}
+		})
+	}
+}
+
+func TestParser_ParseWithTimezonePrefix(t *testing.T) {
+	// A leading CRON_TZ=/TZ= zone name must survive untouched; robfig's zone lookup is case-sensitive.
+	parser := cronx.NewParser()
+
+	tests := []struct {
+		name       string
+		expression string
+	}{
+		{name: "CRON_TZ prefix", expression: "CRON_TZ=Asia/Tokyo 0 2 * * *"},
+		{name: "TZ prefix", expression: "TZ=America/New_York 0 2 * * *"},
+		{name: "CRON_TZ prefix with an alias", expression: "CRON_TZ=Asia/Tokyo @daily"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schedule, err := parser.Parse(tt.expression)
+
+			require.NoError(t, err)
+			require.NotNil(t, schedule)
+			assert.Equal(t, tt.expression, schedule.Original,
+				"the timezone prefix is preserved verbatim in Original")
+		})
+	}
+}
+
+func TestParser_ParseRejectsAnInvalidTimezoneName(t *testing.T) {
+	// "ASIA/TOKYO" is not a real IANA zone, and cronx must not case-fold it into a valid-looking one.
+	parser := cronx.NewParser()
+
+	_, err := parser.Parse("CRON_TZ=ASIA/TOKYO 0 2 * * *")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ASIA/TOKYO")
+}
+
+func TestParser_ParseRejectsATimezoneAssignmentWithNoSchedule(t *testing.T) {
+	// A bare CRON_TZ=/TZ= assignment used to crash the process by panicking robfig's parser.
+	parser := cronx.NewParser()
+
+	tests := []struct {
+		name       string
+		expression string
+	}{
+		{name: "CRON_TZ alone", expression: "CRON_TZ=Asia/Tokyo"},
+		{name: "TZ alone", expression: "TZ=UTC"},
+		{name: "CRON_TZ with no value or schedule", expression: "CRON_TZ="},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schedule, err := parser.Parse(tt.expression)
+
+			require.Error(t, err, "must be a clean error, not a panic")
+			assert.Nil(t, schedule)
+			assert.Contains(t, err.Error(), tt.expression,
+				"the error should name the offending expression")
+		})
+	}
+}
+
+func TestSplitTZPrefix_StripsQuotesFromTheZone(t *testing.T) {
+	// SplitTZPrefix must strip a quoted zone's quotes the same way a CRON_TZ=/TZ= line does.
+	tests := []struct {
+		name       string
+		expression string
+		wantZone   string
+		wantRest   string
+	}{
+		{"double quoted", `CRON_TZ="Asia/Tokyo" 0 2 * * *`, "Asia/Tokyo", "0 2 * * *"},
+		{"single quoted", `TZ='America/New_York' 0 2 * * *`, "America/New_York", "0 2 * * *"},
+		{"unquoted still works", "CRON_TZ=Asia/Tokyo 0 2 * * *", "Asia/Tokyo", "0 2 * * *"},
+		{"quoted with nothing after it", `CRON_TZ="Asia/Tokyo"`, "Asia/Tokyo", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			zone, rest, ok := cronx.SplitTZPrefix(tt.expression)
+
+			require.True(t, ok)
+			assert.Equal(t, tt.wantZone, zone)
+			assert.Equal(t, tt.wantRest, rest)
+		})
+	}
+}
+
+func TestStripQuotes(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"double quoted", `"Asia/Tokyo"`, "Asia/Tokyo"},
+		{"single quoted", "'Asia/Tokyo'", "Asia/Tokyo"},
+		{"unquoted", "Asia/Tokyo", "Asia/Tokyo"},
+		{"mismatched quotes are left alone", `"Asia/Tokyo'`, `"Asia/Tokyo'`},
+		{"lone quote is left alone", `"`, `"`},
+		{"empty string", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, cronx.StripQuotes(tt.in))
 		})
 	}
 }

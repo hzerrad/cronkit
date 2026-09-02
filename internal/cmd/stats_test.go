@@ -3,10 +3,12 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -182,6 +184,25 @@ func TestStatsCommand(t *testing.T) {
 		assert.Contains(t, output, "Crontab Statistics")
 	})
 
+	t.Run("labels the histogram and busiest hours as answering different questions", func(t *testing.T) {
+		// Both sections can show different numbers for the same hour (see
+		// calculateHourHistogram's and CalculateCollisions's doc comments);
+		// without a label that reads as cronkit disagreeing with itself.
+		sc := newStatsCommand()
+		buf := new(bytes.Buffer)
+		sc.SetOut(buf)
+
+		testFile := createTempFile(t, "* * * * * /usr/bin/a.sh\n* * * * * /usr/bin/b.sh\n")
+		sc.SetArgs([]string{"--file", testFile, "--verbose"})
+
+		err := sc.Execute()
+		require.NoError(t, err)
+
+		output := buf.String()
+		assert.Contains(t, output, "Hour Distribution (typical day, UTC):")
+		assert.Contains(t, output, "Busiest Hours (this analysis window, starting now):")
+	})
+
 	t.Run("should handle aggregate flag", func(t *testing.T) {
 		sc := newStatsCommand()
 		buf := new(bytes.Buffer)
@@ -312,5 +333,46 @@ func TestOutputText(t *testing.T) {
 		require.NoError(t, err)
 		output := buf.String()
 		assert.Contains(t, output, "Crontab Statistics")
+	})
+}
+
+func TestStatsCommand_Inventory(t *testing.T) {
+	t.Run("should calculate stats from an inventory file", func(t *testing.T) {
+		inv := inventory.New("", []inventory.Item{
+			{Expression: "0 * * * *", Command: "worker", State: inventory.StateActive},
+		})
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		require.NoError(t, inv.Encode(f))
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		sc := newStatsCommand()
+		buf := new(bytes.Buffer)
+		sc.SetOut(buf)
+		sc.SetArgs([]string{"--inventory", f.Name()})
+
+		err = sc.Execute()
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "Total Jobs: 1")
+	})
+
+	t.Run("a malformed inventory produces a clear error", func(t *testing.T) {
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		_, err = f.WriteString("nope")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		sc := newStatsCommand()
+		buf := new(bytes.Buffer)
+		sc.SetOut(buf)
+		sc.SetErr(buf)
+		sc.SetArgs([]string{"--inventory", f.Name()})
+
+		err = sc.Execute()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read inventory")
 	})
 }

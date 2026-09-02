@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -286,6 +287,24 @@ func TestTimeline_RenderJSON(t *testing.T) {
 		assert.Len(t, overlaps, 1)
 		assert.Equal(t, 2, overlaps[0]["count"])
 	})
+
+	t.Run("is byte-identical across repeated calls on the same timeline", func(t *testing.T) {
+		// Calls RenderJSON twice and byte-compares the marshaled result.
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+
+		for i, id := range []string{"job-e", "job-a", "job-c", "job-b", "job-d"} {
+			tl.SetJobInfo(id, fmt.Sprintf("%d * * * *", i), fmt.Sprintf("job %d", i), id)
+			tl.AddJobRun(id, startTime.Add(time.Duration(i+1)*time.Hour))
+		}
+
+		first, err := json.MarshalIndent(tl.RenderJSON(), "", "  ")
+		require.NoError(t, err)
+		second, err := json.MarshalIndent(tl.RenderJSON(), "", "  ")
+		require.NoError(t, err)
+
+		assert.Equal(t, string(first), string(second))
+	})
 }
 
 func TestTimeline_SetJobInfo(t *testing.T) {
@@ -314,6 +333,97 @@ func TestTimeline_SetJobInfo(t *testing.T) {
 		assert.Equal(t, "*/15 * * * *", tl.jobs[idx].expression)
 		assert.Equal(t, "Every 15 minutes", tl.jobs[idx].description)
 		assert.Len(t, tl.jobs, 1)
+	})
+}
+
+func TestTimeline_SetJobLocator(t *testing.T) {
+	t.Run("should record file and line for a registered job", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+		tl.SetJobInfo("job-1", "*/15 * * * *", "Every 15 minutes", "quarter-hour")
+		tl.SetJobLocator("job-1", "site-a/crontab", 4, "")
+
+		idx, exists := tl.jobIndex["job-1"]
+		require.True(t, exists)
+		assert.Equal(t, "site-a/crontab", tl.jobs[idx].file)
+		assert.Equal(t, 4, tl.jobs[idx].line)
+	})
+	t.Run("should be a no-op for an unregistered job", func(t *testing.T) {
+		tl := NewTimeline(DayView, time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), 80)
+		tl.SetJobLocator("missing", "crontab", 1, "")
+		assert.Empty(t, tl.jobs)
+	})
+}
+
+func TestTimeline_SetJobAggregateCount(t *testing.T) {
+	t.Run("should record the count for a registered job", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+		tl.SetJobInfo("file-0", "", "12 schedules", "site-a/crontab")
+		tl.SetJobAggregateCount("file-0", 12)
+
+		idx, exists := tl.jobIndex["file-0"]
+		require.True(t, exists)
+		assert.Equal(t, 12, tl.jobs[idx].count)
+	})
+	t.Run("should be a no-op for an unregistered job", func(t *testing.T) {
+		tl := NewTimeline(DayView, time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), 80)
+		tl.SetJobAggregateCount("missing", 12)
+		assert.Empty(t, tl.jobs)
+	})
+}
+
+func TestRenderJSON_Provenance(t *testing.T) {
+	t.Run("should add no locator or aggregated key by default", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+		tl.SetJobInfo("job-1", "*/15 * * * *", "Every 15 minutes", "quarter-hour")
+		tl.AddJobRun("job-1", startTime.Add(time.Hour))
+
+		jobs := tl.RenderJSON()["jobs"].([]map[string]interface{})
+		require.Len(t, jobs, 1)
+		_, hasLocator := jobs[0]["locator"]
+		_, hasAggregated := jobs[0]["aggregated"]
+		assert.False(t, hasLocator)
+		assert.False(t, hasAggregated)
+	})
+	t.Run("should add file and line as locator", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+		tl.SetJobInfo("job-1", "*/15 * * * *", "Every 15 minutes", "quarter-hour")
+		tl.SetJobLocator("job-1", "site-a/crontab", 7, "")
+		tl.AddJobRun("job-1", startTime.Add(time.Hour))
+
+		jobs := tl.RenderJSON()["jobs"].([]map[string]interface{})
+		require.Len(t, jobs, 1)
+		locator, ok := jobs[0]["locator"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "site-a/crontab", locator["file"])
+		assert.Equal(t, 7, locator["line"])
+	})
+	t.Run("should omit the line when unset but keep the file", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+		tl.SetJobInfo("job-1", "*/15 * * * *", "Every 15 minutes", "quarter-hour")
+		tl.SetJobLocator("job-1", "crontab", 0, "")
+		tl.AddJobRun("job-1", startTime.Add(time.Hour))
+
+		jobs := tl.RenderJSON()["jobs"].([]map[string]interface{})
+		locator := jobs[0]["locator"].(map[string]interface{})
+		assert.Equal(t, "crontab", locator["file"])
+		_, hasLine := locator["line"]
+		assert.False(t, hasLine)
+	})
+	t.Run("should add the aggregated count for a collapsed lane", func(t *testing.T) {
+		startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+		tl := NewTimeline(DayView, startTime, 80)
+		tl.SetJobInfo("file-0", "", "12 schedules", "site-a/crontab")
+		tl.SetJobAggregateCount("file-0", 12)
+		tl.AddJobRun("file-0", startTime.Add(time.Hour))
+
+		jobs := tl.RenderJSON()["jobs"].([]map[string]interface{})
+		require.Len(t, jobs, 1)
+		assert.EqualValues(t, 12, jobs[0]["aggregated"])
 	})
 }
 
@@ -447,4 +557,22 @@ func TestTimeline_GetOverlapStats(t *testing.T) {
 		assert.Equal(t, 3, stats.MostProblematic[1].Count)
 		assert.Equal(t, 2, stats.MostProblematic[2].Count)
 	})
+}
+
+// TestTimeline_JSONLocatorCarriesThePath pins that a published locator holds every part of an id.
+func TestTimeline_JSONLocatorCarriesThePath(t *testing.T) {
+	startTime := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+	tl := NewTimeline(DayView, startTime, 80)
+	tl.SetJobInfo("job-1", "0 4 * * *", "At 04:00 every day", "ci")
+	tl.SetJobLocator("job-1", ".github/workflows/ci.yml", 5, "on.schedule[0].cron")
+	tl.AddJobRun("job-1", startTime.Add(4*time.Hour))
+
+	jobs := tl.RenderJSON()["jobs"].([]map[string]interface{})
+	require.Len(t, jobs, 1)
+	locator, ok := jobs[0]["locator"].(map[string]interface{})
+	require.True(t, ok)
+
+	assert.Equal(t, ".github/workflows/ci.yml", locator["file"])
+	assert.Equal(t, 5, locator["line"])
+	assert.Equal(t, "on.schedule[0].cron", locator["path"])
 }

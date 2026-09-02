@@ -1,0 +1,12 @@
+[
+  {
+    "expression": "0 6 * * *",
+    "source": "k8s",
+    "dialect": "vixie",
+    "command": "myregistry/report:1.4.2",
+    "shell": false,
+    "state": "active",
+    "concurrency": "allow",
+    "locator": {"file": "input.yaml", "line": 6, "path": "spec.schedule"}
+  }
+]

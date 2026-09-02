@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/hzerrad/cronkit/internal/stats"
 	"github.com/spf13/cobra"
 )
 
 type StatsCommand struct {
 	*cobra.Command
-	file      string
-	stdin     bool
+	inputFlags
 	json      bool
 	verbose   bool
 	top       int
@@ -39,8 +38,7 @@ Examples:
 		Args: cobra.NoArgs,
 	}
 
-	sc.Flags().StringVarP(&sc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
-	sc.Flags().BoolVar(&sc.stdin, "stdin", false, "Read crontab from standard input")
+	sc.register(sc.Command, false)
 	sc.Flags().BoolVarP(&sc.json, "json", "j", false, "Output in JSON format")
 	sc.Flags().BoolVarP(&sc.verbose, "verbose", "v", false, "Show detailed statistics")
 	sc.Flags().IntVar(&sc.top, "top", DefaultStatsTopN, "Number of top items to show (default: 5)")
@@ -54,38 +52,24 @@ func init() {
 }
 
 func (sc *StatsCommand) runStats(_ *cobra.Command, _ []string) error {
-	reader := crontab.NewReader()
 	calculator := stats.NewCalculator()
 
-	var jobs []*crontab.Job
-	var err error
-
-	// Determine input source
-	if sc.stdin {
-		entries, err := reader.ParseStdin()
-		if err != nil {
+	items, err := resolveItems(&sc.inputFlags)
+	if err != nil {
+		switch sc.classify() {
+		case sourceStdin:
 			return fmt.Errorf("failed to read from stdin: %w", err)
-		}
-		jobs = extractJobs(entries)
-	} else if sc.file != "" {
-		entries, err := reader.ParseFile(sc.file)
-		if err != nil {
+		case sourceInventory:
+			return fmt.Errorf("failed to read inventory: %w", err)
+		case sourceFile:
 			return fmt.Errorf("failed to read file: %w", err)
-		}
-		jobs = extractJobs(entries)
-	} else {
-		jobs, err = reader.ReadUser()
-		if err != nil {
+		default:
 			return fmt.Errorf("failed to read user crontab: %w", err)
 		}
 	}
 
-	if err != nil {
-		return err
-	}
-
 	// Calculate metrics
-	metrics, err := calculator.CalculateMetrics(jobs, stats.OneDay)
+	metrics, err := calculator.CalculateMetrics(items, stats.OneDay)
 	if err != nil {
 		return fmt.Errorf("failed to calculate metrics: %w", err)
 	}
@@ -95,7 +79,7 @@ func (sc *StatsCommand) runStats(_ *cobra.Command, _ []string) error {
 		return sc.outputJSON(metrics)
 	}
 
-	return sc.outputText(metrics, calculator, jobs)
+	return sc.outputText(metrics, calculator, items)
 }
 
 func (sc *StatsCommand) outputJSON(metrics *stats.Metrics) error {
@@ -104,18 +88,18 @@ func (sc *StatsCommand) outputJSON(metrics *stats.Metrics) error {
 	return encoder.Encode(metrics)
 }
 
-func (sc *StatsCommand) outputText(metrics *stats.Metrics, calculator *stats.Calculator, jobs []*crontab.Job) error {
+func (sc *StatsCommand) outputText(metrics *stats.Metrics, calculator *stats.Calculator, items []inventory.Item) error {
 	sc.Println("Crontab Statistics")
 	sc.Println(strings.Repeat("=", 50))
 
 	// Summary
 	sc.Printf("\nSummary:\n")
-	sc.Printf("  Total Jobs: %d\n", len(jobs))
+	sc.Printf("  Total Jobs: %d\n", len(items))
 	sc.Printf("  Total Runs per Day: %d\n", metrics.TotalRunsPerDay)
 	sc.Printf("  Total Runs per Hour: %d\n", metrics.TotalRunsPerHour)
 
 	// Most frequent jobs
-	mostFrequent := calculator.IdentifyMostFrequent(jobs, sc.top)
+	mostFrequent := calculator.IdentifyMostFrequent(items, sc.top)
 	if len(mostFrequent) > 0 {
 		sc.Printf("\nTop %d Most Frequent Jobs:\n", sc.top)
 		for i, freq := range mostFrequent {
@@ -131,7 +115,7 @@ func (sc *StatsCommand) outputText(metrics *stats.Metrics, calculator *stats.Cal
 
 	// Collision stats
 	if sc.verbose && len(metrics.Collisions.BusiestHours) > 0 {
-		sc.Printf("\nBusiest Hours:\n")
+		sc.Printf("\nBusiest Hours (this analysis window, starting now):\n")
 		for i, hour := range metrics.Collisions.BusiestHours {
 			if i >= sc.top {
 				break
@@ -143,14 +127,4 @@ func (sc *StatsCommand) outputText(metrics *stats.Metrics, calculator *stats.Cal
 	}
 
 	return nil
-}
-
-func extractJobs(entries []*crontab.Entry) []*crontab.Job {
-	jobs := make([]*crontab.Job, 0)
-	for _, entry := range entries {
-		if entry.Type == crontab.EntryTypeJob && entry.Job != nil {
-			jobs = append(jobs, entry.Job)
-		}
-	}
-	return jobs
 }

@@ -5,15 +5,13 @@ import (
 	"time"
 
 	"github.com/hzerrad/cronkit/internal/budget"
-	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/hzerrad/cronkit/internal/cronx"
 	"github.com/spf13/cobra"
 )
 
 type BudgetCommand struct {
 	*cobra.Command
-	file          string
-	stdin         bool
+	inputFlags
 	maxConcurrent int
 	window        string
 	enforce       bool
@@ -39,8 +37,7 @@ Examples:
 		RunE: bc.runBudget,
 	}
 
-	bc.Flags().StringVarP(&bc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
-	bc.Flags().BoolVar(&bc.stdin, "stdin", false, "Read crontab from standard input")
+	bc.register(bc.Command, false)
 	bc.Flags().IntVar(&bc.maxConcurrent, "max-concurrent", 0, "Maximum concurrent jobs allowed (required)")
 	bc.Flags().StringVar(&bc.window, "window", "", "Time window for budget (e.g., 1m, 1h, 24h) (required)")
 	bc.Flags().BoolVar(&bc.enforce, "enforce", false, "Exit with error code if budget is violated (default: report only)")
@@ -69,24 +66,16 @@ func (bc *BudgetCommand) runBudget(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid --window duration: %w (expected format: 1m, 1h, 24h, etc.)", err)
 	}
 
-	// Read crontab
-	reader := crontab.NewReader()
-	var jobs []*crontab.Job
-
-	if bc.stdin {
-		jobs, err = reader.ReadStdin()
-		if err != nil {
+	items, err := resolveItems(&bc.inputFlags)
+	if err != nil {
+		switch bc.classify() {
+		case sourceStdin:
 			return fmt.Errorf("failed to read crontab from stdin: %w", err)
-		}
-	} else if bc.file != "" {
-		jobs, err = reader.ReadFile(bc.file)
-		if err != nil {
+		case sourceInventory:
+			return fmt.Errorf("failed to read inventory: %w", err)
+		case sourceFile:
 			return fmt.Errorf("failed to read crontab file: %w", err)
-		}
-	} else {
-		// Read user crontab
-		jobs, err = reader.ReadUser()
-		if err != nil {
+		default:
 			return fmt.Errorf("failed to read user crontab: %w", err)
 		}
 	}
@@ -103,7 +92,7 @@ func (bc *BudgetCommand) runBudget(_ *cobra.Command, args []string) error {
 	// Analyze budget
 	scheduler := cronx.NewScheduler()
 	parser := cronx.NewParser()
-	report, err := budget.AnalyzeBudget(jobs, budgets, scheduler, parser)
+	report, err := budget.AnalyzeBudget(items, time.Now(), budgets, scheduler, parser)
 	if err != nil {
 		return fmt.Errorf("failed to analyze budget: %w", err)
 	}

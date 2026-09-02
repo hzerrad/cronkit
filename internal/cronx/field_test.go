@@ -22,6 +22,47 @@ func TestParseValue_Unparseable(t *testing.T) {
 	assert.Error(t, err, "Parse should fail for invalid symbol in list")
 }
 
+// TestParseQuestionMark tests that "?" is read as a wildcard rather than a value
+func TestParseQuestionMark(t *testing.T) {
+	parser := cronx.NewParser()
+
+	tests := []struct {
+		name       string
+		expression string
+		field      func(*cronx.Schedule) cronx.Field
+	}{
+		{
+			name:       "question mark as day of month",
+			expression: "0 0 ? * *",
+			field:      func(s *cronx.Schedule) cronx.Field { return s.DayOfMonth },
+		},
+		{
+			name:       "question mark as day of week",
+			expression: "0 0 * * ?",
+			field:      func(s *cronx.Schedule) cronx.Field { return s.DayOfWeek },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schedule, err := parser.Parse(tt.expression)
+			require.NoError(t, err)
+
+			field := tt.field(schedule)
+			assert.True(t, field.IsEvery(), "Question mark should be every value")
+			assert.Equal(t, cronx.KindEvery, field.Kind())
+		})
+	}
+
+	t.Run("question mark with step", func(t *testing.T) {
+		schedule, err := parser.Parse("?/15 * * * *")
+		require.NoError(t, err)
+
+		assert.Equal(t, cronx.KindStep, schedule.Minute.Kind())
+		assert.Equal(t, 15, schedule.Minute.Step())
+	})
+}
+
 // TestIsStep tests the IsStep method with various scenarios
 func TestIsStep(t *testing.T) {
 	parser := cronx.NewParser()

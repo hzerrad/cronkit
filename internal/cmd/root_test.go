@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,20 +76,22 @@ func TestGetLocale(t *testing.T) {
 }
 
 func TestSetOutput(t *testing.T) {
-	t.Run("SetOutput with valid writers", func(t *testing.T) {
+	t.Run("writers should be wired to the root command", func(t *testing.T) {
+		defer SetOutput(os.Stdout, os.Stderr)
+
 		outBuf := new(bytes.Buffer)
 		errBuf := new(bytes.Buffer)
 
 		SetOutput(outBuf, errBuf)
 
-		// Should not panic
-		assert.NotNil(t, outBuf)
-		assert.NotNil(t, errBuf)
+		assert.Same(t, outBuf, rootCmd.OutOrStdout())
+		assert.Same(t, errBuf, rootCmd.ErrOrStderr())
 	})
 
-	t.Run("SetOutput with nil writers", func(t *testing.T) {
-		// Should handle nil gracefully
+	t.Run("nil writers should leave the defaults in place", func(t *testing.T) {
 		SetOutput(nil, nil)
-		// Should not panic
+
+		assert.Same(t, os.Stdout, rootCmd.OutOrStdout())
+		assert.Same(t, os.Stderr, rootCmd.ErrOrStderr())
 	})
 }

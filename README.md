@@ -14,7 +14,7 @@
 
 Cron syntax is hostile. You write `0 2 * * *` and three months later you're staring at it wondering what it does. You inherit a crontab with sixty lines and no comments. You miss the difference between `* * * * 1` (every Monday) and `0 0 1 * 1` (midnight on the 1st of the month *and* every Monday — because cron ORs day-of-month and day-of-week when both are set), and you find out at 3 AM on the wrong day.
 
-Cronkit reads cron back to you in plain English, shows you when it'll actually run, and catches the dumb mistakes — DOM/DOW conflicts, missing absolute paths, missing output redirects, runaway frequencies — before they turn into a pager incident.
+Cronkit reads cron back to you in plain English, shows you when it'll actually run, and catches the dumb mistakes — DOM/DOW conflicts, missing absolute paths, missing output redirects, runaway frequencies — before they turn into a pager incident. It also finds schedules you didn't know to look for: `scan` walks a whole repository — crontabs, Kubernetes CronJobs, GitHub Actions workflows, Argo CronWorkflows — instead of asking you to point it at one crontab at a time. Pipe that discovery straight into an audit with `cronkit scan . --json | cronkit check --inventory -`: every schedule-consuming command reads an inventory back the same way, so a whole repository gets the same linting, timelines, statistics, and budget analysis a single crontab always had.
 
 It runs offline, emits JSON for your pipelines, and never executes or modifies your crontabs. It's safe to drop into a pre-commit hook on day one.
 
@@ -28,6 +28,7 @@ It runs offline, emits JSON for your pipelines, and never executes or modifies y
 - **Explain** - Convert cron expressions to plain English
 - **Next** - Show the next N scheduled run times
 - **List** - Parse and summarize crontab jobs from files or user crontabs
+- **Scan** - Discover cron schedules across a whole repository: crontabs, Kubernetes CronJobs, GitHub Actions workflows, and Argo CronWorkflows. Feed the result back into `check`, `list`, `stats`, `budget`, or `timeline` with `--inventory` to audit everything at once
 - **Timeline** - Visualize job schedules with ASCII timelines showing density and overlaps
 - **Check** - Validate crontab syntax with severity levels and diagnostic codes, including advanced linting (frequency analysis, command hygiene, overlap detection)
 - **Doc** - Generate comprehensive documentation (Markdown, HTML, JSON) from crontabs with optional sections
@@ -289,11 +290,12 @@ $ cronkit check "60 0 * * *"
 
 ## Commands
 
-Cronkit provides nine commands for working with cron expressions and crontabs:
+Cronkit provides ten commands for working with cron expressions and crontabs:
 
 - `explain` — Convert a cron expression to plain English
 - `next` — Show the next N scheduled run times
 - `list` — Parse and summarize crontab jobs
+- `scan` — Discover cron schedules across a repository
 - `timeline` — ASCII timeline visualization of schedules
 - `check` — Validate syntax and lint for common issues
 - `doc` — Generate documentation from crontabs (Markdown, HTML, JSON)

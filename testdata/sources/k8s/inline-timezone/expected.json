@@ -1,0 +1,12 @@
+[
+  {
+    "expression": "0 2 * * *",
+    "source": "k8s",
+    "dialect": "vixie",
+    "shell": false,
+    "timezone": "Asia/Tokyo",
+    "state": "active",
+    "concurrency": "forbid",
+    "locator": {"file": "input.yaml", "line": 6, "path": "spec.schedule"}
+  }
+]

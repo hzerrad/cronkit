@@ -1,12 +1,12 @@
 package check
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
-	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/hzerrad/cronkit/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/inventory"
+	"github.com/hzerrad/cronkit/internal/timeutil"
 )
 
 // Overlap represents multiple jobs running at the same time
@@ -23,38 +23,45 @@ type OverlapStats struct {
 	MostProblematic []Overlap // Top N overlaps sorted by count
 }
 
-// AnalyzeOverlaps analyzes job overlaps within a time window
-func AnalyzeOverlaps(jobs []*crontab.Job, timeWindow time.Duration, scheduler cronx.Scheduler, parser cronx.Parser) ([]Overlap, OverlapStats, error) {
-	if len(jobs) == 0 {
+// AnalyzeOverlaps analyzes active item overlaps within a time window starting
+// at from, comparing each item's occurrences (evaluated in its own timezone)
+// in absolute time; callers must run items through inventory.ResolveTimezones first.
+func AnalyzeOverlaps(items []inventory.Item, from time.Time, timeWindow time.Duration, scheduler cronx.Scheduler, parser cronx.Parser) ([]Overlap, OverlapStats, error) {
+	if len(items) == 0 {
 		return []Overlap{}, OverlapStats{}, nil
 	}
 
-	// Start from current time
-	startTime := time.Now().Truncate(time.Minute)
+	startTime := from.Truncate(time.Minute)
 	endTime := startTime.Add(timeWindow)
 
-	// Collect all run times for all jobs
+	// Collect all run times for all items
 	type jobRun struct {
 		time  time.Time
 		jobID string
 	}
 	var allRuns []jobRun
 
-	for _, job := range jobs {
-		if !job.Valid {
+	// concurrencyByJob records each job's policy so an overlap is suppressed when all participants forbid it.
+	concurrencyByJob := make(map[string]inventory.Concurrency)
+
+	for i, item := range items {
+		if item.State != inventory.StateActive {
 			continue
 		}
 
-		// Get job identifier (use line number or expression)
-		jobID := fmt.Sprintf("line-%d", job.LineNumber)
-		if job.LineNumber == 0 {
-			jobID = job.Expression
+		jobID := item.Locator.Identity(i, "job-", "line-")
+		concurrencyByJob[jobID] = item.Concurrency
+
+		loc, err := timeutil.ResolveLocation(item.Timezone, startTime.Location())
+		if err != nil {
+			continue // Skip items whose timezone doesn't resolve
 		}
 
-		// Get all runs for this job within the time window
-		times, err := scheduler.Next(job.Expression, startTime, 10000) // Large limit to get all runs
+		// Get all runs for this item within the time window, evaluated in
+		// its own zone
+		times, err := scheduler.Next(item.Expression, startTime.In(loc), 10000) // Large limit to get all runs
 		if err != nil {
-			continue // Skip jobs that can't be scheduled
+			continue // Skip items that can't be scheduled
 		}
 
 		for _, t := range times {
@@ -70,20 +77,24 @@ func AnalyzeOverlaps(jobs []*crontab.Job, timeWindow time.Duration, scheduler cr
 		}
 	}
 
-	// Group runs by time (minute precision)
-	overlapMap := make(map[time.Time][]string)
+	// Group runs by minute, keyed by instant so runs in different zones collide
+	overlapMap := make(map[int64][]string)
+	repTime := make(map[int64]time.Time)
 	for _, run := range allRuns {
-		overlapMap[run.time] = append(overlapMap[run.time], run.jobID)
+		k := timeutil.MinuteKey(run.time)
+		overlapMap[k] = append(overlapMap[k], run.jobID)
+		if _, seen := repTime[k]; !seen {
+			repTime[k] = run.time
+		}
 	}
 
 	// Convert to Overlap structs
 	var overlaps []Overlap
-	for t, jobIDs := range overlapMap {
-		// Remove duplicates
+	for k, jobIDs := range overlapMap {
 		uniqueJobs := uniqueStrings(jobIDs)
-		if len(uniqueJobs) > 1 {
+		if len(uniqueJobs) > 1 && !allForbid(uniqueJobs, concurrencyByJob) {
 			overlaps = append(overlaps, Overlap{
-				Time:   t,
+				Time:   repTime[k],
 				Count:  len(uniqueJobs),
 				JobIDs: uniqueJobs,
 			})
@@ -117,7 +128,19 @@ func AnalyzeOverlaps(jobs []*crontab.Job, timeWindow time.Duration, scheduler cr
 	return overlaps, stats, nil
 }
 
-// uniqueStrings removes duplicates from a string slice
+// allForbid reports whether every job in an overlapping group has
+// ConcurrencyForbid, in which case the overlap is not reported since the
+// platform already serialises each of those jobs against itself.
+func allForbid(jobIDs []string, concurrencyByJob map[string]inventory.Concurrency) bool {
+	for _, id := range jobIDs {
+		if concurrencyByJob[id] != inventory.ConcurrencyForbid {
+			return false
+		}
+	}
+	return true
+}
+
+// uniqueStrings removes duplicates from a string slice and orders what is left
 func uniqueStrings(strs []string) []string {
 	seen := make(map[string]bool)
 	var result []string
@@ -127,5 +150,6 @@ func uniqueStrings(strs []string) []string {
 			result = append(result, s)
 		}
 	}
+	sort.Strings(result)
 	return result
 }

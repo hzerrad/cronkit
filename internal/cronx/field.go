@@ -1,6 +1,7 @@
 package cronx
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -64,7 +65,7 @@ type field struct {
 }
 
 // parseField parses a single cron field using a specific symbol registry
-func parseField(raw string, min, max int, registry SymbolRegistry) Field {
+func parseField(raw string, min, max int, registry SymbolRegistry) (Field, error) {
 	f := &field{
 		raw: raw,
 		min: min,
@@ -74,7 +75,10 @@ func parseField(raw string, min, max int, registry SymbolRegistry) Field {
 	// Split by comma first - everything can be a list
 	rawParts := strings.Split(raw, ",")
 	for _, p := range rawParts {
-		part := parsePart(strings.TrimSpace(p), registry)
+		part, err := parsePart(strings.TrimSpace(p), registry)
+		if err != nil {
+			return nil, err
+		}
 
 		// "N/step" is shorthand for "N-max/step"
 		if part.isSingle && part.step > 1 {
@@ -87,57 +91,77 @@ func parseField(raw string, min, max int, registry SymbolRegistry) Field {
 		f.parts = append(f.parts, part)
 	}
 
-	return f
+	return f, nil
 }
 
 // parsePart parses a single component of a field (handles *, ranges, steps, single values)
-func parsePart(raw string, registry SymbolRegistry) fieldPart {
+func parsePart(raw string, registry SymbolRegistry) (fieldPart, error) {
 	part := fieldPart{step: 1} // Default: no step
 
 	// Handle Step notation (/)
 	if strings.Contains(raw, "/") {
 		parts := strings.Split(raw, "/")
-		stepVal, _ := strconv.Atoi(parts[1])
+		if len(parts) != 2 {
+			return fieldPart{}, fmt.Errorf("too many steps in %q", raw)
+		}
+		stepVal, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return fieldPart{}, fmt.Errorf("unrecognized step %q", parts[1])
+		}
 		part.step = stepVal
 		raw = parts[0] // Continue parsing the left side
 	}
 
-	// Handle Wildcard (*)
-	if raw == "*" {
+	// Handle Wildcard (* and ?, which cron reads alike)
+	if raw == "*" || raw == "?" {
 		part.isEvery = true
-		return part
+		return part, nil
 	}
 
 	// Handle Range (-)
 	if strings.Contains(raw, "-") {
 		rangeParts := strings.Split(raw, "-")
+		if len(rangeParts) != 2 {
+			return fieldPart{}, fmt.Errorf("too many bounds in %q", raw)
+		}
+		start, err := parseValue(rangeParts[0], registry)
+		if err != nil {
+			return fieldPart{}, err
+		}
+		end, err := parseValue(rangeParts[1], registry)
+		if err != nil {
+			return fieldPart{}, err
+		}
 		part.isRange = true
-		part.rangeStart = parseValue(rangeParts[0], registry)
-		part.rangeEnd = parseValue(rangeParts[1], registry)
-		return part
+		part.rangeStart = start
+		part.rangeEnd = end
+		return part, nil
 	}
 
 	// Handle Single Value
+	value, err := parseValue(raw, registry)
+	if err != nil {
+		return fieldPart{}, err
+	}
 	part.isSingle = true
-	part.value = parseValue(raw, registry)
-	return part
+	part.value = value
+	return part, nil
 }
 
 // parseValue converts a string to an integer, supporting both numeric values and symbols
-func parseValue(s string, registry SymbolRegistry) int {
+func parseValue(s string, registry SymbolRegistry) (int, error) {
 	// Try parsing as integer first
 	val, err := strconv.Atoi(s)
 	if err == nil {
-		return val
+		return val, nil
 	}
 
 	// Try parsing as symbol (day/month name)
 	if v, ok := registry.ParseSymbol(s); ok {
-		return v
+		return v, nil
 	}
 
-	// Return 0 if unable to parse
-	return 0
+	return 0, fmt.Errorf("unrecognized value %q", s)
 }
 
 // IsEvery returns true if the field is "*" without any step (single part that is wildcard with no step)

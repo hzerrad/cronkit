@@ -15,13 +15,11 @@ var pathToCLI string
 
 var _ = BeforeSuite(func() {
 	var err error
-	// Build the CLI binary for testing
 	pathToCLI, err = gexec.Build("github.com/hzerrad/cronkit/cmd/cronkit")
 	Expect(err).NotTo(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {
-	// Clean up the built binary
 	gexec.CleanupBuildArtifacts()
 })
 
@@ -30,13 +28,11 @@ var _ = Describe("E2E Scenarios", func() {
 
 	BeforeEach(func() {
 		var err error
-		// Create a temporary directory for each test
 		tempDir, err = os.MkdirTemp("", "cronkit-e2e-*")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
-		// Clean up the temporary directory
 		if tempDir != "" {
 			_ = os.RemoveAll(tempDir) // nolint:errcheck // Test cleanup, ignore errors
 		}
@@ -216,12 +212,10 @@ var _ = Describe("E2E Scenarios", func() {
 	Describe("File System Interactions", func() {
 		Context("when working with files in a temp directory", func() {
 			It("should be able to execute commands in different directories", func() {
-				// Create a test file in temp directory
 				testFile := filepath.Join(tempDir, "test.txt")
 				err := os.WriteFile(testFile, []byte("test content"), 0644)
 				Expect(err).NotTo(HaveOccurred())
 
-				// Run command in the temp directory
 				command := exec.Command(pathToCLI, "version")
 				command.Dir = tempDir
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -275,8 +269,7 @@ var _ = Describe("E2E Scenarios", func() {
 				Eventually(session).Should(gexec.Exit(0))
 
 				By("showing overlap information")
-				// A single expression never collides with itself, so use the
-				// overlapping sample crontab to exercise this path.
+				// A single expression never collides with itself, so use the overlapping sample crontab here.
 				overlapFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 				command = exec.Command(pathToCLI, "timeline", "--file", overlapFile, "--show-overlaps")
 				session, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -292,7 +285,6 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 
-				// Verify file was created
 				_, err = os.Stat(exportFile)
 				Expect(err).NotTo(HaveOccurred())
 			})
@@ -341,7 +333,6 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 
-				// Verify file was created
 				_, err = os.Stat(exportFile)
 				Expect(err).NotTo(HaveOccurred())
 			})
@@ -362,7 +353,6 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 
-				// Verify file was created
 				_, err = os.Stat(exportFile)
 				Expect(err).NotTo(HaveOccurred())
 			})
@@ -421,7 +411,6 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 
-				// Verify text file
 				_, err = os.Stat(textFile)
 				Expect(err).NotTo(HaveOccurred())
 				content, err := os.ReadFile(textFile)
@@ -435,7 +424,6 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 
-				// Verify JSON file
 				_, err = os.Stat(jsonFile)
 				Expect(err).NotTo(HaveOccurred())
 				content, err = os.ReadFile(jsonFile)
@@ -444,8 +432,7 @@ var _ = Describe("E2E Scenarios", func() {
 			})
 
 			It("should export with all flags combined", func() {
-				// A single expression never collides with itself, so export the
-				// overlapping sample crontab to exercise --show-overlaps here too.
+				// A single expression never collides with itself, so export the overlapping sample crontab instead.
 				overlapFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 				exportFile := filepath.Join(tempDir, "timeline-full.txt")
 				command := exec.Command(pathToCLI, "timeline", "--file", overlapFile,
@@ -459,7 +446,6 @@ var _ = Describe("E2E Scenarios", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 
-				// Verify file was created with all features
 				_, err = os.Stat(exportFile)
 				Expect(err).NotTo(HaveOccurred())
 				content, err := os.ReadFile(exportFile)

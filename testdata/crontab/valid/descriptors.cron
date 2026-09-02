@@ -1,0 +1,16 @@
+# Crontab exercising the non-field schedule kinds: @reboot (KindReboot),
+# @every (KindInterval), and a five-field job with a DOM/DOW conflict,
+# alongside an ordinary job. Used across the integration suite to guard
+# against a nil-field panic in any command that walks a *cronx.Schedule.
+
+# Run once at boot
+@reboot /usr/local/bin/on-boot.sh
+
+# Poll every 5 minutes
+@every 5m /usr/local/bin/poll.sh
+
+# Daily backup at 2am
+0 2 * * * /usr/local/bin/backup.sh
+
+# Both day-of-month and day-of-week specified (warning, not an error)
+0 0 1 * 1 /usr/local/bin/monthly-or-monday.sh

@@ -153,6 +153,38 @@ var _ = Describe("Doc Command", func() {
 			})
 		})
 
+		Context("when documenting a crontab with descriptor schedules", func() {
+			It("should include @reboot and @every without panicking", func() {
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+				command := exec.Command(pathToCLI, "doc", "--file", testFile, "--format", "md")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("`@reboot`"))
+				Expect(output).To(ContainSubstring("At system startup"))
+				Expect(output).To(ContainSubstring("`@every 5m`"))
+				Expect(output).To(ContainSubstring("Every 5 minutes"))
+			})
+
+			It("should include next runs for @every without panicking on @reboot", func() {
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+				outputFile := filepath.Join(tempDir, "output.md")
+				command := exec.Command(pathToCLI, "doc", "--file", testFile, "--output", outputFile, "--format", "md", "--include-next", "3")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Eventually(outputFile).Should(BeAnExistingFile())
+				content, err := os.ReadFile(outputFile)
+				Expect(err).NotTo(HaveOccurred())
+				output := string(content)
+				Expect(output).To(ContainSubstring("`@reboot`"))
+				Expect(output).To(ContainSubstring("`@every 5m`"))
+			})
+		})
+
 		Context("when handling invalid crontab", func() {
 			It("should handle invalid expressions gracefully", func() {
 				crontabContent := "60 0 * * * /usr/bin/invalid.sh\n"
@@ -163,7 +195,6 @@ var _ = Describe("Doc Command", func() {
 
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				// Documentation should still be generated, may show invalid jobs
 				Expect(output).To(ContainSubstring("# Crontab Documentation"))
 			})
 		})

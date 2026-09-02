@@ -1,0 +1,2 @@
+# system cron.d fragment: minute hour dom month dow USER command
+0 2 * * * root /usr/bin/backup.sh

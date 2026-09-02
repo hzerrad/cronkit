@@ -1,0 +1,11 @@
+[
+  {
+    "expression": "99 99 * * *",
+    "source": "k8s",
+    "dialect": "vixie",
+    "shell": false,
+    "state": "invalid",
+    "reason": "value out of range: end of range (99) above maximum (59): 99",
+    "locator": {"file": "input.yaml", "line": 6, "path": "spec.schedule"}
+  }
+]

@@ -107,10 +107,14 @@ func colorize(s, code string) string {
 	return code + s + ansiReset
 }
 
-// padLabel pads s to width w with spaces, or truncates with ellipsis when too long.
-func padLabel(s string, w int, ellipsis rune) string {
+// padLabel pads s to width w with spaces, or truncates when too long;
+// pathLike selects truncPathLeft, which keeps the tail, instead of trailing-ellipsis truncation.
+func padLabel(s string, w int, ellipsis rune, pathLike bool) string {
 	r := []rune(s)
 	if len(r) > w {
+		if pathLike {
+			return truncPathLeft(s, w)
+		}
 		return string(r[:w-1]) + string(ellipsis)
 	}
 	return s + strings.Repeat(" ", w-len(r))
@@ -131,11 +135,17 @@ func laneColor(i int, on bool) string {
 	return laneColors[i%len(laneColors)]
 }
 
-func laneRow(label, expr string, cells []rune, b budget, g glyphset, code string) string {
-	row := padLabel(label, b.gutter, g.ellipsis) + string(g.lhs) +
+// laneRow renders one lane; exprPathLike and labelPathLike independently say
+// whether expr/label is a file path rather than a cron expression, so each truncates from the correct end.
+func laneRow(label, expr string, exprPathLike, labelPathLike bool, cells []rune, b budget, g glyphset, code string) string {
+	row := padLabel(label, b.gutter, g.ellipsis, labelPathLike) + string(g.lhs) +
 		colorize(string(cells), code) + string(g.rhs)
 	if b.expr > 0 && expr != "" {
-		row += " " + truncExpr(expr, b.expr, g.ellipsis)
+		if exprPathLike {
+			row += " " + truncPathLeft(expr, b.expr)
+		} else {
+			row += " " + truncExpr(expr, b.expr, g.ellipsis)
+		}
 	}
 	return strings.TrimRight(row, " ")
 }
@@ -147,6 +157,57 @@ func truncExpr(s string, w int, ellipsis rune) string {
 		return s
 	}
 	return string(r[:w-1]) + string(ellipsis)
+}
+
+// truncPathLeft truncates s to at most w runes from the front, keeping the
+// tail and prefixing "..." since the informative part of a file path sits at the end.
+func truncPathLeft(s string, w int) string {
+	r := []rune(s)
+	if len(r) <= w {
+		return s
+	}
+	if w <= 3 {
+		return string(r[len(r)-w:])
+	}
+	tail := strings.TrimPrefix(string(r[len(r)-(w-3):]), "/")
+	return "..." + tail
+}
+
+// distinctFileCount counts distinct non-empty file names registered across
+// jobs, so Render can tell a single-file chart from one spanning multiple files.
+func distinctFileCount(jobs []jobEntry) int {
+	seen := make(map[string]bool)
+	for _, j := range jobs {
+		if j.file != "" {
+			seen[j.file] = true
+		}
+	}
+	return len(seen)
+}
+
+// laneGutter returns what the right gutter should trail a lane with: the item
+// count for a collapsed lane, file:line once the chart spans multiple files, otherwise laneExpr's answer.
+func laneGutter(j jobEntry, multiFile bool) string {
+	if j.count > 0 {
+		return plural(j.count, "job")
+	}
+	if multiFile && j.file != "" {
+		if j.line > 0 {
+			return fmt.Sprintf("%s:%d", j.file, j.line)
+		}
+		return j.file
+	}
+	return laneExpr(j)
+}
+
+// gutterIsPath reports whether j's gutter value is a file path, so laneRow truncates it correctly.
+func gutterIsPath(j jobEntry, multiFile bool) bool {
+	return j.count == 0 && multiFile && j.file != ""
+}
+
+// labelIsPath reports whether j's label is a file path, so laneRow truncates it correctly.
+func labelIsPath(j jobEntry) bool {
+	return j.count > 0
 }
 
 // axisRows draws the tick axis and its centered, collision-skipping label row.
@@ -198,13 +259,18 @@ func zoneLabel(t time.Time) string {
 }
 
 func (tl *Timeline) windowLine(g glyphset) string {
-	return fmt.Sprintf("%s  %s %s %s %s %s",
+	line := fmt.Sprintf("%s  %s %s %s %s %s",
 		tl.startTime.Format("2006-01-02"),
 		tl.startTime.Format("15:04"),
 		g.arrow,
 		tl.endTime.Add(-time.Minute).Format("15:04"),
 		g.dot,
 		zoneLabel(tl.startTime))
+	// Run times above are already converted into the axis zone.
+	if len(tl.foreignZones) > 0 {
+		line += fmt.Sprintf(" %s converted from %s", g.dot, strings.Join(tl.foreignZones, ", "))
+	}
+	return line
 }
 
 func (tl *Timeline) footerLine(overlapCount int, g glyphset) string {
@@ -215,6 +281,27 @@ func (tl *Timeline) footerLine(overlapCount int, g glyphset) string {
 		parts = append(parts,
 			plural(overlapCount, "conflict window"),
 			fmt.Sprintf("max %d concurrent", tl.GetOverlapStats().MaxConcurrent))
+	}
+	// The three notes below are all opt-in via their setters and no-ops in their zero state.
+	if tl.collapsedLanes > 0 {
+		parts = append(parts, fmt.Sprintf("%s collapsed into %s (--expand to show all)",
+			plural(tl.collapsedItems, "job"), plural(tl.collapsedLanes, "file lane")))
+	}
+	if tl.hiddenLanes > 0 {
+		parts = append(parts, fmt.Sprintf("%s hidden (--top %d)", plural(tl.hiddenLanes, "lane"), tl.topLimit))
+	}
+	if excluded := tl.excludedSuspended + tl.excludedUnresolved + tl.excludedInvalid; excluded > 0 {
+		var bits []string
+		if tl.excludedSuspended > 0 {
+			bits = append(bits, plural(tl.excludedSuspended, "suspended job"))
+		}
+		if tl.excludedUnresolved > 0 {
+			bits = append(bits, plural(tl.excludedUnresolved, "unresolved job"))
+		}
+		if tl.excludedInvalid > 0 {
+			bits = append(bits, plural(tl.excludedInvalid, "invalid job"))
+		}
+		parts = append(parts, strings.Join(bits, ", ")+" excluded")
 	}
 	return strings.Join(parts, " "+g.dot+" ")
 }

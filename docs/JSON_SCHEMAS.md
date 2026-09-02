@@ -4,7 +4,7 @@ This document describes the JSON output format for all Cronkit commands. All JSO
 
 ## Version
 
-**Current Version**: v0.4.0
+**Current Version**: v0.6.0
 
 ## Common Fields
 
@@ -141,7 +141,7 @@ All JSON outputs may include:
 
 ### `check` Command
 
-**Command:** `cronkit check [expression|--file <path>] --json [--verbose]`
+**Command:** `cronkit check [expression|--file <path>|--inventory <path|->] --json [--verbose]`
 
 **Schema:**
 ```json
@@ -158,7 +158,13 @@ All JSON outputs may include:
       "lineNumber": "integer",
       "expression": "string",
       "message": "string",
-      "hint": "string (optional)"
+      "hint": "string (optional)",
+      "locator": {
+        "file": "string",
+        "line": "integer (optional)",
+        "document": "integer (optional)",
+        "path": "string (optional)"
+      }
     }
   ]
 }
@@ -172,36 +178,67 @@ All JSON outputs may include:
 - `issues` - Array of validation issues
   - `severity` - Issue severity level
   - `code` - Diagnostic code (e.g., "CRON-001")
-  - `lineNumber` - Line number in crontab (0 for single expression)
+  - `lineNumber` - Line number in crontab (0 for single expression); kept
+    unconditionally, unchanged from before `locator` existed
   - `expression` - Cron expression (if applicable)
   - `message` - Human-readable issue description
   - `hint` - Actionable suggestion for fixing the issue
+  - `locator` (optional) - additive; present only for a `--inventory` run
+    whose issues span more than one file, which is the one case
+    `lineNumber` alone can't tell apart. Same shape as an
+    [inventory item's `locator`](#scan-command): `file` (slash-separated,
+    relative to the inventory's `root`), `line` (1-indexed, omitted when
+    the source format can't attribute one), `document` (0-indexed index
+    into a multi-document file, omitted for a single-document file's
+    first document — see the `scan` command's field notes), and `path`
+    (the structural path within the document, e.g. `spec.schedule`). A
+    single-source run — `--file`, `--stdin`, or the user's own crontab —
+    never carries this key, byte-identical to output from before it
+    existed
 
-**Example:**
+**Example** (two issues from the same `0 0 1 * 1` DOM/DOW conflict, one
+found in a crontab and one in a Kubernetes CronJob — `locator` appears
+because this run spans two files):
 ```json
 {
-  "valid": true,
-  "totalJobs": 1,
-  "validJobs": 1,
   "invalidJobs": 0,
-  "locale": "en",
   "issues": [
     {
-      "severity": "warn",
       "code": "CRON-001",
-      "lineNumber": 0,
       "expression": "0 0 1 * 1",
-      "message": "Both day-of-month and day-of-week specified (runs if either condition is met)",
       "hint": "Consider using only day-of-month OR day-of-week, not both. Cron uses OR logic (runs if either condition is met).",
-      "type": "warn"
+      "lineNumber": 2,
+      "locator": {
+        "file": "crontab",
+        "line": 2
+      },
+      "message": "Both day-of-month and day-of-week specified (runs if either condition is met)",
+      "severity": "warn"
+    },
+    {
+      "code": "CRON-001",
+      "expression": "0 0 1 * 1",
+      "hint": "Consider using only day-of-month OR day-of-week, not both. Cron uses OR logic (runs if either condition is met).",
+      "lineNumber": 6,
+      "locator": {
+        "file": "deploy/cronjob.yaml",
+        "line": 6,
+        "path": "spec.schedule"
+      },
+      "message": "Both day-of-month and day-of-week specified (runs if either condition is met)",
+      "severity": "warn"
     }
-  ]
+  ],
+  "locale": "en",
+  "totalJobs": 2,
+  "valid": false,
+  "validJobs": 2
 }
 ```
 
 ### `timeline` Command
 
-**Command:** `cronkit timeline [expression|--file <path>] --json [--timezone <zone>]`
+**Command:** `cronkit timeline [expression|--file <path>|--inventory <path|->] --json [--timezone <zone>]`
 
 **Schema:**
 ```json
@@ -217,6 +254,11 @@ All JSON outputs may include:
       "id": "string",
       "expression": "string",
       "description": "string",
+      "locator": {
+        "file": "string (optional)",
+        "line": "integer (optional)"
+      },
+      "aggregated": "integer (optional)",
       "runs": [
         {
           "time": "string (RFC3339)",
@@ -253,9 +295,26 @@ All JSON outputs may include:
 - `width` - Terminal width used for rendering
 - `timezone` - IANA timezone name
 - `jobs` - Array of jobs with their scheduled runs
-  - `id` - Job identifier
+  - `id` - Job identifier: the job's address in the input, so the same
+    schedule keeps the same id across runs. Built from `locator` as
+    `job-<file>:<line>` and suffixed `#<path>` where the source has one,
+    falling back to the job's position when the locator addresses nothing
   - `expression` - Cron expression
   - `description` - Human-readable description
+  - `locator` (optional) - additive per-job provenance, present whenever
+    the job has a line to attribute: every crontab-derived source (the
+    user's own crontab, `--stdin`, `--file`) as well as `--inventory`.
+    `file` is present only once the source recorded one (`--file` or
+    `--inventory`); a crontab read with no named file (the user's own
+    crontab, `--stdin`) carries `line` alone. `path` is present for a
+    source that addresses a schedule structurally rather than by line,
+    and is what separates two schedules a flow-style YAML sequence puts
+    on the same line. A job from a single cron-expression argument
+    carries none of these keys, unchanged from before this field existed
+  - `aggregated` (optional) - additive; present only on a collapsed
+    per-file lane (more than 20 active jobs and `--expand` not given),
+    giving the number of schedules that lane's `runs` union together.
+    Absent on an ordinary one-job-per-lane entry
   - `runs` - Array of scheduled run times
     - `time` - Run time (RFC3339)
     - `overlaps` - Number of other jobs running at the same time
@@ -294,6 +353,46 @@ All JSON outputs may include:
   "overlapStats": {
     "totalWindows": 0,
     "maxConcurrent": 1,
+    "mostProblematic": []
+  }
+}
+```
+
+**Example (`--inventory`, provenance):** one job from a
+`cronkit scan --json | cronkit timeline --inventory -` run against a
+repository with a GitHub Actions workflow; `locator` names the file and
+line the schedule came from (`jobs` trimmed to one entry and `overlaps`
+cleared here for brevity — a real run against that fixture returns six):
+```json
+{
+  "view": "day",
+  "startTime": "2026-08-13T00:00:00Z",
+  "endTime": "2026-08-14T00:00:00Z",
+  "width": 80,
+  "timezone": "UTC",
+  "locale": "en",
+  "jobs": [
+    {
+      "id": "job-.github/workflows/ci.yml:5#on.schedule[0].cron",
+      "expression": "0 4 * * *",
+      "description": "At 04:00 every day",
+      "locator": {
+        "file": ".github/workflows/ci.yml",
+        "line": 5,
+        "path": "on.schedule[0].cron"
+      },
+      "runs": [
+        {
+          "time": "2026-08-13T04:00:00Z",
+          "overlaps": 0
+        }
+      ]
+    }
+  ],
+  "overlaps": [],
+  "overlapStats": {
+    "totalWindows": 0,
+    "maxConcurrent": 0,
     "mostProblematic": []
   }
 }
@@ -707,7 +806,162 @@ However, most commands output errors to stderr in plain text format for better C
 }
 ```
 
+### `scan` Command
+
+**Command:** `cronkit scan [paths...] --json`
+
+This schema — the discovery inventory — is a published contract in a stronger
+sense than the other commands' JSON: other tools are meant to produce and
+consume it too, not just read output cronkit itself just wrote.
+`cronkit check --inventory -`, and `list`, `stats`, `budget`, and `timeline`
+with the same flag, read exactly this shape; see
+[commands.md](commands.md#inventory-input).
+
+**Schema:**
+```json
+{
+  "schemaVersion": "string",
+  "root": "string (optional)",
+  "items": [
+    {
+      "expression": "string",
+      "source": "string",
+      "dialect": "string",
+      "command": "string (optional)",
+      "shell": "boolean",
+      "comment": "string (optional)",
+      "runAs": "string (optional)",
+      "timezone": "string (optional)",
+      "state": "string (active|suspended|unresolved|invalid)",
+      "reason": "string (optional)",
+      "concurrency": "string (optional)",
+      "locator": {
+        "file": "string",
+        "line": "integer (optional; absent or 0 means the format cannot attribute one)",
+        "document": "integer (optional)",
+        "path": "string (optional)"
+      }
+    }
+  ]
+}
+```
+
+**`schemaVersion` policy:** `schemaVersion` identifies the breaking contract
+only. An additive field — a new optional field an existing reader can safely
+ignore — never bumps it, and readers are expected to ignore unknown fields
+for exactly that reason. Only a change an old reader would misinterpret
+(removing a field, renaming one, or changing what an existing field means)
+bumps the version. The current value is `"1"`. A decoder that receives a
+`schemaVersion` it does not recognise must reject the document rather than
+guess at its shape; a missing or empty `schemaVersion` is rejected the same
+way, since a document with no version cannot be told apart from one written
+before this contract existed.
+
+**Fields:**
+- `schemaVersion` - the inventory contract's version; see the policy above
+- `root` (optional) - the directory every `locator.file` is relative to.
+  Reported relative to the invocation directory when the scanned
+  repository sits at or below it — `"."` in the common case of scanning a
+  repository from its own root — and as an absolute path only when it does
+  not, such as a root above the working directory or on another volume
+  entirely. Unlike `items`, `root` is machine-local context (which
+  directory *this* invocation happened to run from), not part of the
+  payload two scans of the same commit are expected to agree on — a
+  consumer comparing inventories across machines or checkouts should
+  ignore it rather than treat it as comparable data
+- `items` - the discovered schedules; always present, `[]` when the scan
+  found none (never `null`)
+  - `expression` - the schedule exactly as written in the source
+  - `source` - the ID of the source that produced this item: `crontab`,
+    `k8s`, `argo`, or `gha`
+  - `dialect` - the grammar `expression` is written in, e.g. `vixie`
+  - `command` (optional) - **a shell command only when `shell` is `true`;
+    a display label otherwise.** A consumer that assumes `command` is
+    always executable would hand a Kubernetes container image name, or
+    similar, to a shell
+  - `shell` - always present; reports whether `command` is a real shell
+    command, which is what gates shell-specific hygiene checks
+  - `comment` (optional) - the crontab inline comment; absent for every
+    other source
+  - `runAs` (optional) - the account the schedule runs as, where the
+    source expresses one: crontab's `USER` field, Kubernetes'
+    `serviceAccountName`, and equivalents belong in this one slot
+  - `timezone` (optional) - an IANA name; absent means inherit the
+    invocation's own default
+  - `state` - always present, one of `active`, `suspended`, `unresolved`,
+    or `invalid`
+  - `reason` (optional) - explains `state` when it is not `active`
+  - `concurrency` (optional) - the platform's overlapping-run policy,
+    e.g. `forbid` or `replace`
+  - `locator` - always present; where in the source this item was found
+    - `file` - always present, slash-separated, relative to `root`
+    - `line` (optional) - 1-indexed; absent when the format cannot
+      attribute one
+    - `document` (optional) - the index of the document within a
+      multi-document file; 0-indexed, and `omitempty` the same way `line`
+      is — absent means 0 (the file's first document), not "not a
+      multi-document file" or 1-indexed. A single-document file's items
+      simply never carry the key at all, exactly like the first document
+      of a multi-document one
+    - `path` (optional) - the structural path within the document, e.g.
+      `spec.schedule`
+
+**Example** (two items from a larger scan run from the repository's own
+root — hence `"root": "."` — showing an executed crontab command and a
+non-executable Kubernetes locator):
+```json
+{
+  "schemaVersion": "1",
+  "root": ".",
+  "items": [
+    {
+      "expression": "0 2 * * *",
+      "source": "crontab",
+      "dialect": "vixie",
+      "command": "/usr/bin/backup.sh",
+      "shell": true,
+      "state": "active",
+      "locator": {
+        "file": "crontab",
+        "line": 2
+      }
+    },
+    {
+      "expression": "30 3 * * *",
+      "source": "k8s",
+      "dialect": "vixie",
+      "shell": false,
+      "timezone": "Etc/UTC",
+      "state": "active",
+      "concurrency": "forbid",
+      "locator": {
+        "file": "deploy/cronjob.yaml",
+        "line": 6,
+        "path": "spec.schedule"
+      }
+    }
+  ]
+}
+```
+
 ## Version History
+
+### v0.6.0
+- Added an optional `locator` to each `check` issue, additive alongside
+  the existing `lineNumber`, present once an issue's source can't be
+  told apart from a line number alone (a `--inventory` run spanning
+  more than one file)
+- Added optional per-job `locator` and `aggregated` fields to `timeline`,
+  additive; `locator` is populated whenever a line can be attributed --
+  every crontab-derived source (the user's own crontab, `--stdin`,
+  `--file`) as well as `--inventory` -- with `file` present only once the
+  source recorded one (`--file` or `--inventory`)
+- `check`, `list`, `stats`, `budget`, and `timeline` all accept
+  `--inventory <path|->`, reading the `scan` command's inventory
+  contract described below instead of a crontab
+
+### v0.5.0
+- Added `scan` command JSON schema (the discovery inventory contract)
 
 ### v0.4.0
 - Added `diff` command JSON schema

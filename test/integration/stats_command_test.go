@@ -51,7 +51,6 @@ var _ = Describe("Stats Command", func() {
 
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				// Stats command shows summary and frequency info
 				Expect(output).To(ContainSubstring("Summary"))
 				Expect(output).To(MatchRegexp("Total Runs|Most Frequent"))
 			})
@@ -70,7 +69,6 @@ var _ = Describe("Stats Command", func() {
 				var stats map[string]interface{}
 				err = json.Unmarshal([]byte(output), &stats)
 				Expect(err).NotTo(HaveOccurred())
-				// Stats command outputs Metrics struct which has TotalRunsPerDay, TotalRunsPerHour, etc.
 				Expect(stats).To(HaveKey("TotalRunsPerDay"))
 				Expect(stats).To(HaveKey("TotalRunsPerHour"))
 				Expect(stats).To(HaveKey("JobFrequencies"))
@@ -88,7 +86,6 @@ var _ = Describe("Stats Command", func() {
 				var stats map[string]interface{}
 				err = json.Unmarshal([]byte(output), &stats)
 				Expect(err).NotTo(HaveOccurred())
-				// Check for metrics fields that should be present (JSON uses capitalized field names)
 				Expect(stats).To(HaveKey("TotalRunsPerDay"))
 				Expect(stats).To(HaveKey("TotalRunsPerHour"))
 			})
@@ -103,7 +100,6 @@ var _ = Describe("Stats Command", func() {
 
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				// Verbose mode shows histogram and collision stats
 				Expect(output).To(ContainSubstring("Summary"))
 				Expect(output).To(MatchRegexp("Most Frequent|Histogram|Busiest"))
 			})
@@ -118,7 +114,6 @@ var _ = Describe("Stats Command", func() {
 
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				// Should show top 3 most frequent jobs
 				Expect(output).To(ContainSubstring("Most Frequent"))
 			})
 		})
@@ -133,6 +128,50 @@ var _ = Describe("Stats Command", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
 				Expect(output).To(ContainSubstring("Total"))
+			})
+		})
+
+		Context("when calculating stats for descriptor schedules", func() {
+			It("should include @reboot and @every without panicking", func() {
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+				command := exec.Command(pathToCLI, "stats", "--file", testFile, "--verbose")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("Total Jobs: 4"))
+				Expect(output).To(ContainSubstring("@reboot"))
+				Expect(output).To(ContainSubstring("@every 5m"))
+			})
+
+			It("should report zero daily runs for @reboot and a steady count for @every 5m in JSON", func() {
+				// 287 is @every 5m's run count within the calculator's reference day (00:05 through 23:55).
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+				command := exec.Command(pathToCLI, "stats", "--file", testFile, "--json")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := session.Out.Contents()
+
+				var result map[string]interface{}
+				err = json.Unmarshal(output, &result)
+				Expect(err).NotTo(HaveOccurred())
+
+				frequencies := result["JobFrequencies"].([]interface{})
+				var rebootRuns, everyRuns float64
+				for _, f := range frequencies {
+					entry := f.(map[string]interface{})
+					switch entry["Expression"] {
+					case "@reboot":
+						rebootRuns = entry["RunsPerDay"].(float64)
+					case "@every 5m":
+						everyRuns = entry["RunsPerDay"].(float64)
+					}
+				}
+				Expect(rebootRuns).To(Equal(0.0))
+				Expect(everyRuns).To(Equal(287.0))
 			})
 		})
 

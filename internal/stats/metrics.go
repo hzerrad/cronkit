@@ -7,8 +7,13 @@ type Metrics struct {
 	TotalRunsPerDay  int
 	TotalRunsPerHour int
 	JobFrequencies   []JobFrequency
-	HourHistogram    []int // 24 elements, index = hour (0-23)
-	Collisions       CollisionStats
+	// HourHistogram is a typical day's run distribution (index i is the
+	// count of runs landing in hour i, 0-23), bucketed in UTC against the
+	// fixed ReferenceDate rather than Collisions' anchor.
+	HourHistogram []int
+	// Collisions describes a concrete forward window starting at the moment
+	// of evaluation; see CalculateCollisions's doc comment.
+	Collisions CollisionStats
 }
 
 // JobFrequency represents frequency information for a single job
@@ -19,8 +24,12 @@ type JobFrequency struct {
 	RunsPerHour int
 }
 
-// CollisionStats contains collision analysis results
+// CollisionStats contains collision analysis results, computed over a
+// concrete forward window starting at the moment of evaluation; see
+// CalculateCollisions's doc comment for its exact anchor and zone.
 type CollisionStats struct {
+	// BusiestHours ranks hours by how many runs land in each, within this
+	// analysis window, not HourHistogram's typical day.
 	BusiestHours       []HourStats
 	QuietWindows       []TimeWindow
 	CollisionFrequency float64 // Percentage of time windows with collisions

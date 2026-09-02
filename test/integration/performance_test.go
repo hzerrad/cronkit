@@ -64,14 +64,12 @@ var _ = Describe("Performance Tests", func() {
 		})
 
 		It("should process 500 jobs in under 5 seconds", func() {
-			// Create a temporary file with 500 jobs
 			tmpFile, err := os.CreateTemp("", "perf-test-500-*.cron")
 			Expect(err).NotTo(HaveOccurred())
 			defer func() {
 				_ = os.Remove(tmpFile.Name())
 			}()
 
-			// Write 500 jobs to the file
 			for i := 0; i < 500; i++ {
 				_, err := tmpFile.WriteString("0 * * * * /usr/bin/job" + string(rune('0'+(i%10))) + ".sh\n")
 				Expect(err).NotTo(HaveOccurred())

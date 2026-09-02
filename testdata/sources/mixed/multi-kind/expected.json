@@ -1,0 +1,18 @@
+[
+  {
+    "expression": "0 3 * * *",
+    "source": "k8s",
+    "dialect": "vixie",
+    "shell": false,
+    "state": "active",
+    "locator": {"file": "input.yaml", "line": 13, "document": 1, "path": "spec.schedule"}
+  },
+  {
+    "expression": "0 5 * * *",
+    "source": "argo",
+    "dialect": "vixie",
+    "shell": false,
+    "state": "active",
+    "locator": {"file": "input.yaml", "line": 6, "path": "spec.schedule"}
+  }
+]

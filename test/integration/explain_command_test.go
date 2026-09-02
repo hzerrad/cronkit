@@ -172,6 +172,26 @@ var _ = Describe("Explain Command", func() {
 				Expect(session.Out).To(gbytes.Say("At midnight on January 1st"))
 			})
 		})
+
+		Context("when user explains descriptor schedules with no fields", func() {
+			It("should explain @every as an interval, not every minute", func() {
+				command := exec.Command(pathToCLI, "explain", "@every 1h")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("Every hour"))
+			})
+
+			It("should explain @reboot as a boot trigger, not a parse error", func() {
+				command := exec.Command(pathToCLI, "explain", "@reboot")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				Expect(session.Out).To(gbytes.Say("At system startup"))
+			})
+		})
 	})
 
 	Describe("JSON Output", func() {
