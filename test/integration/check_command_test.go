@@ -60,6 +60,27 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
+	Context("when a schedule lands on a day short months do not have", func() {
+		It("should warn that those months are skipped", func() {
+			command := exec.Command(pathToCLI, "check", "0 0 31 * *", "--verbose")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out).To(gbytes.Say("skipped in 5 of 12"))
+			Expect(session.Out).To(gbytes.Say("CRON-013"))
+		})
+
+		It("should stay quiet for a day every month has", func() {
+			command := exec.Command(pathToCLI, "check", "0 0 28 * *", "--verbose")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out).NotTo(gbytes.Say("CRON-013"))
+		})
+	})
+
 	Context("when running 'cronkit check' with a boot trigger", func() {
 		It("should not panic and should validate @reboot successfully", func() {
 			command := exec.Command(pathToCLI, "check", "@reboot")

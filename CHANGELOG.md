@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `CRON-013` warns when a schedule lands on a day-of-month that not every
+  month has. `0 0 31 * *` runs seven times a year rather than monthly, and
+  the five months it skips are silent today
+
+### Fixed
+- `explain` no longer claims a schedule on day 29, 30 or 31 runs in every
+  month. It now names the days a short month lacks, e.g. `0 1 1/15 * *` reads
+  "on days 1, 16, and 31 of every month (31 only in months that have it)".
+  Only those days are qualified, since the rest of the schedule still runs
+  that month
+
 ## [0.3.1] - 2026-09-02
 
 ### Changed
