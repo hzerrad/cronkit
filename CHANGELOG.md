@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-02
+
 ### Added
 - `scan` discovers cron schedules across a whole repository instead of
   one crontab at a time. It walks crontabs, Kubernetes CronJobs, GitHub
@@ -79,6 +81,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CRON_TZ=Asia/Tokyo 0 2 * * *`, is now reported in the timezone field
   instead of being left inside the expression, where it made the job
   indistinguishable from one running in UTC
+
+### Upgrade notes
+- A job id in `budget --json`, `stats --json` and `timeline --json` changed
+  shape. Anything matching `line-<number>` needs updating: with a file in play
+  the id is now `line-<file>:<line>`, suffixed `#<path>` for a source that
+  addresses a schedule structurally. `--stdin` and the user's own crontab are
+  unaffected
+- `--inventory` is additive. Existing `--file` and `--stdin` flows are unchanged
+- `timeline` text output gained a footer line for excluded jobs; `--json`
+  consumers are unaffected unless they reject unrecognised keys
 
 ## [0.2.0] - 2026-08-06
 
