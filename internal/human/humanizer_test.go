@@ -290,6 +290,11 @@ func TestHumanizer_Humanize_StandardExpressions(t *testing.T) {
 			expression: "0 9,12,17 * * *",
 			expected:   "At 09:00, 12:00, and 17:00 every day",
 		},
+		{
+			name:       "daily at midnight with unspecified day of month",
+			expression: "0 0 ? * *",
+			expected:   "At midnight every day",
+		},
 	}
 
 	for _, tt := range tests {
@@ -868,4 +873,36 @@ func TestHumanize_SteppedCalendarFields(t *testing.T) {
 			assert.Equal(t, tt.expected, humanizer.Humanize(schedule))
 		})
 	}
+}
+
+func TestHumanize_Interval(t *testing.T) {
+	tests := []struct {
+		expression string
+		expected   string
+	}{
+		{"@every 1h", "Every hour"},
+		{"@every 30m", "Every 30 minutes"},
+		{"@every 1h30m", "Every 1 hour 30 minutes"},
+		{"@every 45s", "Every 45 seconds"},
+		{"@every 1m", "Every minute"},
+		{"@every 60s", "Every minute"},
+		{"@every 1s", "Every second"},
+		{"@every 2h", "Every 2 hours"},
+		{"@every 500ms", "Every second"},
+	}
+
+	parser, humanizer := cronx.NewParser(), human.NewHumanizer()
+	for _, tt := range tests {
+		t.Run(tt.expression, func(t *testing.T) {
+			s, err := parser.Parse(tt.expression)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, humanizer.Humanize(s))
+		})
+	}
+}
+
+func TestHumanize_Reboot(t *testing.T) {
+	s, err := cronx.NewParser().Parse("@reboot")
+	require.NoError(t, err)
+	assert.Equal(t, "At system startup", human.NewHumanizer().Humanize(s))
 }

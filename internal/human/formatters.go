@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // formatHour formats hour as HH:00
@@ -50,6 +51,54 @@ func pluralize(word string, count int) string {
 		return word
 	}
 	return word + "s"
+}
+
+// formatInterval renders an @every duration as a plain English phrase (e.g.
+// "Every hour", "Every 30 minutes"); a positive duration under a second is
+// clamped up to exactly one second first, mirroring robfig/cron's own ConstantDelaySchedule.
+func formatInterval(d time.Duration) string {
+	if d > 0 && d < time.Second {
+		d = time.Second
+	}
+
+	hours := int(d / time.Hour)
+	d -= time.Duration(hours) * time.Hour
+	minutes := int(d / time.Minute)
+	d -= time.Duration(minutes) * time.Minute
+	seconds := int(d / time.Second)
+
+	units := []struct {
+		count int
+		name  string
+	}{
+		{hours, "hour"},
+		{minutes, "minute"},
+		{seconds, "second"},
+	}
+
+	present := 0
+	for _, u := range units {
+		if u.count > 0 {
+			present++
+		}
+	}
+
+	var parts []string
+	for _, u := range units {
+		switch {
+		case u.count == 0:
+			continue
+		case present == 1 && u.count == 1:
+			parts = append(parts, u.name)
+		default:
+			parts = append(parts, fmt.Sprintf("%d %s", u.count, pluralize(u.name, u.count)))
+		}
+	}
+
+	if len(parts) == 0 {
+		return "Every moment"
+	}
+	return "Every " + strings.Join(parts, " ")
 }
 
 // dayName returns the name for a day of week (0=Sunday, 6=Saturday)

@@ -580,3 +580,29 @@ func TestScheduler_Next_TimeProgression(t *testing.T) {
 			"time at index %d should be after 'from' time", i)
 	}
 }
+
+// TestScheduler_Next_Reboot guards that @reboot reports "zero times, no error", never a nil slice.
+func TestScheduler_Next_Reboot(t *testing.T) {
+	scheduler := cronx.NewScheduler()
+	from := time.Date(2025, 12, 18, 17, 0, 0, 0, time.UTC)
+
+	times, err := scheduler.Next("@reboot", from, 10)
+
+	require.NoError(t, err)
+	assert.NotNil(t, times, "@reboot must report an empty slice, not nil")
+	assert.Empty(t, times)
+}
+
+// TestScheduler_Next_EveryInterval locks in that @every keeps working via robfig/cron's native handling.
+func TestScheduler_Next_EveryInterval(t *testing.T) {
+	scheduler := cronx.NewScheduler()
+	from := time.Date(2025, 12, 18, 17, 0, 0, 0, time.UTC)
+
+	times, err := scheduler.Next("@every 30m", from, 3)
+
+	require.NoError(t, err)
+	require.Len(t, times, 3)
+	assert.Equal(t, time.Date(2025, 12, 18, 17, 30, 0, 0, time.UTC), times[0])
+	assert.Equal(t, time.Date(2025, 12, 18, 18, 0, 0, 0, time.UTC), times[1])
+	assert.Equal(t, time.Date(2025, 12, 18, 18, 30, 0, 0, time.UTC), times[2])
+}

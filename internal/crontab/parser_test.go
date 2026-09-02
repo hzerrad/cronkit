@@ -68,6 +68,14 @@ func TestParseLine_ValidJobs(t *testing.T) {
 			wantCommand: "/usr/bin/startup.sh",
 		},
 		{
+			name:        "job with @every",
+			line:        "@every 1h /usr/bin/poll.sh",
+			lineNumber:  1,
+			wantType:    EntryTypeJob,
+			wantExpr:    "@every 1h",
+			wantCommand: "/usr/bin/poll.sh",
+		},
+		{
 			name:        "job with only expression no command",
 			line:        "0 0 * * *", // Only expression, no command - exprEnd will be 0
 			lineNumber:  1,
@@ -93,6 +101,84 @@ func TestParseLine_ValidJobs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestParseLine_EveryDescriptor tests "@every <duration> command", the only descriptor spanning two tokens.
+func TestParseLine_EveryDescriptor(t *testing.T) {
+	t.Run("valid interval with inline comment", func(t *testing.T) {
+		entry := ParseLine("@every 1h /usr/bin/poll.sh # hourly poll", 1)
+
+		require.Equal(t, EntryTypeJob, entry.Type)
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@every 1h", entry.Job.Expression)
+		assert.Equal(t, "/usr/bin/poll.sh", entry.Job.Command)
+		assert.Equal(t, "hourly poll", entry.Job.Comment)
+		assert.True(t, entry.Job.Valid)
+		assert.Empty(t, entry.Job.Error)
+	})
+
+	t.Run("tabs and repeated spaces between tokens", func(t *testing.T) {
+		entry := ParseLine("@every\t1h30m\t\t/usr/bin/poll.sh", 1)
+
+		require.Equal(t, EntryTypeJob, entry.Type)
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@every 1h30m", entry.Job.Expression)
+		assert.Equal(t, "/usr/bin/poll.sh", entry.Job.Command)
+		assert.True(t, entry.Job.Valid)
+	})
+
+	t.Run("missing duration and command is reported invalid, not dropped", func(t *testing.T) {
+		entry := ParseLine("@every", 1)
+
+		require.Equal(t, EntryTypeJob, entry.Type, "an @every line must never be silently dropped")
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@every", entry.Job.Expression)
+		assert.Empty(t, entry.Job.Command)
+		assert.False(t, entry.Job.Valid)
+		assert.NotEmpty(t, entry.Job.Error)
+	})
+
+	t.Run("missing duration but a command follows is reported invalid, not dropped", func(t *testing.T) {
+		entry := ParseLine("@every /usr/bin/poll.sh", 1)
+
+		require.Equal(t, EntryTypeJob, entry.Type, "an @every line must never be silently dropped")
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@every /usr/bin/poll.sh", entry.Job.Expression)
+		assert.False(t, entry.Job.Valid)
+		assert.NotEmpty(t, entry.Job.Error)
+	})
+
+	t.Run("unparseable duration is reported invalid, not dropped", func(t *testing.T) {
+		entry := ParseLine("@every nonsense /usr/bin/poll.sh", 1)
+
+		require.Equal(t, EntryTypeJob, entry.Type, "an @every line must never be silently dropped")
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@every nonsense", entry.Job.Expression)
+		assert.Equal(t, "/usr/bin/poll.sh", entry.Job.Command)
+		assert.False(t, entry.Job.Valid)
+		assert.NotEmpty(t, entry.Job.Error)
+	})
+
+	t.Run("valid duration but no command is reported invalid, not silently active", func(t *testing.T) {
+		entry := ParseLine("@every 1h", 1)
+
+		require.Equal(t, EntryTypeJob, entry.Type)
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@every 1h", entry.Job.Expression)
+		assert.Empty(t, entry.Job.Command)
+		assert.False(t, entry.Job.Valid, "a schedule with no command is invalid, the same as a bare @reboot")
+		assert.Contains(t, entry.Job.Error, "no command")
+	})
+
+	t.Run("other aliases are unaffected", func(t *testing.T) {
+		entry := ParseLine("@hourly /usr/bin/hourly-task.sh", 1)
+
+		require.Equal(t, EntryTypeJob, entry.Type)
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@hourly", entry.Job.Expression)
+		assert.Equal(t, "/usr/bin/hourly-task.sh", entry.Job.Command)
+		assert.True(t, entry.Job.Valid)
+	})
 }
 
 // TestParseLine_Comments tests parsing comment lines
@@ -328,17 +414,15 @@ func TestParseLine_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("alias job with only alias no command", func(t *testing.T) {
+		// Reported as an EntryTypeJob with an invalid Job, not silently discarded.
 		line := "@daily"
 		entry := ParseLine(line, 1)
 
-		// Should return nil from parseAliasJob (len(fields) < 2)
-		// This tests the len(fields) < 2 path
-		if entry.Type == EntryTypeJob {
-			// If it's parsed as a job, it should be invalid
-			assert.False(t, entry.Job.Valid)
-		} else {
-			// Or it might be invalid entry
-			assert.Equal(t, EntryTypeInvalid, entry.Type)
-		}
+		require.Equal(t, EntryTypeJob, entry.Type)
+		require.NotNil(t, entry.Job)
+		assert.Equal(t, "@daily", entry.Job.Expression)
+		assert.Empty(t, entry.Job.Command)
+		assert.False(t, entry.Job.Valid)
+		assert.Contains(t, entry.Job.Error, "no command")
 	})
 }

@@ -2,6 +2,7 @@ package human
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -165,5 +166,38 @@ func TestOrdinalSuffix(t *testing.T) {
 		assert.Equal(t, "th", ordinalSuffix(113)) // 113 ends in 13, so "th"
 		assert.Equal(t, "nd", ordinalSuffix(102)) // 102 ends in 2, so "nd"
 		assert.Equal(t, "rd", ordinalSuffix(103)) // 103 ends in 3, so "rd"
+	})
+}
+
+func TestFormatInterval(t *testing.T) {
+	t.Run("should drop the numeral for a single unit worth exactly 1", func(t *testing.T) {
+		assert.Equal(t, "Every hour", formatInterval(time.Hour))
+		assert.Equal(t, "Every minute", formatInterval(time.Minute))
+		assert.Equal(t, "Every second", formatInterval(time.Second))
+	})
+
+	t.Run("should keep the numeral for a single unit worth more than 1", func(t *testing.T) {
+		assert.Equal(t, "Every 2 hours", formatInterval(2*time.Hour))
+		assert.Equal(t, "Every 30 minutes", formatInterval(30*time.Minute))
+		assert.Equal(t, "Every 45 seconds", formatInterval(45*time.Second))
+	})
+
+	t.Run("should keep the numeral on every component once more than one is present", func(t *testing.T) {
+		assert.Equal(t, "Every 1 hour 30 minutes", formatInterval(90*time.Minute))
+		assert.Equal(t, "Every 2 hours 1 minute", formatInterval(2*time.Hour+time.Minute))
+		assert.Equal(t, "Every 1 hour 1 minute 1 second", formatInterval(time.Hour+time.Minute+time.Second))
+	})
+
+	t.Run("should treat equal durations identically regardless of how they were spelled", func(t *testing.T) {
+		assert.Equal(t, formatInterval(time.Minute), formatInterval(60*time.Second))
+	})
+
+	t.Run("should handle a zero duration without producing an empty phrase", func(t *testing.T) {
+		assert.Equal(t, "Every moment", formatInterval(0))
+	})
+
+	t.Run("should clamp a positive sub-second duration up to a second, matching robfig's own clamp", func(t *testing.T) {
+		assert.Equal(t, "Every second", formatInterval(500*time.Millisecond))
+		assert.Equal(t, "Every second", formatInterval(time.Nanosecond))
 	})
 }

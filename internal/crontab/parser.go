@@ -1,6 +1,7 @@
 package crontab
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -12,7 +13,7 @@ var (
 	envVarRegex = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*=`)
 
 	// cronAliasRegex matches cron special strings (@hourly, @daily, etc.)
-	cronAliasRegex = regexp.MustCompile(`^@(reboot|yearly|annually|monthly|weekly|daily|hourly)`)
+	cronAliasRegex = regexp.MustCompile(`^@(reboot|every|yearly|annually|monthly|weekly|daily|hourly)`)
 )
 
 // ParseLine parses a single line from a crontab file and returns an Entry
@@ -133,11 +134,15 @@ func parseJob(line string, lineNumber int) *Job {
 	return job
 }
 
-// parseAliasJob parses a cron job with an alias (@daily, @hourly, etc.)
+// everyAlias is the one descriptor whose schedule does not fit in a single whitespace-delimited token.
+const everyAlias = "@every"
+
+// parseAliasJob parses a cron job with a named alias (@daily, @hourly, etc.);
+// a Job is always returned here, never nil, even when nothing follows the alias.
 func parseAliasJob(line string, lineNumber int) *Job {
 	fields := strings.Fields(line)
-	if len(fields) < 2 {
-		return nil
+	if len(fields) >= 1 && fields[0] == everyAlias {
+		return parseEveryJob(line, fields, lineNumber)
 	}
 
 	alias := fields[0]
@@ -166,9 +171,79 @@ func parseAliasJob(line string, lineNumber int) *Job {
 
 	if err != nil {
 		job.Error = err.Error()
+	} else {
+		requireCommand(job)
 	}
 
 	return job
+}
+
+// requireCommand marks job invalid when its descriptor is otherwise
+// well-formed but nothing follows it; only called once the descriptor itself already validated.
+func requireCommand(job *Job) {
+	if job.Command != "" {
+		return
+	}
+	job.Valid = false
+	job.Error = fmt.Sprintf("%s has no command", job.Expression)
+}
+
+// parseEveryJob parses "@every <duration> command" lines, whose schedule spans two tokens, not just
+// fields[0]; a Job is always returned here, never nil.
+func parseEveryJob(line string, fields []string, lineNumber int) *Job {
+	expression := fields[0]
+	var commandAndComment string
+
+	if len(fields) >= 2 {
+		expression = fields[0] + " " + fields[1]
+		// Found by byte offset (not fields[2:] rejoined) to preserve original spacing within the command.
+		if start := fieldStart(line, 3); start != -1 {
+			commandAndComment = strings.TrimSpace(line[start:])
+		}
+	}
+
+	// Extract inline comment if present
+	var command, comment string
+	if idx := strings.Index(commandAndComment, "#"); idx != -1 {
+		command = strings.TrimSpace(commandAndComment[:idx])
+		comment = strings.TrimSpace(commandAndComment[idx+1:])
+	} else {
+		command = commandAndComment
+	}
+
+	parser := cronx.NewParser()
+	_, err := parser.Parse(expression)
+
+	job := &Job{
+		LineNumber: lineNumber,
+		Expression: expression,
+		Command:    command,
+		Comment:    comment,
+		Valid:      err == nil,
+	}
+
+	if err != nil {
+		job.Error = err.Error()
+	} else {
+		requireCommand(job)
+	}
+
+	return job
+}
+
+// fieldStart returns the byte offset in line where the nth (1-indexed)
+// whitespace-delimited field begins, or -1 if line has fewer than n fields.
+func fieldStart(line string, n int) int {
+	count := 0
+	for i := 0; i < len(line); i++ {
+		if !isWhitespace(line[i]) && (i == 0 || isWhitespace(line[i-1])) {
+			count++
+			if count == n {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 // isWhitespace checks if a byte is whitespace (space or tab)
