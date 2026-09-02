@@ -27,11 +27,14 @@ var crontabDirs = []string{"cron.d"}
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 // crontabSource reads line-oriented crontabs, which are not tree-shaped so no path language can address them.
-type crontabSource struct{}
+type crontabSource struct {
+	// parser validates expressions; built once here since cronx's parser caches and is safe for concurrent use.
+	parser cronx.Parser
+}
 
 // NewCrontabSource creates the crontab source.
 func NewCrontabSource() Source {
-	return &crontabSource{}
+	return &crontabSource{parser: cronx.NewParser()}
 }
 
 // ID names the source.
@@ -95,8 +98,8 @@ func splitSystemUser(command string) (user, rest, reason string) {
 }
 
 // classifySchedule reports whether expression is valid, and if not, whether to report it as StateInvalid.
-func classifySchedule(expression string) (valid, reportable bool) {
-	_, err := cronx.NewParser().Parse(expression)
+func (s *crontabSource) classifySchedule(expression string) (valid, reportable bool) {
+	_, err := s.parser.Parse(expression)
 	if err == nil {
 		return true, false
 	}
@@ -106,17 +109,16 @@ func classifySchedule(expression string) (valid, reportable bool) {
 	if strings.Contains(err.Error(), "value out of range") {
 		return false, true
 	}
-	return false, oneFieldAwayFromValid(expression)
+	return false, s.oneFieldAwayFromValid(expression)
 }
 
 // oneFieldAwayFromValid reports whether expression would parse if exactly one field were replaced with "*".
-func oneFieldAwayFromValid(expression string) bool {
+func (s *crontabSource) oneFieldAwayFromValid(expression string) bool {
 	fields := strings.Fields(expression)
 	if len(fields) != 5 {
 		return false
 	}
 
-	parser := cronx.NewParser()
 	for i, field := range fields {
 		if field == "*" {
 			continue // substituting a field already "*" changes nothing
@@ -124,7 +126,7 @@ func oneFieldAwayFromValid(expression string) bool {
 		trial := make([]string, len(fields))
 		copy(trial, fields)
 		trial[i] = "*"
-		if _, err := parser.Parse(strings.Join(trial, " ")); err == nil {
+		if _, err := s.parser.Parse(strings.Join(trial, " ")); err == nil {
 			return true
 		}
 	}
@@ -132,14 +134,14 @@ func oneFieldAwayFromValid(expression string) bool {
 }
 
 // malformedDescriptorItem reports whether raw still attempts an "@" descriptor as StateInvalid.
-func malformedDescriptorItem(sourceID, file string, lineNumber int, raw, timezone string, systemFormat bool) (inventory.Item, bool) {
+func (s *crontabSource) malformedDescriptorItem(file string, lineNumber int, raw, timezone string, systemFormat bool) (inventory.Item, bool) {
 	trimmed := strings.TrimSpace(raw)
 	if !strings.HasPrefix(trimmed, "@") {
 		return inventory.Item{}, false
 	}
 
 	token := strings.Fields(trimmed)[0]
-	_, err := cronx.NewParser().Parse(token)
+	_, err := s.parser.Parse(token)
 	if err == nil {
 		return inventory.Item{}, false
 	}
@@ -160,7 +162,7 @@ func malformedDescriptorItem(sourceID, file string, lineNumber int, raw, timezon
 
 	return inventory.Item{
 		Expression: token,
-		SourceID:   sourceID,
+		SourceID:   s.ID(),
 		Dialect:    "vixie",
 		Command:    command,
 		Shell:      true,
@@ -285,12 +287,12 @@ func (s *crontabSource) Extract(u Unit, fsys fs.FS) ([]inventory.Item, error) {
 
 		if entry.Type != crontab.EntryTypeJob || entry.Job == nil {
 			// Lines that never become a Job may still be a malformed "@" descriptor worth reporting.
-			if item, ok := malformedDescriptorItem(s.ID(), u.Path, lineNumber, entry.Raw, timezone, systemFormat); ok {
+			if item, ok := s.malformedDescriptorItem(u.Path, lineNumber, entry.Raw, timezone, systemFormat); ok {
 				items = append(items, item)
 			}
 			return
 		}
-		valid, reportable := classifySchedule(entry.Job.Expression)
+		valid, reportable := s.classifySchedule(entry.Job.Expression)
 		if !valid && !reportable {
 			return
 		}

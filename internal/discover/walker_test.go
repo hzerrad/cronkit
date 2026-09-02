@@ -254,7 +254,7 @@ func TestWalker_ExtractionFailureIsAProblemNotAnAbort(t *testing.T) {
 			assert.Error(t, p.Err)
 		}
 	}
-	assert.Equal(t, 2, brokenProblems, "both k8s and argo match broken.yaml by path and both must report the decode failure")
+	assert.Equal(t, 1, brokenProblems, "k8s and argo share one decode of broken.yaml, so they share its failure")
 
 	// The walk did not abort: items from files sorted both before and
 	// after broken.yaml are still present.
@@ -372,7 +372,8 @@ func TestWalker_OverlappingRootsDoNotDoubleReportAClassifyLevelProblem(t *testin
 	dir := t.TempDir()
 	mkdirAll(t, filepath.Join(dir, ".git"))
 	mkdirAll(t, filepath.Join(dir, "sub"))
-	writeFile(t, filepath.Join(dir, "sub", "big.txt"), "0123456789")
+	// A name the crontab source claims, so the size limit is reached at all.
+	writeFile(t, filepath.Join(dir, "sub", "big.cron"), "0123456789")
 
 	w := New(defaultRegistry(t), Options{
 		EnumerateOptions: EnumerateOptions{MaxFileSize: 5},
@@ -383,7 +384,7 @@ func TestWalker_OverlappingRootsDoNotDoubleReportAClassifyLevelProblem(t *testin
 
 	count := 0
 	for _, p := range problems {
-		if p.Path == "sub/big.txt" {
+		if p.Path == "sub/big.cron" {
 			count++
 		}
 	}
@@ -493,4 +494,37 @@ func TestResolveScope_UnresolvableRelativePathErrors(t *testing.T) {
 
 	_, err := resolveScope("relative")
 	assert.Error(t, err)
+}
+
+// TestWalker_ADecodeFailureIsReportedOnce covers a malformed yaml every profile recognises: the
+// sources share one decode, so they must not each report the shared failure.
+func TestWalker_ADecodeFailureIsReportedOnce(t *testing.T) {
+	dir := t.TempDir()
+	mkdirAll(t, filepath.Join(dir, ".git"))
+	writeFile(t, filepath.Join(dir, "broken.yaml"), "kind: [unclosed\n")
+
+	_, problems, err := New(defaultRegistry(t), Options{}).Walk([]string{dir})
+	require.NoError(t, err)
+
+	require.Len(t, problems, 1, "one bad file is one problem, however many sources tried to read it")
+	assert.Equal(t, "broken.yaml", problems[0].Path)
+}
+
+// TestWalker_UnrecognisedFilesAreNeverOpened pins that Walk hands Enumerate a recogniser built from
+// its own filtered registry, so a repository of files no source claims costs no reads.
+func TestWalker_UnrecognisedFilesAreNeverOpened(t *testing.T) {
+	dir := t.TempDir()
+	mkdirAll(t, filepath.Join(dir, ".git"))
+	writeFile(t, filepath.Join(dir, "crontab"), "0 2 * * * /usr/bin/backup.sh\n")
+	// Unreadable, and no source claims a .png: it must never be touched, so never a problem.
+	unreadable := filepath.Join(dir, "image.png")
+	writeFile(t, unreadable, "not really a png\n")
+	require.NoError(t, os.Chmod(unreadable, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o644) })
+
+	inv, problems, err := New(defaultRegistry(t), Options{}).Walk([]string{dir})
+	require.NoError(t, err)
+
+	assert.Empty(t, problems, "a file no source recognises is never opened, so it cannot fail")
+	assert.NotEmpty(t, itemsBySource(inv.Items, "crontab"))
 }

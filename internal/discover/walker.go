@@ -54,6 +54,13 @@ func (w *Walker) Walk(roots []string) (*inventory.Inventory, []Problem, error) {
 		problems []Problem
 		invRoot  string
 	)
+	// MatchAll returns nil until something matches, so asking it per path costs no allocation
+	// for the files a scan is mostly made of.
+	enumOpts := w.opts.EnumerateOptions
+	enumOpts.Recognises = func(path string) bool {
+		return len(registry.MatchAll(source.Unit{Path: path})) > 0
+	}
+
 	seenScopes := make(map[string]bool, len(roots))
 	// seenPaths stops a file rediscovered by overlapping entries in roots from being reported twice.
 	seenPaths := make(map[string]bool)
@@ -77,7 +84,7 @@ func (w *Walker) Walk(roots []string) (*inventory.Inventory, []Problem, error) {
 			invRoot = root.Dir
 		}
 
-		candidates, rootProblems, err := Enumerate(root, scope, w.opts.EnumerateOptions)
+		candidates, rootProblems, err := Enumerate(root, scope, enumOpts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -103,9 +110,16 @@ func (w *Walker) Walk(roots []string) (*inventory.Inventory, []Problem, error) {
 
 			// One Unit and Cache per candidate lets multiple matching sources share a single decode.
 			unit := source.Unit{Path: c.Path, Info: c.Info, Cache: source.NewDocumentCache()}
+			// Sources sharing that decode also share its failure, so an identical error is
+			// reported once. A source failing differently still gets its own problem.
+			seenErrs := make(map[string]bool)
 			for _, s := range registry.MatchAll(unit) {
 				extracted, err := s.Extract(unit, fsys)
 				if err != nil {
+					if seenErrs[err.Error()] {
+						continue
+					}
+					seenErrs[err.Error()] = true
 					problems = append(problems, Problem{
 						Path: c.Path,
 						Err:  fmt.Errorf("discover: %s: %w", s.ID(), err),

@@ -7,6 +7,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/hzerrad/cronkit/internal/cronx"
 	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -398,9 +399,10 @@ func TestClassifySchedule(t *testing.T) {
 		// A schedule attempt with one unrecognised (not just out-of-range) field is still reportable, not prose.
 		{"0 9 * * lun", false, true},
 	}
+	src := &crontabSource{parser: cronx.NewParser()}
 	for _, c := range cases {
 		t.Run(c.expression, func(t *testing.T) {
-			valid, reportable := classifySchedule(c.expression)
+			valid, reportable := src.classifySchedule(c.expression)
 			assert.Equal(t, c.wantValid, valid)
 			assert.Equal(t, c.wantReportable, reportable)
 		})

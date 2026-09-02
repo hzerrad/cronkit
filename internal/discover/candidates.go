@@ -36,6 +36,9 @@ type EnumerateOptions struct {
 	NoIgnore bool
 	// Excludes are additional path.Match glob patterns; a pattern without "/" matches any single path segment.
 	Excludes []string
+	// Recognises reports whether any source would read a path. A path it rejects is never stat'ed,
+	// sniffed or reported as a problem. Nil keeps every path, which is what the tests here rely on.
+	Recognises func(path string) bool
 }
 
 // skipDirs are directories the filesystem-walk fallback never descends into, standing in for .gitignore.
@@ -250,6 +253,11 @@ func classify(root Root, opts EnumerateOptions, rawPaths []string) ([]Candidate,
 
 	for _, rel := range rawPaths {
 		if matchesExclude(rel, opts.Excludes) {
+			continue
+		}
+		// Asked before any syscall: Source.Match reads the path alone, so a file nothing
+		// recognises costs nothing to skip.
+		if opts.Recognises != nil && !opts.Recognises(rel) {
 			continue
 		}
 

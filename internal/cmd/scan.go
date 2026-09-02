@@ -38,9 +38,8 @@ Exit codes:
      ("no schedules in this repository" is a true answer, and a scan
      that failed on a repo without crons would be unusable in CI)
   1  the walk could not run at all: an unreadable root, an unknown
-     --source or --exclude-source ID, or a malformed flag
-  1  with --strict, the walk completed but reported one or more
-     per-file problems
+     --source or --exclude-source ID, or a malformed flag; or, with
+     --strict, the walk completed but reported per-file problems
 
 Examples:
   cronkit scan                          # scan the current directory

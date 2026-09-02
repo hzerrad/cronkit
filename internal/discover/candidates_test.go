@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -1165,4 +1166,50 @@ func TestEnumerate_NoIgnoreForcesFallbackEvenInARepo(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, problems)
 	assert.Equal(t, []string{"vendor-marker.txt"}, candidatePaths(candidates))
+}
+
+// TestEnumerate_RecognisesSkipsFilesNoSourceWants pins that a path no source claims is never
+// stat'ed or read: Source.Match is path-only, so the whole tree does not need opening.
+func TestEnumerate_RecognisesSkipsFilesNoSourceWants(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "wanted.yaml"), "kind: CronJob\n")
+	writeFile(t, filepath.Join(dir, "ignored.bin"), "whatever\n")
+	root := newRootForTest(t, dir)
+
+	var asked []string
+	opts := EnumerateOptions{
+		Recognises: func(path string) bool {
+			asked = append(asked, path)
+			return strings.HasSuffix(path, ".yaml")
+		},
+	}
+
+	candidates, problems, err := Enumerate(root, root.Dir, opts)
+	require.NoError(t, err)
+	assert.Empty(t, problems)
+
+	require.Len(t, candidates, 1)
+	assert.Equal(t, "wanted.yaml", candidates[0].Path)
+	assert.ElementsMatch(t, []string{"ignored.bin", "wanted.yaml"}, asked,
+		"every path is offered to Recognises, and only the wanted one is opened")
+}
+
+// TestEnumerate_OversizedFileNoSourceWantsIsNotAProblem covers --max-file-size: a huge binary
+// nothing would parse is noise, not a diagnostic.
+func TestEnumerate_OversizedFileNoSourceWantsIsNotAProblem(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "big.bin"), strings.Repeat("x", 200))
+	writeFile(t, filepath.Join(dir, "big.yaml"), strings.Repeat("y", 200))
+	root := newRootForTest(t, dir)
+
+	opts := EnumerateOptions{
+		MaxFileSize: 10,
+		Recognises:  func(path string) bool { return strings.HasSuffix(path, ".yaml") },
+	}
+
+	_, problems, err := Enumerate(root, root.Dir, opts)
+	require.NoError(t, err)
+
+	require.Len(t, problems, 1, "only the file a source would have read is worth reporting")
+	assert.Equal(t, "big.yaml", problems[0].Path)
 }

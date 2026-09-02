@@ -406,9 +406,7 @@ cleared here for brevity — a real run against that fixture returns six):
 
 ### Version History
 
-- **v0.3.0**: Added the `scan` inventory contract, and `--inventory` input to `check`, `list`, `stats`, `budget` and `timeline`. A job id in `budget`, `stats` and `timeline` is now the schedule's address rather than its line number alone
-- **v0.2.0**: Added `locale` field to all outputs, standardized field naming (camelCase), added `timezone` to timeline output
-- **v0.1.0**: Initial JSON schema, covering every command shipped in the initial release
+See [Version History](#version-history-1) at the end of this document.
 
 ## Error Responses
 
