@@ -48,9 +48,13 @@ type OverlapStats struct {
 	MostProblematic []Overlap // Top N overlaps sorted by count
 }
 
-// jobEntry holds a job's metadata in first-seen order.
+// jobEntry holds a job's metadata in first-seen order; file, line, path and count are optional.
 type jobEntry struct {
 	id, expression, description, label string
+	file                               string
+	line                               int
+	path                               string
+	count                              int
 }
 
 // Timeline represents a timeline with time slots and job runs
@@ -65,6 +69,18 @@ type Timeline struct {
 
 	source       string
 	sourceDetail string
+
+	// foreignZones names the IANA zones active items declared that differ from the axis zone.
+	foreignZones []string
+
+	// excludedSuspended, excludedUnresolved and excludedInvalid count items that never reached this chart.
+	excludedSuspended, excludedUnresolved, excludedInvalid int
+
+	// collapsedItems and collapsedLanes record a collapse from many per-job lanes into one aggregate lane.
+	collapsedItems, collapsedLanes int
+
+	// hiddenLanes and topLimit record a --top cap, set by SetHiddenLanes.
+	hiddenLanes, topLimit int
 }
 
 // laneExpr returns the expression to trail a lane with, empty when the label already carries it.
@@ -115,7 +131,7 @@ func (tl *Timeline) SetJobInfo(jobID, expression, description, label string) {
 		return
 	}
 	tl.jobIndex[jobID] = len(tl.jobs)
-	tl.jobs = append(tl.jobs, jobEntry{jobID, expression, description, label})
+	tl.jobs = append(tl.jobs, jobEntry{id: jobID, expression: expression, description: description, label: label})
 }
 
 // SetSource names what is being visualized, printed above the window line;
@@ -123,6 +139,50 @@ func (tl *Timeline) SetJobInfo(jobID, expression, description, label string) {
 func (tl *Timeline) SetSource(name, detail string) {
 	tl.source = name
 	tl.sourceDetail = detail
+}
+
+// SetJobLocator records where a job was found, so a multi-file chart can
+// trail its lanes with "file:line"; a no-op if jobID was never registered with SetJobInfo.
+func (tl *Timeline) SetJobLocator(jobID, file string, line int, path string) {
+	if idx, ok := tl.jobIndex[jobID]; ok {
+		tl.jobs[idx].file = file
+		tl.jobs[idx].line = line
+		tl.jobs[idx].path = path
+	}
+}
+
+// SetJobAggregateCount marks a lane as standing in for count underlying items
+// collapsed together; a no-op if jobID was never registered with SetJobInfo.
+func (tl *Timeline) SetJobAggregateCount(jobID string, count int) {
+	if idx, ok := tl.jobIndex[jobID]; ok {
+		tl.jobs[idx].count = count
+	}
+}
+
+// SetForeignZones records the distinct IANA zone names active items declared
+// that differ from the axis zone; this only controls the window line's text,
+// since every run time is already converted into the axis zone before reaching AddJobRun.
+func (tl *Timeline) SetForeignZones(zones []string) {
+	tl.foreignZones = zones
+}
+
+// SetExcluded records how many discovered items never reached this chart so the footer can report them.
+func (tl *Timeline) SetExcluded(suspended, unresolved, invalid int) {
+	tl.excludedSuspended = suspended
+	tl.excludedUnresolved = unresolved
+	tl.excludedInvalid = invalid
+}
+
+// SetCollapsed records a collapse into one aggregate lane per file; lanes == 0 means no collapse happened.
+func (tl *Timeline) SetCollapsed(items, lanes int) {
+	tl.collapsedItems = items
+	tl.collapsedLanes = lanes
+}
+
+// SetHiddenLanes records a --top cap; hidden == 0 means nothing was capped.
+func (tl *Timeline) SetHiddenLanes(hidden, top int) {
+	tl.hiddenLanes = hidden
+	tl.topLimit = top
 }
 
 // DetectOverlaps finds times where multiple jobs run simultaneously
@@ -227,12 +287,14 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 	sb.WriteString(tl.windowLine(g) + "\n\n")
 	if len(tl.jobRuns) == 0 {
 		sb.WriteString("no runs in this window\n")
+		sb.WriteString(tl.footerLine(0, g) + "\n")
 		return sb.String()
 	}
 
 	overlaps := tl.DetectOverlaps()
 	hasConflictRow := len(overlaps) > 0 && len(tl.jobs) > 1
 
+	multiFile := distinctFileCount(tl.jobs) > 1
 	maxLabel, maxExpr := 0, 0
 	if hasConflictRow {
 		maxLabel = len([]rune("conflicts"))
@@ -241,7 +303,7 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 		if n := len([]rune(j.label)); n > maxLabel {
 			maxLabel = n
 		}
-		if n := len([]rune(laneExpr(j))); n > maxExpr {
+		if n := len([]rune(laneGutter(j, multiFile))); n > maxExpr {
 			maxExpr = n
 		}
 	}
@@ -264,7 +326,7 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 				cells[col] = g.merged
 			}
 		}
-		sb.WriteString(laneRow(j.label, laneExpr(j), cells, b, g, laneColor(i, opts.Color)) + "\n")
+		sb.WriteString(laneRow(j.label, laneGutter(j, multiFile), gutterIsPath(j, multiFile), labelIsPath(j), cells, b, g, laneColor(i, opts.Color)) + "\n")
 	}
 
 	if hasConflictRow {
@@ -276,7 +338,7 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 		if opts.Color {
 			code = ansiRed
 		}
-		sb.WriteString(laneRow("conflicts", "", cells, b, g, code) + "\n")
+		sb.WriteString(laneRow("conflicts", "", false, false, cells, b, g, code) + "\n")
 	}
 
 	axis, labels := axisRows(tl.view, tl.startTime, b, g)
@@ -293,36 +355,77 @@ func (tl *Timeline) Render(opts RenderOptions) string {
 
 // RenderJSON generates a JSON representation of the timeline
 func (tl *Timeline) RenderJSON() map[string]interface{} {
-	// Group runs by job ID
+	// Group runs by job ID; runOrder records each id's first appearance for a deterministic position.
 	jobRunsMap := make(map[string][]time.Time)
+	var runOrder []string
+	seenRun := make(map[string]bool)
 	for _, run := range tl.jobRuns {
 		jobRunsMap[run.JobID] = append(jobRunsMap[run.JobID], run.RunTime)
+		if !seenRun[run.JobID] {
+			seenRun[run.JobID] = true
+			runOrder = append(runOrder, run.JobID)
+		}
 	}
 
-	// Build jobs array
-	jobs := make([]map[string]interface{}, 0)
-	for jobID, runTimes := range jobRunsMap {
+	overlaps := tl.DetectOverlaps()
+	overlapMap := make(map[time.Time]int)
+	for _, overlap := range overlaps {
+		overlapMap[overlap.Time.Truncate(time.Minute)] = overlap.Count
+	}
+
+	// Order: registered jobs first in tl.jobs order, then any id that only went through AddJobRun.
+	order := make([]string, 0, len(runOrder))
+	placed := make(map[string]bool, len(runOrder))
+	for _, j := range tl.jobs {
+		if jobRunsMap[j.id] != nil && !placed[j.id] {
+			order = append(order, j.id)
+			placed[j.id] = true
+		}
+	}
+	for _, id := range runOrder {
+		if !placed[id] {
+			order = append(order, id)
+			placed[id] = true
+		}
+	}
+
+	jobs := make([]map[string]interface{}, 0, len(order))
+	for _, jobID := range order {
+		runTimes := jobRunsMap[jobID]
+
 		// Sort run times
-		sort.Slice(runTimes, func(i, j int) bool {
-			return runTimes[i].Before(runTimes[j])
+		sort.Slice(runTimes, func(i, k int) bool {
+			return runTimes[i].Before(runTimes[k])
 		})
 
 		jobData := map[string]interface{}{
 			"id":   jobID,
-			"runs": make([]map[string]interface{}, 0),
+			"runs": make([]map[string]interface{}, 0, len(runTimes)),
 		}
 
 		// Add job info if available
 		if idx, hasInfo := tl.jobIndex[jobID]; hasInfo {
-			jobData["expression"] = tl.jobs[idx].expression
-			jobData["description"] = tl.jobs[idx].description
-		}
+			j := tl.jobs[idx]
+			jobData["expression"] = j.expression
+			jobData["description"] = j.description
 
-		// Add runs
-		overlaps := tl.DetectOverlaps()
-		overlapMap := make(map[time.Time]int)
-		for _, overlap := range overlaps {
-			overlapMap[overlap.Time.Truncate(time.Minute)] = overlap.Count
+			// Provenance is additive: a job SetJobLocator/SetJobAggregateCount was never called for gets neither key.
+			if j.file != "" || j.line > 0 || j.path != "" {
+				locator := map[string]interface{}{}
+				if j.file != "" {
+					locator["file"] = j.file
+				}
+				if j.line > 0 {
+					locator["line"] = j.line
+				}
+				if j.path != "" {
+					locator["path"] = j.path
+				}
+				jobData["locator"] = locator
+			}
+			if j.count > 0 {
+				jobData["aggregated"] = j.count
+			}
 		}
 
 		for _, runTime := range runTimes {
@@ -340,8 +443,7 @@ func (tl *Timeline) RenderJSON() map[string]interface{} {
 		jobs = append(jobs, jobData)
 	}
 
-	// Build overlaps array
-	overlaps := tl.DetectOverlaps()
+	// Build overlaps array (overlaps was already computed above for overlapMap)
 	overlapsJSON := make([]map[string]interface{}, 0, len(overlaps))
 	for _, overlap := range overlaps {
 		overlapsJSON = append(overlapsJSON, map[string]interface{}{

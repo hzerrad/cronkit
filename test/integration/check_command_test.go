@@ -60,6 +60,51 @@ var _ = Describe("Check Command", func() {
 		})
 	})
 
+	Context("when running 'cronkit check' with a boot trigger", func() {
+		It("should not panic and should validate @reboot successfully", func() {
+			command := exec.Command(pathToCLI, "check", "@reboot")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out).To(gbytes.Say("All valid"))
+			// No DOM/DOW conflict, empty-schedule, or frequency finding --
+			// @reboot has no fields to inspect and no wall-clock next run.
+			Expect(session.Out).NotTo(gbytes.Say("CRON-00"))
+		})
+	})
+
+	Context("when running 'cronkit check' with a fixed interval", func() {
+		It("should not panic and should validate @every 1h successfully", func() {
+			command := exec.Command(pathToCLI, "check", "@every 1h", "--max-runs-per-day", "1")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out).To(gbytes.Say("All valid"))
+			// Frequency analysis is skipped entirely for @every, so the
+			// deliberately-low threshold above must not trigger CRON-007.
+			Expect(session.Out).NotTo(gbytes.Say("CRON-00"))
+		})
+	})
+
+	Context("when running 'cronkit check --file' with a crontab containing a boot trigger", func() {
+		It("should not panic and should still flag the real DOM/DOW conflict", func() {
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+			command := exec.Command(pathToCLI, "check", "--file", testFile, "--verbose")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring("Total jobs: 4"))
+			Expect(output).To(ContainSubstring("CRON-001"))
+			// Neither descriptor job itself may generate a finding.
+			Expect(output).NotTo(ContainSubstring("Expression: @reboot"))
+			Expect(output).NotTo(ContainSubstring("Expression: @every 5m"))
+		})
+	})
+
 	Context("when running 'cronkit check --file' with a valid crontab", func() {
 		It("should validate successfully", func() {
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")

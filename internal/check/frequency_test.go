@@ -67,6 +67,22 @@ func TestDetectRedundantPattern(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, DetectRedundantPattern(schedule), "*/1 in hour field should be redundant")
 	})
+
+	t.Run("should not panic and report false for @reboot (no fields)", func(t *testing.T) {
+		schedule, err := parser.Parse("@reboot")
+		require.NoError(t, err)
+		require.NotPanics(t, func() {
+			assert.False(t, DetectRedundantPattern(schedule), "@reboot has no fields to be redundant")
+		})
+	})
+
+	t.Run("should not panic and report false for @every (no fields)", func(t *testing.T) {
+		schedule, err := parser.Parse("@every 1h")
+		require.NoError(t, err)
+		require.NotPanics(t, func() {
+			assert.False(t, DetectRedundantPattern(schedule), "@every has no fields to be redundant")
+		})
+	})
 }
 
 func TestEstimateRunFrequency(t *testing.T) {

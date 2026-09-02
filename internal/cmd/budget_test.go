@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -229,5 +231,93 @@ func TestBudgetCommand_Additional(t *testing.T) {
 		if err != nil {
 			assert.Contains(t, err.Error(), "budget violation")
 		}
+	})
+
+	t.Run("inventory input", func(t *testing.T) {
+		inv := inventory.New("", []inventory.Item{
+			{Expression: "0 * * * *", Command: "worker-a", State: inventory.StateActive},
+			{Expression: "0 * * * *", Command: "worker-b", State: inventory.StateActive},
+		})
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		require.NoError(t, inv.Encode(f))
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		bc := newBudgetCommand()
+		bc.inventory = f.Name()
+		bc.maxConcurrent = 10
+		bc.window = "1h"
+
+		var buf bytes.Buffer
+		bc.SetOut(&buf)
+
+		err = bc.runBudget(nil, nil)
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "Budget Analysis")
+	})
+
+	t.Run("job identity in --verbose output does not change when an unrelated schedule is added elsewhere", func(t *testing.T) {
+		// Pins that a job's id stays stable regardless of what else is in
+		// the batch (previously it only folded in the file on same-line
+		// collisions within this run, so an unrelated schedule elsewhere
+		// could silently rename it).
+		base := []inventory.Item{
+			{Expression: "0 * * * *", Command: "worker-a", State: inventory.StateActive, Locator: inventory.Locator{File: "site-a/crontab", Line: 5}},
+			{Expression: "0 * * * *", Command: "worker-b", State: inventory.StateActive, Locator: inventory.Locator{File: "site-b/crontab", Line: 5}},
+		}
+
+		runVerbose := func(items []inventory.Item) string {
+			inv := inventory.New("", items)
+			f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+			require.NoError(t, err)
+			require.NoError(t, inv.Encode(f))
+			require.NoError(t, f.Close())
+			defer func() { _ = os.Remove(f.Name()) }()
+
+			bc := newBudgetCommand()
+			bc.inventory = f.Name()
+			bc.maxConcurrent = 1
+			bc.window = "24h"
+			bc.verbose = true
+			var buf bytes.Buffer
+			bc.SetOut(&buf)
+			require.NoError(t, bc.runBudget(nil, nil))
+			return buf.String()
+		}
+
+		before := runVerbose(base)
+		require.Contains(t, before, "line-site-a/crontab:5",
+			"the id format must already fold in the file, unconditionally")
+
+		unrelated := inventory.Item{
+			Expression: "0 0 1 1 *", Command: "unrelated", State: inventory.StateActive,
+			Locator: inventory.Locator{File: "site-z/other.yaml", Line: 5},
+		}
+		after := runVerbose(append(append([]inventory.Item{}, base...), unrelated))
+
+		assert.Contains(t, after, "line-site-a/crontab:5",
+			"adding an unrelated schedule on the same line elsewhere must not rename this job's id")
+	})
+
+	t.Run("malformed inventory produces a clear error", func(t *testing.T) {
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		_, err = f.WriteString("nope")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		bc := newBudgetCommand()
+		bc.inventory = f.Name()
+		bc.maxConcurrent = 10
+		bc.window = "1h"
+
+		var buf bytes.Buffer
+		bc.SetOut(&buf)
+
+		err = bc.runBudget(nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read inventory")
 	})
 }

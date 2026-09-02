@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hzerrad/cronkit/internal/crontab"
+	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -385,9 +386,7 @@ func TestListCommand_OutputErrors(t *testing.T) {
 	})
 
 	t.Run("should handle error path when err is set after all branches", func(t *testing.T) {
-		// This tests the error path at line 118-120 in runList
-		// This is a defensive check that should rarely be hit
-		// but we can test the code path exists
+		// Defensive check for the error path in runList that should rarely be hit.
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 
 		cmd := newListCommand()
@@ -518,10 +517,7 @@ func TestListCommand_FlagsAndSources(t *testing.T) {
 	})
 
 	t.Run("list with stdin error handling", func(t *testing.T) {
-		// Test error handling when stdin read fails
-		// This tests the error path in runList (line 94-96, 106-108)
-		// We can't easily simulate stdin read failure, but we test
-		// that the error handling code exists
+		// Can't easily simulate a stdin read failure, but we test that the error handling code exists.
 		testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 
 		cmd := newListCommand()
@@ -803,5 +799,126 @@ func TestListCommand_StdinPaths(t *testing.T) {
 		// This may or may not use stdin depending on terminal detection
 		_ = cmd.Execute()
 		_ = buf.String()
+	})
+}
+
+func TestListCommand_Inventory(t *testing.T) {
+	writeInventory := func(t *testing.T, items []inventory.Item) string {
+		t.Helper()
+		inv := inventory.New("", items)
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		require.NoError(t, inv.Encode(f))
+		require.NoError(t, f.Close())
+		t.Cleanup(func() { _ = os.Remove(f.Name()) })
+		return f.Name()
+	}
+
+	t.Run("lists items read from an inventory file", func(t *testing.T) {
+		path := writeInventory(t, []inventory.Item{
+			{Expression: "*/15 * * * *", Command: "gcr.io/proj/worker", State: inventory.StateActive},
+		})
+
+		lc := newListCommand()
+		buf := new(bytes.Buffer)
+		lc.SetOut(buf)
+		lc.SetArgs([]string{"--inventory", path})
+
+		err := lc.Execute()
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "gcr.io/proj/worker")
+		assert.Contains(t, buf.String(), "*/15 * * * *")
+	})
+
+	t.Run("--all with --inventory refuses rather than silently showing less", func(t *testing.T) {
+		path := writeInventory(t, []inventory.Item{
+			{Expression: "0 0 * * *", Command: "worker", State: inventory.StateActive},
+		})
+
+		lc := newListCommand()
+		buf := new(bytes.Buffer)
+		lc.SetOut(buf)
+		lc.SetErr(buf)
+		lc.SetArgs([]string{"--all", "--inventory", path})
+
+		err := lc.Execute()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--all cannot be used with --inventory")
+	})
+
+	t.Run("malformed inventory produces a clear error", func(t *testing.T) {
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		_, err = f.WriteString("{not json")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		lc := newListCommand()
+		buf := new(bytes.Buffer)
+		lc.SetOut(buf)
+		lc.SetErr(buf)
+		lc.SetArgs([]string{"--inventory", f.Name()})
+
+		err = lc.Execute()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read inventory")
+	})
+
+	t.Run("a single-file inventory keeps the pre-provenance table and JSON", func(t *testing.T) {
+		path := writeInventory(t, []inventory.Item{
+			{Expression: "0 0 * * *", Command: "worker-a", State: inventory.StateActive, Locator: inventory.Locator{File: "site-a/crontab", Line: 3}},
+			{Expression: "0 1 * * *", Command: "worker-b", State: inventory.StateActive, Locator: inventory.Locator{File: "site-a/crontab", Line: 6}},
+		})
+
+		lc := newListCommand()
+		buf := new(bytes.Buffer)
+		lc.SetOut(buf)
+		lc.SetArgs([]string{"--inventory", path})
+		require.NoError(t, lc.Execute())
+		assert.NotContains(t, buf.String(), "FILE",
+			"a single-source listing must not gain a FILE column")
+		assert.NotContains(t, buf.String(), "site-a/crontab",
+			"a single-source listing must not repeat a file already known to the caller")
+
+		lc = newListCommand()
+		jsonBuf := new(bytes.Buffer)
+		lc.SetOut(jsonBuf)
+		lc.SetArgs([]string{"--inventory", path, "--json"})
+		require.NoError(t, lc.Execute())
+		assert.NotContains(t, jsonBuf.String(), `"file"`,
+			"single-file JSON must stay byte-identical to before Item carried provenance")
+	})
+
+	t.Run("a multi-file inventory shows which file each job came from", func(t *testing.T) {
+		// Pins that a multi-file listing disambiguates repeated bare line numbers with the file.
+		path := writeInventory(t, []inventory.Item{
+			{Expression: "0 0 * * *", Command: "worker-a", State: inventory.StateActive, Locator: inventory.Locator{File: "site-a/crontab", Line: 9}},
+			{Expression: "0 1 * * *", Command: "worker-b", State: inventory.StateActive, Locator: inventory.Locator{File: "site-b/crontab", Line: 9}},
+		})
+
+		lc := newListCommand()
+		buf := new(bytes.Buffer)
+		lc.SetOut(buf)
+		lc.SetArgs([]string{"--inventory", path})
+		require.NoError(t, lc.Execute())
+		out := buf.String()
+		assert.Contains(t, out, "FILE")
+		assert.Contains(t, out, "site-a/crontab")
+		assert.Contains(t, out, "site-b/crontab")
+
+		lc = newListCommand()
+		jsonBuf := new(bytes.Buffer)
+		lc.SetOut(jsonBuf)
+		lc.SetArgs([]string{"--inventory", path, "--json"})
+		require.NoError(t, lc.Execute())
+		var decoded map[string]interface{}
+		require.NoError(t, json.Unmarshal(jsonBuf.Bytes(), &decoded))
+		jobs := decoded["jobs"].([]interface{})
+		require.Len(t, jobs, 2)
+		first := jobs[0].(map[string]interface{})
+		assert.Equal(t, "site-a/crontab", first["file"])
+		second := jobs[1].(map[string]interface{})
+		assert.Equal(t, "site-b/crontab", second["file"])
 	})
 }

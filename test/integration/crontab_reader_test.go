@@ -22,10 +22,8 @@ var _ = Describe("Crontab Reader", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(jobs).NotTo(BeEmpty())
 
-				// Verify we have multiple jobs
 				Expect(len(jobs)).To(BeNumerically(">", 5))
 
-				// All parsed jobs should be valid
 				for _, job := range jobs {
 					Expect(job).NotTo(BeNil())
 					Expect(job.LineNumber).To(BeNumerically(">", 0))
@@ -39,7 +37,6 @@ var _ = Describe("Crontab Reader", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				// Find specific jobs and verify their expressions
 				var backupJob, diskCheckJob *crontab.Job
 				for _, job := range jobs {
 					if job.Command == "/usr/local/bin/backup.sh" {
@@ -64,7 +61,6 @@ var _ = Describe("Crontab Reader", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				// Find alias jobs
 				aliasJobs := make(map[string]string)
 				for _, job := range jobs {
 					if len(job.Expression) > 0 && job.Expression[0] == '@' {
@@ -83,7 +79,6 @@ var _ = Describe("Crontab Reader", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				// Find job with comment
 				var jobWithComment *crontab.Job
 				for _, job := range jobs {
 					if job.Comment != "" {
@@ -124,7 +119,6 @@ var _ = Describe("Crontab Reader", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				// Find an invalid job
 				var invalidJob *crontab.Job
 				for _, job := range jobs {
 					if !job.Valid {
@@ -166,7 +160,6 @@ var _ = Describe("Crontab Reader", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(entries).NotTo(BeEmpty())
 
-				// Count entry types
 				typeCounts := make(map[crontab.EntryType]int)
 				for _, entry := range entries {
 					typeCounts[entry.Type]++
@@ -183,7 +176,6 @@ var _ = Describe("Crontab Reader", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				// Verify line numbers are sequential and start at 1
 				for i, entry := range entries {
 					Expect(entry.LineNumber).To(Equal(i + 1))
 				}
@@ -208,7 +200,6 @@ var _ = Describe("Crontab Reader", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				// Find the complex command
 				var complexJob *crontab.Job
 				for _, job := range jobs {
 					if job.Expression == "0 3 * * *" {
@@ -228,7 +219,6 @@ var _ = Describe("Crontab Reader", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				// Find job with arguments
 				var jobWithArgs *crontab.Job
 				for _, job := range jobs {
 					if job.Expression == "30 14 * * *" {
@@ -249,7 +239,6 @@ var _ = Describe("Crontab Reader", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				// Find job with time range
 				var rangeJob *crontab.Job
 				for _, job := range jobs {
 					if job.Expression == "0 9-17 * * 1-5" {

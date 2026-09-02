@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os/exec"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -62,6 +63,68 @@ var _ = Describe("Next Command", func() {
 
 				Eventually(session).Should(gexec.Exit(0))
 				Expect(session.Out).To(gbytes.Say("Next 100 runs"))
+			})
+		})
+	})
+
+	Describe("Descriptor Schedules", func() {
+		Context("when user asks for the next run of a boot trigger", func() {
+			It("should exit 0 with a system-startup message instead of an empty list", func() {
+				command := exec.Command(pathToCLI, "next", "@reboot")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("system startup"))
+				Expect(output).NotTo(ContainSubstring("Next 0 runs"))
+			})
+
+			It("should emit an empty (not null) runs array in JSON", func() {
+				command := exec.Command(pathToCLI, "next", "@reboot", "--json")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).NotTo(ContainSubstring(`"nextRuns": null`))
+
+				var result map[string]interface{}
+				err = json.Unmarshal(session.Out.Contents(), &result)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(result).To(HaveKey("nextRuns"))
+				nextRuns, ok := result["nextRuns"].([]interface{})
+				Expect(ok).To(BeTrue(), "nextRuns must decode as an array, never null")
+				Expect(nextRuns).To(BeEmpty())
+			})
+		})
+
+		Context("when user asks for the next runs of a fixed interval", func() {
+			It("should keep computing correctly spaced times for @every", func() {
+				command := exec.Command(pathToCLI, "next", "@every 30m", "-c", "3", "--json")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+
+				var result map[string]interface{}
+				err = json.Unmarshal(session.Out.Contents(), &result)
+				Expect(err).NotTo(HaveOccurred())
+
+				nextRuns := result["nextRuns"].([]interface{})
+				Expect(nextRuns).To(HaveLen(3))
+
+				parseTS := func(v interface{}) time.Time {
+					ts, err := time.Parse(time.RFC3339, v.(map[string]interface{})["timestamp"].(string))
+					Expect(err).NotTo(HaveOccurred())
+					return ts
+				}
+				t0 := parseTS(nextRuns[0])
+				t1 := parseTS(nextRuns[1])
+				t2 := parseTS(nextRuns[2])
+				Expect(t1.Sub(t0)).To(Equal(30 * time.Minute))
+				Expect(t2.Sub(t1)).To(Equal(30 * time.Minute))
 			})
 		})
 	})
@@ -222,14 +285,11 @@ var _ = Describe("Next Command", func() {
 				Expect(firstRun).To(HaveKey("timestamp"))
 				Expect(firstRun).To(HaveKey("relative"))
 
-				// Verify run number
 				Expect(firstRun["number"]).To(BeNumerically("==", 1))
 
-				// Verify timestamp format (RFC3339)
 				timestamp := firstRun["timestamp"].(string)
 				Expect(timestamp).To(MatchRegexp(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`))
 
-				// Verify relative time format
 				relative := firstRun["relative"].(string)
 				Expect(relative).To(ContainSubstring("in "))
 			})
@@ -264,8 +324,7 @@ var _ = Describe("Next Command", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
 
-				// Should contain timestamp pattern (YYYY-MM-DD HH:MM:SS TZ). Zones
-				// without an abbreviation print a numeric offset instead, e.g. +14.
+				// Zones without an abbreviation print a numeric offset instead, e.g. +14.
 				Expect(output).To(MatchRegexp(`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([A-Za-z]{2,}|[+-]\d{2}(\d{2})?)`))
 			})
 
@@ -391,7 +450,6 @@ var _ = Describe("Next Command", func() {
 
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				// Should contain timezone abbreviation (EST or EDT)
 				Expect(output).To(Or(ContainSubstring("EST"), ContainSubstring("EDT")))
 			})
 
@@ -402,7 +460,6 @@ var _ = Describe("Next Command", func() {
 
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
-				// Should contain timezone abbreviation (GMT or BST)
 				Expect(output).To(Or(ContainSubstring("GMT"), ContainSubstring("BST")))
 			})
 
@@ -461,7 +518,6 @@ var _ = Describe("Next Command", func() {
 				err = json.Unmarshal(sessionNY.Out.Contents(), &resultNY)
 				Expect(err).NotTo(HaveOccurred())
 
-				// Times should be different (accounting for timezone offset)
 				// JSON uses camelCase: "nextRuns" not "next_runs"
 				nextRunsUTC, ok := resultUTC["nextRuns"].([]interface{})
 				Expect(ok).To(BeTrue(), "nextRuns should be present in UTC result")
@@ -472,7 +528,6 @@ var _ = Describe("Next Command", func() {
 
 				runUTC := nextRunsUTC[0].(map[string]interface{})
 				runNY := nextRunsNY[0].(map[string]interface{})
-				// Timestamps should be different (not equal)
 				Expect(runUTC["timestamp"]).NotTo(Equal(runNY["timestamp"]))
 			})
 		})

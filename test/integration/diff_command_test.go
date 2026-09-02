@@ -17,7 +17,6 @@ var _ = Describe("Diff Command", func() {
 	)
 
 	BeforeEach(func() {
-		// Create temporary files for testing
 		tmpDir := GinkgoT().TempDir()
 		oldFile = filepath.Join(tmpDir, "old.cron")
 		newFile = filepath.Join(tmpDir, "new.cron")
@@ -136,6 +135,57 @@ var _ = Describe("Diff Command", func() {
 
 			Eventually(session).Should(gexec.Exit(0))
 			Expect(session.Out.Contents()).To(ContainSubstring("No changes detected"))
+		})
+	})
+
+	Context("when comparing descriptor schedules", func() {
+		It("should show @every and @reboot as added without panicking", func() {
+			oldContent := "0 2 * * * /usr/bin/backup.sh\n"
+			newContent := "0 2 * * * /usr/bin/backup.sh\n@every 1h /usr/bin/poll.sh\n@reboot /usr/bin/on-boot.sh\n"
+
+			err := os.WriteFile(oldFile, []byte(oldContent), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = os.WriteFile(newFile, []byte(newContent), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			command := exec.Command(pathToCLI, "diff", oldFile, newFile)
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring("Added Jobs"))
+			Expect(output).To(ContainSubstring("@every 1h"))
+			Expect(output).To(ContainSubstring("@reboot"))
+		})
+
+		It("should show a changed @every interval as modified without panicking", func() {
+			oldContent := "@every 1h /usr/bin/poll.sh # steady poll\n"
+			newContent := "@every 1h /usr/bin/poll.sh # faster poll\n"
+
+			err := os.WriteFile(oldFile, []byte(oldContent), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = os.WriteFile(newFile, []byte(newContent), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			command := exec.Command(pathToCLI, "diff", oldFile, newFile)
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out.Contents()).To(ContainSubstring("Modified Jobs"))
+		})
+
+		It("should output JSON for a crontab mixing @every and @reboot without panicking", func() {
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+			command := exec.Command(pathToCLI, "diff", testFile, testFile, "--json")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out.Contents()).To(ContainSubstring(`"added"`))
 		})
 	})
 

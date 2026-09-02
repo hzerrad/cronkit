@@ -78,6 +78,68 @@ func TestNextCommand(t *testing.T) {
 		assert.NotEmpty(t, result.NextRuns[0].Relative)
 	})
 
+	t.Run("next for @reboot reports system startup, not an empty run list", func(t *testing.T) {
+		nc := newNextCommand()
+		buf := new(bytes.Buffer)
+		nc.SetOut(buf)
+		nc.SetArgs([]string{"@reboot"})
+
+		err := nc.Execute()
+		require.NoError(t, err)
+
+		output := buf.String()
+		assert.Contains(t, output, "system startup")
+		assert.NotContains(t, output, "Next 0 runs")
+	})
+
+	t.Run("next for @reboot with JSON emits an empty runs array, not null", func(t *testing.T) {
+		nc := newNextCommand()
+		buf := new(bytes.Buffer)
+		nc.SetOut(buf)
+		nc.SetArgs([]string{"@reboot", "--json"})
+
+		err := nc.Execute()
+		require.NoError(t, err)
+
+		assert.NotContains(t, buf.String(), `"nextRuns": null`)
+
+		var result NextResult
+		err = json.Unmarshal(buf.Bytes(), &result)
+		require.NoError(t, err)
+
+		assert.Equal(t, "@reboot", result.Expression)
+		assert.NotNil(t, result.NextRuns)
+		assert.Empty(t, result.NextRuns)
+		assert.NotEmpty(t, result.Note)
+	})
+
+	t.Run("next for @every keeps computing correctly spaced times", func(t *testing.T) {
+		nc := newNextCommand()
+		buf := new(bytes.Buffer)
+		nc.SetOut(buf)
+		nc.SetArgs([]string{"@every 30m", "--json", "-c", "3"})
+
+		err := nc.Execute()
+		require.NoError(t, err)
+
+		var result NextResult
+		err = json.Unmarshal(buf.Bytes(), &result)
+		require.NoError(t, err)
+
+		require.Len(t, result.NextRuns, 3)
+		assert.Empty(t, result.Note, "only @reboot sets a note")
+
+		t0, err := time.Parse(time.RFC3339, result.NextRuns[0].Timestamp)
+		require.NoError(t, err)
+		t1, err := time.Parse(time.RFC3339, result.NextRuns[1].Timestamp)
+		require.NoError(t, err)
+		t2, err := time.Parse(time.RFC3339, result.NextRuns[2].Timestamp)
+		require.NoError(t, err)
+
+		assert.Equal(t, 30*time.Minute, t1.Sub(t0))
+		assert.Equal(t, 30*time.Minute, t2.Sub(t1))
+	})
+
 	t.Run("fail on invalid cron expression", func(t *testing.T) {
 		nc := newNextCommand()
 		nc.SetArgs([]string{"invalid"})

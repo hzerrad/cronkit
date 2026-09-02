@@ -6,22 +6,27 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/hzerrad/cronkit/internal/cronx"
 	"github.com/hzerrad/cronkit/internal/human"
+	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/hzerrad/cronkit/internal/render"
+	"github.com/hzerrad/cronkit/internal/timeutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 
+// collapseLaneThreshold is where the chart switches from one lane per job to one aggregate lane per file.
+const collapseLaneThreshold = 20
+
 // TimelineCommand wraps cobra.Command with timeline-specific functionality
 type TimelineCommand struct {
 	*cobra.Command
-	file         string
+	inputFlags
 	json         bool
 	view         string
 	from         string
@@ -32,6 +37,8 @@ type TimelineCommand struct {
 	showOverlaps bool
 	color        string
 	ascii        bool
+	expand       bool
+	top          int
 }
 
 func init() {
@@ -66,7 +73,7 @@ Examples:
   cronkit timeline                               # Timeline for user's crontab`,
 	}
 
-	tc.Command.Flags().StringVarP(&tc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
+	tc.register(tc.Command, false)
 	tc.Command.Flags().BoolVarP(&tc.json, "json", "j", false, "Output in JSON format")
 	tc.Command.Flags().StringVar(&tc.view, "view", "day", "Timeline view type: 'day' (24 hours) or 'hour' (60 minutes, default: 'day')")
 	tc.Command.Flags().StringVar(&tc.from, "from", "", "Start time for timeline (RFC3339 format, defaults to current time)")
@@ -76,6 +83,10 @@ Examples:
 	tc.Command.Flags().BoolVar(&tc.showOverlaps, "show-overlaps", false, "Show detailed overlap information in output")
 	tc.Command.Flags().StringVar(&tc.color, "color", "auto", "Color output: auto, always, or never")
 	tc.Command.Flags().BoolVar(&tc.ascii, "ascii", false, "Plain ASCII glyphs")
+	tc.Command.Flags().BoolVar(&tc.expand, "expand", false,
+		fmt.Sprintf("Always draw one lane per job, even past %d (default: collapse to one lane per file)", collapseLaneThreshold))
+	tc.Command.Flags().IntVar(&tc.top, "top", 0,
+		"Cap the chart to the busiest N lanes by run count, ties broken by file/line (0 = no cap)")
 
 	return tc
 }
@@ -143,8 +154,8 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 		locale = tc.locale
 	}
 
-	// Parse jobs
-	var jobs []*crontab.Job
+	// Resolve schedules
+	var items []inventory.Item
 
 	if len(args) > 0 {
 		// Single expression provided
@@ -155,47 +166,48 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid cron expression: %w", err)
 		}
 
-		// Create a job for the expression
-		jobs = []*crontab.Job{
+		// Create an item for the expression
+		items = []inventory.Item{
 			{
-				LineNumber: 0,
 				Expression: expression,
 				Command:    "(single expression)",
-				Valid:      true,
+				Shell:      true,
+				State:      inventory.StateActive,
 			},
 		}
 	} else {
-		// Read from file or user crontab
-		reader := crontab.NewReader()
-		if tc.file != "" {
-			jobs, err = reader.ReadFile(tc.file)
-			if err != nil {
+		items, err = resolveItems(&tc.inputFlags)
+		if err != nil {
+			switch tc.classify() {
+			case sourceStdin:
+				return fmt.Errorf("failed to read crontab from stdin: %w", err)
+			case sourceInventory:
+				return fmt.Errorf("failed to read inventory: %w", err)
+			case sourceFile:
 				return fmt.Errorf("failed to read crontab file: %w", err)
-			}
-			timeline.SetSource(absPath(tc.file), "")
-		} else {
-			jobs, err = reader.ReadUser()
-			if err != nil {
+			default:
 				return fmt.Errorf("failed to read user crontab: %w", err)
 			}
-			timeline.SetSource(userCrontabSource(), "")
 		}
+		timeline.SetSource(timelineSourceLabel(&tc.inputFlags), "")
 	}
 
-	// Process jobs and add runs to timeline
+	// Sort by locator (file, then line) and finally expression, matching inventory.Inventory.Sort.
+	sort.SliceStable(items, func(i, j int) bool {
+		a, b := items[i], items[j]
+		if a.Locator.File != b.Locator.File {
+			return a.Locator.File < b.Locator.File
+		}
+		if a.Locator.Line != b.Locator.Line {
+			return a.Locator.Line < b.Locator.Line
+		}
+		return a.Expression < b.Expression
+	})
+
+	// Process items and add runs to timeline
 	parser := cronx.NewParserWithLocale(locale)
 	humanizer := human.NewHumanizer()
 	scheduler := cronx.NewScheduler()
-
-	// Pre-count lane label basenames so duplicates can be disambiguated with a :LINE suffix.
-	labelCounts := make(map[string]int)
-	if len(args) == 0 {
-		for _, job := range jobs {
-			if job.Valid {
-				labelCounts[laneLabel(job)]++
-			}
-		}
-	}
 
 	// Calculate how many runs to get based on view
 	var runCount int
@@ -207,60 +219,20 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 		timeRange = time.Hour
 		runCount = 100 // Enough to cover an hour for most schedules
 	}
+	endTime := startTime.Add(timeRange)
 
-	for _, job := range jobs {
-		if !job.Valid {
-			continue
+	if len(args) > 0 {
+		// A single-expression argument is always one item, using the expression itself as source and label.
+		item := items[0]
+		if schedule, err := parser.Parse(item.Expression); err == nil {
+			description := humanizer.Humanize(schedule)
+			jobID := fmt.Sprintf("expr-%s", item.Expression)
+			timeline.SetSource(item.Expression, description)
+			timeline.SetJobInfo(jobID, item.Expression, description, item.Expression)
+			addLaneRuns(timeline, scheduler, item, jobID, startTime, endTime, runCount)
 		}
-
-		// Parse expression
-		schedule, err := parser.Parse(job.Expression)
-		if err != nil {
-			continue // Skip invalid expressions
-		}
-
-		// Get human description
-		description := humanizer.Humanize(schedule)
-
-		// Generate job ID
-		jobID := fmt.Sprintf("job-%d", job.LineNumber)
-		if job.LineNumber == 0 {
-			jobID = fmt.Sprintf("expr-%s", job.Expression)
-		}
-
-		// Lane label: the expression itself for the single-expression path (its
-		// description goes above the chart), else the command basename deduped
-		// with a :LINE suffix when two jobs share one.
-		label := job.Expression
-		if len(args) == 0 {
-			label = laneLabel(job)
-			if labelCounts[label] > 1 {
-				label = label + ":" + strconv.Itoa(job.LineNumber)
-			}
-		} else {
-			timeline.SetSource(job.Expression, description)
-		}
-
-		// Set job info
-		timeline.SetJobInfo(jobID, job.Expression, description, label)
-
-		// Calculate next runs
-		times, err := scheduler.Next(job.Expression, startTime, runCount)
-		if err != nil {
-			continue // Skip if we can't calculate runs
-		}
-
-		// Add runs that fall within the timeline range
-		endTime := startTime.Add(timeRange)
-		for _, runTime := range times {
-			if runTime.Before(endTime) && !runTime.Before(startTime) {
-				timeline.AddJobRun(jobID, runTime)
-			}
-			// Stop if we've gone past the end time
-			if !runTime.Before(endTime) {
-				break
-			}
-		}
+	} else {
+		renderInventoryLanes(timeline, items, parser, humanizer, scheduler, startTime, endTime, runCount, tc.expand, tc.top)
 	}
 
 	// Output based on format
@@ -314,6 +286,254 @@ func (tc *TimelineCommand) runTimeline(_ *cobra.Command, args []string) error {
 	return nil
 }
 
+// computeItemRuns resolves item's timezone and returns its next runs, converted to the axis zone, that
+// fall in [startTime, endTime). Returns nil rather than an error so a bad item is skipped, not fatal.
+func computeItemRuns(scheduler cronx.Scheduler, item inventory.Item, startTime, endTime time.Time, runCount int) []time.Time {
+	loc, err := timeutil.ResolveLocation(item.Timezone, startTime.Location())
+	if err != nil {
+		return nil
+	}
+	times, err := scheduler.Next(item.Expression, startTime.In(loc), runCount)
+	if err != nil {
+		return nil
+	}
+	var runs []time.Time
+	for _, runTime := range times {
+		converted := runTime.In(startTime.Location())
+		if converted.Before(endTime) && !converted.Before(startTime) {
+			runs = append(runs, converted)
+		}
+		if !converted.Before(endTime) {
+			break
+		}
+	}
+	return runs
+}
+
+// addLaneRuns adds every run computeItemRuns finds for item to timeline under jobID.
+func addLaneRuns(timeline *render.Timeline, scheduler cronx.Scheduler, item inventory.Item, jobID string, startTime, endTime time.Time, runCount int) {
+	for _, rt := range computeItemRuns(scheduler, item, startTime, endTime, runCount) {
+		timeline.AddJobRun(jobID, rt)
+	}
+}
+
+// capLanesByRunCount decides which of n lanes survive a --top cap, keeping the busiest by run count.
+func capLanesByRunCount(n int, runs [][]time.Time, top int, locator func(i int) (file string, line int, expr string)) (keep []int, hidden int) {
+	if top <= 0 || top >= n {
+		keep = make([]int, n)
+		for i := range keep {
+			keep[i] = i
+		}
+		return keep, 0
+	}
+
+	order := make([]int, n)
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(a, b int) bool {
+		ia, ib := order[a], order[b]
+		if ra, rb := len(runs[ia]), len(runs[ib]); ra != rb {
+			return ra > rb
+		}
+		fa, la, ea := locator(ia)
+		fb, lb, eb := locator(ib)
+		if fa != fb {
+			return fa < fb
+		}
+		if la != lb {
+			return la < lb
+		}
+		return ea < eb
+	})
+
+	kept := make(map[int]bool, top)
+	for _, idx := range order[:top] {
+		kept[idx] = true
+	}
+	for i := 0; i < n; i++ {
+		if kept[i] {
+			keep = append(keep, i)
+		}
+	}
+	return keep, n - top
+}
+
+// renderInventoryLanes turns a resolved, locator-sorted set of items into timeline lanes, one per job unless
+// past collapseLaneThreshold (then one per file, unless expand).
+func renderInventoryLanes(timeline *render.Timeline, items []inventory.Item, parser cronx.Parser, humanizer human.Humanizer, scheduler cronx.Scheduler, startTime, endTime time.Time, runCount int, expand bool, top int) {
+	var excludedSuspended, excludedUnresolved, excludedInvalid int
+	activeItems := make([]inventory.Item, 0, len(items))
+	for _, item := range items {
+		switch item.State {
+		case inventory.StateActive:
+			activeItems = append(activeItems, item)
+		case inventory.StateSuspended:
+			excludedSuspended++
+		case inventory.StateUnresolved:
+			excludedUnresolved++
+		case inventory.StateInvalid:
+			excludedInvalid++
+		}
+	}
+	if excludedSuspended+excludedUnresolved+excludedInvalid > 0 {
+		timeline.SetExcluded(excludedSuspended, excludedUnresolved, excludedInvalid)
+	}
+
+	// Note every distinct item zone that differs from the axis, for the window line's conversion note.
+	axisZone := startTime.Location().String()
+	foreignSeen := make(map[string]bool)
+	var foreignZones []string
+	for _, item := range activeItems {
+		if item.Timezone != "" && item.Timezone != axisZone && !foreignSeen[item.Timezone] {
+			foreignSeen[item.Timezone] = true
+			foreignZones = append(foreignZones, item.Timezone)
+		}
+	}
+	if len(foreignZones) > 0 {
+		sort.Strings(foreignZones)
+		timeline.SetForeignZones(foreignZones)
+	}
+
+	if !expand && len(activeItems) > collapseLaneThreshold {
+		renderAggregateLanes(timeline, activeItems, scheduler, startTime, endTime, runCount, top)
+		return
+	}
+	renderPerJobLanes(timeline, activeItems, parser, humanizer, scheduler, startTime, endTime, runCount, top)
+}
+
+// renderPerJobLanes registers one lane per active item, capped to top when positive.
+func renderPerJobLanes(timeline *render.Timeline, activeItems []inventory.Item, parser cronx.Parser, humanizer human.Humanizer, scheduler cronx.Scheduler, startTime, endTime time.Time, runCount, top int) {
+	// Runs are computed once, up front, so ranking by --top never costs a second pass over the scheduler.
+	runsByItem := make([][]time.Time, len(activeItems))
+	for i, item := range activeItems {
+		runsByItem[i] = computeItemRuns(scheduler, item, startTime, endTime, runCount)
+	}
+
+	keepIdx, hidden := capLanesByRunCount(len(activeItems), runsByItem, top, func(i int) (string, int, string) {
+		it := activeItems[i]
+		return it.Locator.File, it.Locator.Line, it.Expression
+	})
+	if hidden > 0 {
+		timeline.SetHiddenLanes(hidden, top)
+	}
+	shown := make([]inventory.Item, len(keepIdx))
+	shownRuns := make([][]time.Time, len(keepIdx))
+	for i, idx := range keepIdx {
+		shown[i] = activeItems[idx]
+		shownRuns[i] = runsByItem[idx]
+	}
+
+	// Pre-count lane label basenames so duplicates can be disambiguated with a :LINE suffix.
+	labelCounts := make(map[string]int)
+	labelLineCounts := make(map[string]int)
+	for _, item := range shown {
+		label := laneLabel(item)
+		labelCounts[label]++
+		if item.Locator.Line > 0 {
+			labelLineCounts[label+":"+strconv.Itoa(item.Locator.Line)]++
+		}
+	}
+
+	for i, item := range shown {
+		// Parse expression
+		schedule, err := parser.Parse(item.Expression)
+		if err != nil {
+			continue // Skip invalid expressions
+		}
+
+		// Get human description
+		description := humanizer.Humanize(schedule)
+
+		// Generate job ID, keyed on the locator (via inventory.Locator.Identity)
+		// so it can never collide.
+		jobID := item.Locator.Identity(i, "job-", "job-")
+
+		// Lane label: command basename, deduped with :LINE, escalated to :file:LINE if that still collides.
+		label := laneLabel(item)
+		if labelCounts[label] > 1 {
+			if item.Locator.Line == 0 {
+				// No line to key on, so fall back to this item's position, unique by construction.
+				label = label + ":" + strconv.Itoa(i)
+			} else {
+				lineSuffix := strconv.Itoa(item.Locator.Line)
+				if labelLineCounts[label+":"+lineSuffix] > 1 {
+					label = label + ":" + item.Locator.File + ":" + lineSuffix
+				} else {
+					label = label + ":" + lineSuffix
+				}
+			}
+		}
+
+		timeline.SetJobInfo(jobID, item.Expression, description, label)
+		// SetJobLocator is harmless unconditionally: Render only switches to a file:line gutter past one file.
+		timeline.SetJobLocator(jobID, item.Locator.File, item.Locator.Line, item.Locator.Path)
+		for _, rt := range shownRuns[i] {
+			timeline.AddJobRun(jobID, rt)
+		}
+	}
+}
+
+// fileGroup collects the active items that share one Locator.File.
+type fileGroup struct {
+	file  string
+	items []inventory.Item
+}
+
+// groupByFile buckets items by Locator.File, in the order each file is first seen.
+func groupByFile(items []inventory.Item) []fileGroup {
+	var groups []fileGroup
+	index := make(map[string]int)
+	for _, item := range items {
+		idx, ok := index[item.Locator.File]
+		if !ok {
+			idx = len(groups)
+			index[item.Locator.File] = idx
+			groups = append(groups, fileGroup{file: item.Locator.File})
+		}
+		groups[idx].items = append(groups[idx].items, item)
+	}
+	return groups
+}
+
+// renderAggregateLanes registers one lane per file, carrying the union of runs of every item it contains.
+func renderAggregateLanes(timeline *render.Timeline, activeItems []inventory.Item, scheduler cronx.Scheduler, startTime, endTime time.Time, runCount, top int) {
+	groups := groupByFile(activeItems)
+	timeline.SetCollapsed(len(activeItems), len(groups))
+
+	// Each group's runs are computed once so --top can rank by total run count without a second pass.
+	groupRuns := make([][]time.Time, len(groups))
+	for gi, group := range groups {
+		for _, item := range group.items {
+			groupRuns[gi] = append(groupRuns[gi], computeItemRuns(scheduler, item, startTime, endTime, runCount)...)
+		}
+	}
+
+	keepIdx, hidden := capLanesByRunCount(len(groups), groupRuns, top, func(i int) (string, int, string) {
+		return groups[i].file, 0, ""
+	})
+	if hidden > 0 {
+		timeline.SetHiddenLanes(hidden, top)
+	}
+
+	for i, idx := range keepIdx {
+		group := groups[idx]
+		jobID := fmt.Sprintf("file-%d", i)
+		label := group.file
+		if label == "" {
+			label = "(no file)"
+		}
+		description := fmt.Sprintf("%d schedules", len(group.items))
+
+		timeline.SetJobInfo(jobID, "", description, label)
+		timeline.SetJobLocator(jobID, group.file, 0, "")
+		timeline.SetJobAggregateCount(jobID, len(group.items))
+		for _, rt := range groupRuns[idx] {
+			timeline.AddJobRun(jobID, rt)
+		}
+	}
+}
+
 // stdoutTTY reports whether stdout is attached to a terminal.
 func stdoutTTY() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
@@ -365,13 +585,43 @@ func userCrontabSource() string {
 	return "user crontab"
 }
 
-// laneLabel derives a job's lane label from the basename of its first command token.
-func laneLabel(job *crontab.Job) string {
-	f := strings.Fields(job.Command)
-	if len(f) == 0 {
-		return fmt.Sprintf("job-%d", job.LineNumber)
+// timelineSourceLabel names what resolveItems read, for the window line
+// SetSource prints above the chart.
+func timelineSourceLabel(flags *inputFlags) string {
+	switch flags.classify() {
+	case sourceInventory:
+		if flags.inventory == "-" {
+			return "inventory from stdin"
+		}
+		return absPath(flags.inventory)
+	case sourceFile:
+		return absPath(flags.file)
+	case sourceStdin:
+		return "stdin"
+	default:
+		return userCrontabSource()
 	}
-	return filepath.Base(f[0])
+}
+
+// laneLabel derives an item's lane label: command basename, else file base name, else path's last segment,
+// else "job-<line>".
+func laneLabel(item inventory.Item) string {
+	if f := strings.Fields(item.Command); len(f) > 0 {
+		return filepath.Base(f[0])
+	}
+	if item.Locator.File != "" {
+		base := filepath.Base(item.Locator.File)
+		if name := strings.TrimSuffix(base, filepath.Ext(base)); name != "" {
+			return name
+		}
+	}
+	if item.Locator.Path != "" {
+		segments := strings.Split(item.Locator.Path, ".")
+		if last := segments[len(segments)-1]; last != "" {
+			return last
+		}
+	}
+	return fmt.Sprintf("job-%d", item.Locator.Line)
 }
 
 // exportTimeline exports the timeline to a file (text format only, JSON handled separately)

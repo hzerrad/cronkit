@@ -2,20 +2,24 @@ package check
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/hzerrad/cronkit/internal/cronx"
+	"github.com/hzerrad/cronkit/internal/inventory"
 )
 
 // Issue represents a validation issue found in a cron expression or crontab
 type Issue struct {
 	Severity   Severity // Severity level (info, warn, error)
 	Code       string   // Diagnostic code (e.g., "CRON-001")
-	LineNumber int      // 0 for single expression checks
-	Expression string   // The cron expression (if applicable)
-	Message    string   // Human-readable issue description
-	Hint       string   // Optional fix suggestion
+	LineNumber int      // 0 for single expression checks; mirrors Locator.Line for an item-derived issue
+	// Locator says where the item came from; zero value for a single-expression or overlap issue.
+	// LineNumber stays populated alongside it as part of the --json contract.
+	Locator    inventory.Locator
+	Expression string // The cron expression (if applicable)
+	Message    string // Human-readable issue description
+	Hint       string // Optional fix suggestion
 }
 
 // ValidationResult contains the results of validating a cron expression or crontab
@@ -104,8 +108,9 @@ func (v *Validator) ValidateExpression(expression string) ValidationResult {
 	// Expression is valid, check for warnings
 	result.ValidJobs = 1
 
-	// Check for DOM/DOW conflict
-	if detectDOMDOWConflict(schedule) {
+	// Check for DOM/DOW conflict -- both fields only exist on five-field
+	// schedules; @every and @reboot have no fields to compare.
+	if schedule.Kind == cronx.KindFields && detectDOMDOWConflict(schedule) {
 		result.Issues = append(result.Issues, Issue{
 			Severity:   SeverityWarn,
 			Code:       CodeDOMDOWConflict,
@@ -117,7 +122,7 @@ func (v *Validator) ValidateExpression(expression string) ValidationResult {
 	}
 
 	// Check for empty schedule
-	if detectEmptySchedule(expression, v.scheduler) {
+	if detectEmptySchedule(expression, schedule.Kind, v.scheduler) {
 		result.Valid = false
 		result.InvalidJobs = 1
 		result.ValidJobs = 0
@@ -131,8 +136,9 @@ func (v *Validator) ValidateExpression(expression string) ValidationResult {
 		})
 	}
 
-	// Frequency analysis (if enabled)
-	if v.enableFrequency {
+	// Frequency analysis (if enabled) -- redundant-pattern and excessive-run
+	// detection both read the five fields, which @every and @reboot don't have.
+	if v.enableFrequency && schedule.Kind == cronx.KindFields {
 		freqIssues := v.validateFrequency(schedule, expression)
 		result.Issues = append(result.Issues, freqIssues...)
 	}
@@ -140,8 +146,11 @@ func (v *Validator) ValidateExpression(expression string) ValidationResult {
 	return result
 }
 
-// ValidateCrontab validates a crontab file
-func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) ValidationResult {
+// ValidateItems validates a slice of inventory items from any source cronkit
+// scan can discover; callers must run items through inventory.ResolveTimezones
+// first, and a suspended or unresolved item is counted valid and skipped
+// without further checks since its schedule isn't evaluable right now.
+func (v *Validator) ValidateItems(items []inventory.Item) ValidationResult {
 	result := ValidationResult{
 		Valid:     true,
 		Issues:    []Issue{},
@@ -149,56 +158,41 @@ func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) Validati
 		ValidJobs: 0,
 	}
 
-	// Read all entries from the file
-	entries, err := reader.ParseFile(path)
-	if err != nil {
-		result.Valid = false
-		result.Issues = append(result.Issues, Issue{
-			Severity:   SeverityError,
-			Code:       CodeFileReadError,
-			LineNumber: 0,
-			Expression: "",
-			Message:    fmt.Sprintf("Failed to read crontab file: %s", err.Error()),
-			Hint:       GetCodeHint(CodeFileReadError),
-		})
-		return result
-	}
-
-	// Validate each job entry
-	for _, entry := range entries {
-		if entry.Type != crontab.EntryTypeJob || entry.Job == nil {
-			continue
-		}
-
+	for _, item := range items {
 		result.TotalJobs++
 
-		// Check if the job is valid
-		if !entry.Job.Valid {
+		if item.State == inventory.StateInvalid {
 			result.Valid = false
 			result.InvalidJobs++
 			result.Issues = append(result.Issues, Issue{
 				Severity:   SeverityError,
 				Code:       CodeParseError,
-				LineNumber: entry.Job.LineNumber,
-				Expression: entry.Job.Expression,
-				Message:    fmt.Sprintf("Invalid cron expression: %s", entry.Job.Error),
+				LineNumber: item.Locator.Line,
+				Locator:    item.Locator,
+				Expression: item.Expression,
+				Message:    fmt.Sprintf("Invalid cron expression: %s", item.Reason),
 				Hint:       GetCodeHint(CodeParseError),
 			})
 			continue
 		}
 
+		if item.State != inventory.StateActive {
+			result.ValidJobs++
+			continue
+		}
+
 		// Parse the schedule for additional checks
-		schedule, err := v.parser.Parse(entry.Job.Expression)
+		schedule, err := v.parser.Parse(item.Expression)
 		if err != nil {
-			// This shouldn't happen if Valid is true, but handle it anyway
+			// This shouldn't happen for a StateActive item, but handle it anyway
 			result.Valid = false
 			result.InvalidJobs++
-			result.ValidJobs--
 			result.Issues = append(result.Issues, Issue{
 				Severity:   SeverityError,
 				Code:       CodeParseError,
-				LineNumber: entry.Job.LineNumber,
-				Expression: entry.Job.Expression,
+				LineNumber: item.Locator.Line,
+				Locator:    item.Locator,
+				Expression: item.Expression,
 				Message:    fmt.Sprintf("Failed to parse expression: %s", err.Error()),
 				Hint:       GetCodeHint(CodeParseError),
 			})
@@ -207,321 +201,109 @@ func (v *Validator) ValidateCrontab(reader crontab.Reader, path string) Validati
 
 		result.ValidJobs++
 
-		// Check for DOM/DOW conflict
-		if detectDOMDOWConflict(schedule) {
+		// Check for DOM/DOW conflict -- both fields only exist on
+		// five-field schedules; @every and @reboot have no fields to compare.
+		if schedule.Kind == cronx.KindFields && detectDOMDOWConflict(schedule) {
 			result.Issues = append(result.Issues, Issue{
 				Severity:   SeverityWarn,
 				Code:       CodeDOMDOWConflict,
-				LineNumber: entry.Job.LineNumber,
-				Expression: entry.Job.Expression,
+				LineNumber: item.Locator.Line,
+				Locator:    item.Locator,
+				Expression: item.Expression,
 				Message:    "Both day-of-month and day-of-week specified (runs if either condition is met)",
 				Hint:       GetCodeHint(CodeDOMDOWConflict),
 			})
 		}
 
 		// Check for empty schedule
-		if detectEmptySchedule(entry.Job.Expression, v.scheduler) {
+		if detectEmptySchedule(item.Expression, schedule.Kind, v.scheduler) {
 			result.Valid = false
 			result.InvalidJobs++
 			result.ValidJobs--
 			result.Issues = append(result.Issues, Issue{
 				Severity:   SeverityError,
 				Code:       CodeEmptySchedule,
-				LineNumber: entry.Job.LineNumber,
-				Expression: entry.Job.Expression,
+				LineNumber: item.Locator.Line,
+				Locator:    item.Locator,
+				Expression: item.Expression,
 				Message:    "Schedule never runs (empty schedule)",
 				Hint:       GetCodeHint(CodeEmptySchedule),
 			})
 		}
 
-		// Frequency analysis (if enabled)
-		if v.enableFrequency {
-			freqIssues := v.validateFrequency(schedule, entry.Job.Expression)
+		// Frequency analysis reads the five fields, which @every and @reboot don't have.
+		if v.enableFrequency && schedule.Kind == cronx.KindFields {
+			freqIssues := v.validateFrequency(schedule, item.Expression)
 			for i := range freqIssues {
-				freqIssues[i].LineNumber = entry.Job.LineNumber
+				freqIssues[i].LineNumber = item.Locator.Line
+				freqIssues[i].Locator = item.Locator
 			}
 			result.Issues = append(result.Issues, freqIssues...)
 		}
 
-		// Command hygiene checks (if enabled)
-		if v.enableHygiene && entry.Job.Command != "" {
-			hygieneIssues := v.validateCommandHygiene(entry.Job)
-			result.Issues = append(result.Issues, hygieneIssues...)
+		// Command hygiene checks (CRON-008..CRON-011) apply only when Item.Shell marks Command as shell.
+		if v.enableHygiene && item.Shell && item.Command != "" {
+			result.Issues = append(result.Issues, hygieneIssues(item.Command, item.Locator, item.Expression)...)
 		}
 	}
 
-	// Overlap analysis (if enabled) - only for crontab validation
-	if v.warnOnOverlap && len(entries) > 1 {
-		overlapIssues := v.validateOverlaps(entries)
-		result.Issues = append(result.Issues, overlapIssues...)
+	// Overlap analysis (if enabled) -- only for multiple active items
+	if v.warnOnOverlap && len(items) > 1 {
+		result.Issues = append(result.Issues, v.validateOverlapItems(items)...)
 	}
 
 	return result
 }
 
-// ValidateEntries validates a slice of crontab entries (e.g., from stdin)
-func (v *Validator) ValidateEntries(entries []*crontab.Entry) ValidationResult {
-	result := ValidationResult{
-		Valid:     true,
-		Issues:    []Issue{},
-		TotalJobs: 0,
-		ValidJobs: 0,
-	}
-
-	// Validate each job entry
-	for _, entry := range entries {
-		if entry.Type != crontab.EntryTypeJob || entry.Job == nil {
-			continue
-		}
-
-		result.TotalJobs++
-
-		if !entry.Job.Valid {
-			result.Valid = false
-			result.InvalidJobs++
-			result.Issues = append(result.Issues, Issue{
-				Severity:   SeverityError,
-				Code:       CodeParseError,
-				LineNumber: entry.Job.LineNumber,
-				Expression: entry.Job.Expression,
-				Message:    fmt.Sprintf("Invalid cron expression: %s", entry.Job.Error),
-				Hint:       GetCodeHint(CodeParseError),
-			})
-			continue
-		}
-
-		// Parse the schedule for additional checks
-		schedule, err := v.parser.Parse(entry.Job.Expression)
-		if err != nil {
-			// This shouldn't happen if Valid is true, but handle it anyway
-			result.Valid = false
-			result.InvalidJobs++
-			result.ValidJobs--
-			result.Issues = append(result.Issues, Issue{
-				Severity:   SeverityError,
-				Code:       CodeParseError,
-				LineNumber: entry.Job.LineNumber,
-				Expression: entry.Job.Expression,
-				Message:    fmt.Sprintf("Failed to parse expression: %s", err.Error()),
-				Hint:       GetCodeHint(CodeParseError),
-			})
-			continue
-		}
-
-		result.ValidJobs++
-
-		// Check for DOM/DOW conflict
-		if detectDOMDOWConflict(schedule) {
-			result.Issues = append(result.Issues, Issue{
-				Severity:   SeverityWarn,
-				Code:       CodeDOMDOWConflict,
-				LineNumber: entry.Job.LineNumber,
-				Expression: entry.Job.Expression,
-				Message:    "Both day-of-month and day-of-week specified (runs if either condition is met)",
-				Hint:       GetCodeHint(CodeDOMDOWConflict),
-			})
-		}
-
-		// Check for empty schedule
-		if detectEmptySchedule(entry.Job.Expression, v.scheduler) {
-			result.Valid = false
-			result.InvalidJobs++
-			result.ValidJobs--
-			result.Issues = append(result.Issues, Issue{
-				Severity:   SeverityError,
-				Code:       CodeEmptySchedule,
-				LineNumber: entry.Job.LineNumber,
-				Expression: entry.Job.Expression,
-				Message:    "Schedule never runs (empty schedule)",
-				Hint:       GetCodeHint(CodeEmptySchedule),
-			})
-		}
-
-		// Frequency analysis (if enabled)
-		if v.enableFrequency {
-			freqIssues := v.validateFrequency(schedule, entry.Job.Expression)
-			for i := range freqIssues {
-				freqIssues[i].LineNumber = entry.Job.LineNumber
-			}
-			result.Issues = append(result.Issues, freqIssues...)
-		}
-
-		// Command hygiene checks (if enabled)
-		if v.enableHygiene && entry.Job.Command != "" {
-			hygieneIssues := v.validateCommandHygiene(entry.Job)
-			result.Issues = append(result.Issues, hygieneIssues...)
-		}
-	}
-
-	// Overlap analysis (if enabled) - only for multiple entries
-	if v.warnOnOverlap && len(entries) > 1 {
-		overlapIssues := v.validateOverlaps(entries)
-		result.Issues = append(result.Issues, overlapIssues...)
-	}
-
-	return result
-}
-
-// ValidateUserCrontab validates the current user's crontab
-func (v *Validator) ValidateUserCrontab(reader crontab.Reader) ValidationResult {
-	result := ValidationResult{
-		Valid:     true,
-		Issues:    []Issue{},
-		TotalJobs: 0,
-		ValidJobs: 0,
-	}
-
-	// Read user's crontab
-	jobs, err := reader.ReadUser()
-	if err != nil {
-		result.Valid = false
-		result.Issues = append(result.Issues, Issue{
-			Severity:   SeverityError,
-			Code:       CodeFileReadError,
-			LineNumber: 0,
-			Expression: "",
-			Message:    fmt.Sprintf("Failed to read user crontab: %s", err.Error()),
-			Hint:       GetCodeHint(CodeFileReadError),
-		})
-		return result
-	}
-
-	// Validate each job
-	for _, job := range jobs {
-		result.TotalJobs++
-
-		if !job.Valid {
-			result.Valid = false
-			result.InvalidJobs++
-			result.Issues = append(result.Issues, Issue{
-				Severity:   SeverityError,
-				Code:       CodeParseError,
-				LineNumber: job.LineNumber,
-				Expression: job.Expression,
-				Message:    fmt.Sprintf("Invalid cron expression: %s", job.Error),
-				Hint:       GetCodeHint(CodeParseError),
-			})
-			continue
-		}
-
-		// Parse the schedule for additional checks
-		schedule, err := v.parser.Parse(job.Expression)
-		if err != nil {
-			result.Valid = false
-			result.InvalidJobs++
-			result.ValidJobs--
-			result.Issues = append(result.Issues, Issue{
-				Severity:   SeverityError,
-				Code:       CodeParseError,
-				LineNumber: job.LineNumber,
-				Expression: job.Expression,
-				Message:    fmt.Sprintf("Failed to parse expression: %s", err.Error()),
-				Hint:       GetCodeHint(CodeParseError),
-			})
-			continue
-		}
-
-		result.ValidJobs++
-
-		// Check for DOM/DOW conflict
-		if detectDOMDOWConflict(schedule) {
-			result.Issues = append(result.Issues, Issue{
-				Severity:   SeverityWarn,
-				Code:       CodeDOMDOWConflict,
-				LineNumber: job.LineNumber,
-				Expression: job.Expression,
-				Message:    "Both day-of-month and day-of-week specified (runs if either condition is met)",
-				Hint:       GetCodeHint(CodeDOMDOWConflict),
-			})
-		}
-
-		// Check for empty schedule
-		if detectEmptySchedule(job.Expression, v.scheduler) {
-			result.Valid = false
-			result.InvalidJobs++
-			result.ValidJobs--
-			result.Issues = append(result.Issues, Issue{
-				Severity:   SeverityError,
-				Code:       CodeEmptySchedule,
-				LineNumber: job.LineNumber,
-				Expression: job.Expression,
-				Message:    "Schedule never runs (empty schedule)",
-				Hint:       GetCodeHint(CodeEmptySchedule),
-			})
-		}
-
-		// Frequency analysis (if enabled)
-		if v.enableFrequency {
-			freqIssues := v.validateFrequency(schedule, job.Expression)
-			for i := range freqIssues {
-				freqIssues[i].LineNumber = job.LineNumber
-			}
-			result.Issues = append(result.Issues, freqIssues...)
-		}
-
-		// Command hygiene checks (if enabled)
-		if v.enableHygiene && job.Command != "" {
-			hygieneIssues := v.validateCommandHygiene(job)
-			result.Issues = append(result.Issues, hygieneIssues...)
-		}
-	}
-
-	// Overlap analysis (if enabled) - only for multiple jobs
-	if v.warnOnOverlap && len(jobs) > 1 {
-		// Convert jobs to entries for overlap validation
-		entries := make([]*crontab.Entry, 0, len(jobs))
-		for _, job := range jobs {
-			entries = append(entries, &crontab.Entry{
-				Type:       crontab.EntryTypeJob,
-				LineNumber: job.LineNumber,
-				Job:        job,
-			})
-		}
-		overlapIssues := v.validateOverlaps(entries)
-		result.Issues = append(result.Issues, overlapIssues...)
-	}
-
-	return result
-}
-
-// validateOverlaps performs overlap analysis on a set of job entries
-func (v *Validator) validateOverlaps(entries []*crontab.Entry) []Issue {
+// validateOverlapItems runs overlap analysis directly on items that have
+// already been admitted (run through inventory.ResolveTimezones).
+func (v *Validator) validateOverlapItems(items []inventory.Item) []Issue {
 	var issues []Issue
 
-	// Collect valid jobs
-	jobs := make([]*crontab.Job, 0)
-	for _, entry := range entries {
-		if entry.Type == crontab.EntryTypeJob && entry.Job != nil && entry.Job.Valid {
-			jobs = append(jobs, entry.Job)
+	activeCount := 0
+	for _, item := range items {
+		if item.State == inventory.StateActive {
+			activeCount++
 		}
 	}
-
-	if len(jobs) < 2 {
-		return issues // Need at least 2 jobs for overlaps
+	if activeCount < 2 {
+		return issues // Need at least 2 active items for overlaps
 	}
 
-	// Analyze overlaps
-	_, stats, err := AnalyzeOverlaps(jobs, v.overlapWindow, v.scheduler, v.parser)
+	_, stats, err := AnalyzeOverlaps(items, time.Now(), v.overlapWindow, v.scheduler, v.parser)
 	if err != nil {
 		return issues // Skip if analysis fails
 	}
 
-	// Report overlaps if they exist
 	if stats.MaxConcurrent > 1 {
-		// Report the most problematic overlaps
 		for _, overlap := range stats.MostProblematic[:min(5, len(stats.MostProblematic))] {
 			issues = append(issues, Issue{
 				Severity:   SeverityWarn,
 				Code:       CodeOverlapDetected,
 				LineNumber: 0, // Overlap involves multiple jobs
 				Expression: "",
-				Message:    fmt.Sprintf("Overlap detected: %d jobs scheduled at %s", overlap.Count, overlap.Time.Format("2006-01-02 15:04")),
-				Hint:       GetCodeHint(CodeOverlapDetected),
+				Message: fmt.Sprintf("Overlap detected: %d jobs scheduled at %s: %s",
+					overlap.Count, overlap.Time.Format("2006-01-02 15:04"), namedJobs(overlap.JobIDs)),
+				Hint: GetCodeHint(CodeOverlapDetected),
 			})
 		}
 	}
 
 	return issues
+}
+
+// maxNamedJobs bounds how many job ids one overlap message spells out.
+const maxNamedJobs = 5
+
+// namedJobs lists the jobs an overlap involves, since the count alone does not say which.
+func namedJobs(jobIDs []string) string {
+	named := jobIDs
+	suffix := ""
+	if len(named) > maxNamedJobs {
+		named = named[:maxNamedJobs]
+		suffix = fmt.Sprintf(", and %d more", len(jobIDs)-maxNamedJobs)
+	}
+	return strings.Join(named, ", ") + suffix
 }
 
 // min returns the minimum of two integers
@@ -532,13 +314,13 @@ func min(a, b int) int {
 	return b
 }
 
-// validateCommandHygiene performs command hygiene analysis
-func (v *Validator) validateCommandHygiene(job *crontab.Job) []Issue {
-	issues := AnalyzeCommand(job.Command)
-	// Set line number and expression for all issues
+// hygieneIssues runs command hygiene analysis and stamps each issue with its locator and expression.
+func hygieneIssues(command string, locator inventory.Locator, expression string) []Issue {
+	issues := AnalyzeCommand(command)
 	for i := range issues {
-		issues[i].LineNumber = job.LineNumber
-		issues[i].Expression = job.Expression
+		issues[i].LineNumber = locator.Line
+		issues[i].Locator = locator
+		issues[i].Expression = expression
 	}
 	return issues
 }
@@ -576,14 +358,19 @@ func (v *Validator) validateFrequency(schedule *cronx.Schedule, expression strin
 	return issues
 }
 
-// detectDOMDOWConflict checks if both day-of-month and day-of-week are specified
+// detectDOMDOWConflict checks if both day-of-month and day-of-week are
+// specified; call only for schedule.Kind == cronx.KindFields — those fields are nil for @every/@reboot.
 func detectDOMDOWConflict(schedule *cronx.Schedule) bool {
 	// Both DOM and DOW are specified (not wildcards)
 	return !schedule.DayOfMonth.IsEvery() && !schedule.DayOfWeek.IsEvery()
 }
 
-// detectEmptySchedule checks if a schedule never runs
-func detectEmptySchedule(expression string, scheduler cronx.Scheduler) bool {
+// detectEmptySchedule checks if a schedule never runs; KindReboot is exempt (Next reports zero times).
+func detectEmptySchedule(expression string, kind cronx.ScheduleKind, scheduler cronx.Scheduler) bool {
+	if kind == cronx.KindReboot {
+		return false
+	}
+
 	now := time.Now()
 	future := now.AddDate(2, 0, 0) // Check 2 years ahead
 

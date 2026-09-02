@@ -4,21 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/hzerrad/cronkit/internal/check"
-	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/spf13/cobra"
 )
 
 type CheckCommand struct {
 	*cobra.Command
-	file            string
+	inputFlags
 	json            bool
 	verbose         bool
 	failOn          string
 	groupBy         string
-	stdin           bool
 	enableFrequency bool
 	maxRunsPerDay   int
 	enableHygiene   bool
@@ -51,12 +50,11 @@ Examples:
 		Args: cobra.MaximumNArgs(1),
 	}
 
-	cc.Flags().StringVarP(&cc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
+	cc.register(cc.Command, true)
 	cc.Flags().BoolVarP(&cc.json, "json", "j", false, "Output in JSON format")
 	cc.Flags().BoolVarP(&cc.verbose, "verbose", "v", false, "Show warnings (DOM/DOW conflicts) as well as errors")
 	cc.Flags().StringVar(&cc.failOn, "fail-on", "error", "Severity level to fail on: 'error' (default), 'warn', or 'info'")
 	cc.Flags().StringVar(&cc.groupBy, "group-by", "none", "Group issues by: 'none' (default), 'severity', 'line', or 'job'")
-	cc.Flags().BoolVar(&cc.stdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
 	cc.Flags().BoolVar(&cc.enableFrequency, "enable-frequency-checks", true, "Enable frequency analysis (redundant patterns, excessive runs)")
 	cc.Flags().IntVar(&cc.maxRunsPerDay, "max-runs-per-day", DefaultMaxRunsPerDay, "Threshold for excessive runs warning (default: 1000)")
 	cc.Flags().BoolVar(&cc.enableHygiene, "enable-hygiene-checks", false, "Enable command hygiene checks (absolute paths, redirections, %, quoting)")
@@ -92,45 +90,43 @@ func (cc *CheckCommand) runCheck(_ *cobra.Command, args []string) error {
 		validator.SetWarnOnOverlap(true)
 	}
 
-	reader := crontab.NewReader()
-
 	var result check.ValidationResult
+	// showLocator must come from the input itself, not from which issues validation happened to produce.
+	showLocator := false
 
-	// Priority: expression arg > --file > --stdin > user crontab
+	// Priority: expression arg > --inventory > --file > --stdin > user crontab
 	if len(args) == 1 {
 		// Single expression validation
 		result = validator.ValidateExpression(args[0])
-	} else if cc.file != "" {
-		// File validation
-		result = validator.ValidateCrontab(reader, cc.file)
-	} else if cc.stdin {
-		// Stdin validation (explicit flag)
-		entries, err := reader.ParseStdin()
-		if err != nil {
-			return fmt.Errorf("failed to read crontab from stdin: %w", err)
-		}
-		result = validator.ValidateEntries(entries)
-	} else if isStdinAvailable() {
-		// Stdin validation (automatic detection)
-		entries, err := reader.ParseStdin()
-		if err != nil {
-			return fmt.Errorf("failed to read crontab from stdin: %w", err)
-		}
-		result = validator.ValidateEntries(entries)
 	} else {
-		// User crontab validation
-		result = validator.ValidateUserCrontab(reader)
+		items, err := resolveItems(&cc.inputFlags)
+		if err != nil {
+			switch cc.classify() {
+			case sourceStdin:
+				return fmt.Errorf("failed to read crontab from stdin: %w", err)
+			case sourceInventory:
+				return fmt.Errorf("failed to read inventory: %w", err)
+			case sourceFile:
+				// A bad --file is folded into the result as an issue rather than failing the command.
+				result = fileReadErrorResult(fmt.Sprintf("Failed to read crontab file: %s", err.Error()))
+			default:
+				result = fileReadErrorResult(fmt.Sprintf("Failed to read user crontab: %s", err.Error()))
+			}
+		} else {
+			showLocator = inputSpansFiles(items)
+			result = validator.ValidateItems(items)
+		}
 	}
 
 	// Output based on format
 	if cc.json {
-		return cc.outputJSON(result, failOnSeverity)
+		return cc.outputJSON(result, failOnSeverity, showLocator)
 	}
 
-	return cc.outputText(result, failOnSeverity)
+	return cc.outputText(result, failOnSeverity, showLocator)
 }
 
-func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.Severity) error {
+func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.Severity, showLocator bool) error {
 	// Filter issues based on verbose flag
 	issuesToShow := cc.filterIssues(result.Issues)
 
@@ -189,9 +185,9 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 	if len(errors) > 0 {
 		groupMode := parseGroupBy(cc.groupBy)
 		if groupMode == GroupByNone {
-			cc.printIssuesFlat(errors)
+			cc.printIssuesFlat(errors, showLocator)
 		} else {
-			cc.printIssuesGrouped(errors, groupMode)
+			cc.printIssuesGrouped(errors, groupMode, showLocator)
 		}
 		if len(warnings) > 0 {
 			cc.Println()
@@ -204,13 +200,13 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 			// Full format for warnings when verbose
 			groupMode := parseGroupBy(cc.groupBy)
 			if groupMode == GroupByNone {
-				cc.printIssuesFlat(warnings)
+				cc.printIssuesFlat(warnings, showLocator)
 			} else {
-				cc.printIssuesGrouped(warnings, groupMode)
+				cc.printIssuesGrouped(warnings, groupMode, showLocator)
 			}
 		} else {
 			// Compact format for warnings when not verbose
-			cc.printWarningsCompact(warnings)
+			cc.printWarningsCompact(warnings, showLocator)
 		}
 		if len(info) > 0 {
 			cc.Println()
@@ -221,9 +217,9 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 	if len(info) > 0 && cc.verbose {
 		groupMode := parseGroupBy(cc.groupBy)
 		if groupMode == GroupByNone {
-			cc.printIssuesFlat(info)
+			cc.printIssuesFlat(info, showLocator)
 		} else {
-			cc.printIssuesGrouped(info, groupMode)
+			cc.printIssuesGrouped(info, groupMode, showLocator)
 		}
 	}
 
@@ -236,7 +232,7 @@ func (cc *CheckCommand) outputText(result check.ValidationResult, failOn check.S
 	return nil
 }
 
-func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.Severity) error {
+func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.Severity, showLocator bool) error {
 	// Filter issues based on verbose flag
 	issuesToShow := cc.filterIssues(result.Issues)
 
@@ -252,6 +248,10 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.S
 		}
 		if issue.Hint != "" {
 			jsonIssue["hint"] = issue.Hint
+		}
+		// locator is additive: only surfaced once more than one file is in play.
+		if showLocator && issue.Locator.File != "" {
+			jsonIssue["locator"] = issue.Locator
 		}
 		jsonIssues[i] = jsonIssue
 	}
@@ -280,15 +280,25 @@ func (cc *CheckCommand) outputJSON(result check.ValidationResult, failOn check.S
 	return nil
 }
 
+// fileReadErrorResult builds the ValidationResult for a failed --file or user-crontab read.
+func fileReadErrorResult(message string) check.ValidationResult {
+	return check.ValidationResult{
+		Valid: false,
+		Issues: []check.Issue{
+			{
+				Severity: check.SeverityError,
+				Code:     check.CodeFileReadError,
+				Message:  message,
+				Hint:     check.GetCodeHint(check.CodeFileReadError),
+			},
+		},
+	}
+}
+
 // osExit is a variable that can be overridden in tests
 var osExit = os.Exit
 
-// calculateExitCode determines the appropriate exit code based on validation result,
-// issues shown, and fail-on threshold.
-// Returns:
-//   - 0: No issues, or only issues below the fail-on threshold
-//   - 1: Errors present (or configured severity level reached)
-//   - 2: Warnings present (only if fail-on is warn or info)
+// calculateExitCode returns 0 if issuesToShow is empty or below failOn, else 1 for error, 2 for warn or info.
 func calculateExitCode(result check.ValidationResult, issuesToShow []check.Issue, failOn check.Severity) int {
 	if len(issuesToShow) == 0 {
 		return 0
@@ -334,6 +344,28 @@ func (cc *CheckCommand) filterIssues(issues []check.Issue) []check.Issue {
 	return filtered
 }
 
+// issueLinePrefix renders the leading "Line N: " or "file:line: " token used by both issue renderers.
+func issueLinePrefix(issue check.Issue, showLocator bool) string {
+	if label := issueLabel(issue, showLocator); label != "" {
+		return label + ": "
+	}
+	return ""
+}
+
+// issueLabel names where an issue was found, naming the path since one line can hold several schedules.
+func issueLabel(issue check.Issue, showLocator bool) string {
+	if showLocator && issue.Locator.File != "" {
+		return issue.Locator.String()
+	}
+	if issue.LineNumber == 0 {
+		return ""
+	}
+	if issue.Locator.Path != "" {
+		return fmt.Sprintf("Line %d (%s)", issue.LineNumber, issue.Locator.Path)
+	}
+	return fmt.Sprintf("Line %d", issue.LineNumber)
+}
+
 // GroupByMode represents the grouping mode for issues
 type GroupByMode int
 
@@ -370,10 +402,14 @@ func groupIssues(issues []check.Issue, mode GroupByMode) map[string][]check.Issu
 		}
 	case GroupByLine:
 		for _, issue := range issues {
-			key := fmt.Sprintf("line-%d", issue.LineNumber)
 			if issue.LineNumber == 0 {
-				key = "no-line"
+				groups["no-line"] = append(groups["no-line"], issue)
+				continue
 			}
+			// LineNumber, not issue.Locator.Line, is the field every Issue carries a line on.
+			loc := issue.Locator
+			loc.Line = issue.LineNumber
+			key := loc.Identity(0, "issue-", "line-")
 			groups[key] = append(groups[key], issue)
 		}
 	case GroupByJob:
@@ -402,14 +438,14 @@ func getSeverityOrder() []check.Severity {
 }
 
 // printIssuesFlat prints issues in a flat list (default behavior)
-func (cc *CheckCommand) printIssuesFlat(issues []check.Issue) {
+func (cc *CheckCommand) printIssuesFlat(issues []check.Issue, showLocator bool) {
 	for _, issue := range issues {
-		cc.printIssue(issue)
+		cc.printIssue(issue, showLocator)
 	}
 }
 
 // printIssuesGrouped prints issues grouped by the specified mode
-func (cc *CheckCommand) printIssuesGrouped(issues []check.Issue, mode GroupByMode) {
+func (cc *CheckCommand) printIssuesGrouped(issues []check.Issue, mode GroupByMode, showLocator bool) {
 	groups := groupIssues(issues, mode)
 
 	switch mode {
@@ -420,57 +456,67 @@ func (cc *CheckCommand) printIssuesGrouped(issues []check.Issue, mode GroupByMod
 			if severityIssues, ok := groups[key]; ok {
 				cc.printGroupHeader(fmt.Sprintf("%s Issues", severity.String()), len(severityIssues))
 				for _, issue := range severityIssues {
-					cc.printIssue(issue)
+					cc.printIssue(issue, showLocator)
 				}
 				cc.Println()
 			}
 		}
 	case GroupByLine:
-		// Print groups sorted by line number
-		lineNumbers := make([]int, 0, len(groups))
-		lineMap := make(map[int]string)
-		for key := range groups {
-			if key == "no-line" {
-				lineNumbers = append(lineNumbers, 0)
-				lineMap[0] = key
-			} else {
-				var lineNum int
-				_, _ = fmt.Sscanf(key, "line-%d", &lineNum)
-				lineNumbers = append(lineNumbers, lineNum)
-				lineMap[lineNum] = key
-			}
+		// Order groups by (line number, file) rather than parsing the map key back apart.
+		type lineGroup struct {
+			key    string
+			line   int
+			file   string
+			issues []check.Issue
 		}
-		// Sort line numbers
-		for i := 0; i < len(lineNumbers)-1; i++ {
-			for j := i + 1; j < len(lineNumbers); j++ {
-				if lineNumbers[i] > lineNumbers[j] {
-					lineNumbers[i], lineNumbers[j] = lineNumbers[j], lineNumbers[i]
-				}
+		lgs := make([]lineGroup, 0, len(groups))
+		for key, groupIssues := range groups {
+			lg := lineGroup{key: key}
+			if len(groupIssues) > 0 {
+				lg.line = groupIssues[0].LineNumber
+				lg.file = groupIssues[0].Locator.File
 			}
+			lg.issues = groupIssues
+			lgs = append(lgs, lg)
 		}
-		for _, lineNum := range lineNumbers {
-			key := lineMap[lineNum]
-			lineIssues := groups[key]
-			if lineNum == 0 {
-				cc.printGroupHeader("General Issues", len(lineIssues))
-			} else {
-				cc.printGroupHeader(fmt.Sprintf("Line %d", lineNum), len(lineIssues))
+		sort.Slice(lgs, func(i, j int) bool {
+			if lgs[i].line != lgs[j].line {
+				return lgs[i].line < lgs[j].line
 			}
-			for _, issue := range lineIssues {
-				cc.printIssue(issue)
+			return lgs[i].file < lgs[j].file
+		})
+		for _, lg := range lgs {
+			if lg.line == 0 {
+				cc.printGroupHeader("General Issues", len(lg.issues))
+			} else {
+				cc.printGroupHeader(issueLabel(lg.issues[0], showLocator), len(lg.issues))
+			}
+			for _, issue := range lg.issues {
+				cc.printIssue(issue, showLocator)
 			}
 			cc.Println()
 		}
 	case GroupByJob:
-		// Print groups by expression
-		for key, groupIssues := range groups {
-			if key == "no-expression" {
-				cc.printGroupHeader("General Issues", len(groupIssues))
-			} else {
-				cc.printGroupHeader(fmt.Sprintf("Expression: %s", key), len(groupIssues))
+		// Sort expressions rather than ranging over the map directly, which iterates in Go's randomized order.
+		var expressions []string
+		for key := range groups {
+			if key != "no-expression" {
+				expressions = append(expressions, key)
 			}
+		}
+		sort.Strings(expressions)
+		if generalIssues, ok := groups["no-expression"]; ok {
+			cc.printGroupHeader("General Issues", len(generalIssues))
+			for _, issue := range generalIssues {
+				cc.printIssue(issue, showLocator)
+			}
+			cc.Println()
+		}
+		for _, key := range expressions {
+			groupIssues := groups[key]
+			cc.printGroupHeader(fmt.Sprintf("Expression: %s", key), len(groupIssues))
 			for _, issue := range groupIssues {
-				cc.printIssue(issue)
+				cc.printIssue(issue, showLocator)
 			}
 			cc.Println()
 		}
@@ -486,11 +532,8 @@ func (cc *CheckCommand) printGroupHeader(title string, count int) {
 }
 
 // printIssue prints a single issue with all its details
-func (cc *CheckCommand) printIssue(issue check.Issue) {
-	lineInfo := ""
-	if issue.LineNumber > 0 {
-		lineInfo = fmt.Sprintf("Line %d: ", issue.LineNumber)
-	}
+func (cc *CheckCommand) printIssue(issue check.Issue, showLocator bool) {
+	lineInfo := issueLinePrefix(issue, showLocator)
 
 	prefix := ""
 	switch issue.Severity {
@@ -522,12 +565,9 @@ func (cc *CheckCommand) printIssue(issue check.Issue) {
 }
 
 // printWarningsCompact prints warnings in a compact format (one line per warning)
-func (cc *CheckCommand) printWarningsCompact(warnings []check.Issue) {
+func (cc *CheckCommand) printWarningsCompact(warnings []check.Issue, showLocator bool) {
 	for _, issue := range warnings {
-		lineInfo := ""
-		if issue.LineNumber > 0 {
-			lineInfo = fmt.Sprintf("Line %d: ", issue.LineNumber)
-		}
+		lineInfo := issueLinePrefix(issue, showLocator)
 
 		codeInfo := ""
 		if issue.Code != "" {

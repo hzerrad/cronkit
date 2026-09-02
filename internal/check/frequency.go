@@ -38,8 +38,12 @@ func CalculateRunsPerDay(expression string, scheduler cronx.Scheduler) (int, err
 	return count, nil
 }
 
-// DetectRedundantPattern detects if a schedule uses redundant step patterns like */1
+// DetectRedundantPattern detects redundant step patterns like */1; @every and @reboot just report false.
 func DetectRedundantPattern(schedule *cronx.Schedule) bool {
+	if schedule.Kind != cronx.KindFields {
+		return false
+	}
+
 	// Check each field for */1 pattern by examining the raw field value
 	fields := []cronx.Field{
 		schedule.Minute,

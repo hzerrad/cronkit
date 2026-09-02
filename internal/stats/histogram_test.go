@@ -20,6 +20,15 @@ func TestGenerateHistogram(t *testing.T) {
 		assert.Contains(t, result, "23:00")
 	})
 
+	t.Run("labels the header as a typical day in UTC", func(t *testing.T) {
+		// Distinguishes this from CollisionStats' busiest hours, which use a different window and zone.
+		hourData := make([]int, 24)
+		hourData[12] = 1
+
+		result := GenerateHistogram(hourData, 40)
+		assert.Contains(t, result, "Hour Distribution (typical day, UTC):")
+	})
+
 	t.Run("should handle empty data", func(t *testing.T) {
 		hourData := make([]int, 24)
 		result := GenerateHistogram(hourData, 40)

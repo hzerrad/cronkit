@@ -57,7 +57,6 @@ var _ = Describe("Budget Command", func() {
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Should exit with error when budget is violated
 			Eventually(session).Should(gexec.Exit(1))
 		})
 
@@ -87,6 +86,44 @@ var _ = Describe("Budget Command", func() {
 			Eventually(session).Should(gexec.Exit(0))
 			output := string(session.Out.Contents())
 			Expect(output).To(ContainSubstring("Budget Analysis"))
+		})
+
+		It("should exclude @reboot from the budget without panicking", func() {
+			// Without exclusion, AnalyzeBudget's "no runs found" fallback would count @reboot as 1 concurrent job.
+			content := "@reboot /usr/local/bin/on-boot.sh\n"
+			err := os.WriteFile(testFile, []byte(content), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			command := exec.Command(pathToCLI, "budget", "--file", testFile, "--max-concurrent", "1", "--window", "1h")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out.Contents()).To(ContainSubstring("Found: 0 concurrent"))
+		})
+
+		It("should count @every toward the budget without panicking", func() {
+			content := "@every 5m /usr/local/bin/poll.sh\n@every 5m /usr/local/bin/poll2.sh\n@every 5m /usr/local/bin/poll3.sh\n"
+			err := os.WriteFile(testFile, []byte(content), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			command := exec.Command(pathToCLI, "budget", "--file", testFile, "--max-concurrent", "2", "--window", "1h")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0)) // Report-only mode, exit 0
+			Expect(session.Out.Contents()).To(ContainSubstring("Budget Analysis"))
+			Expect(session.Out.Contents()).NotTo(ContainSubstring("PASSED"))
+		})
+
+		It("should analyze a crontab mixing @reboot and @every without panicking", func() {
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+			command := exec.Command(pathToCLI, "budget", "--file", testFile, "--max-concurrent", "10", "--window", "1h", "--json")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out.Contents()).To(ContainSubstring(`"passed"`))
 		})
 
 		It("should read from stdin", func() {

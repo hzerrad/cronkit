@@ -29,13 +29,11 @@ var _ = Describe("List Command", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
 
-				// Should contain header
 				Expect(output).To(ContainSubstring("LINE"))
 				Expect(output).To(ContainSubstring("EXPRESSION"))
 				Expect(output).To(ContainSubstring("DESCRIPTION"))
 				Expect(output).To(ContainSubstring("COMMAND"))
 
-				// Should contain job details
 				Expect(output).To(ContainSubstring("backup"))
 				Expect(output).To(ContainSubstring("check-disk"))
 			})
@@ -49,7 +47,6 @@ var _ = Describe("List Command", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
 
-				// Should contain humanized time descriptions
 				Expect(output).To(MatchRegexp("At.*02:00"))
 				Expect(output).To(ContainSubstring("Every 15 minutes"))
 			})
@@ -65,17 +62,14 @@ var _ = Describe("List Command", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				output := session.Out.Contents()
 
-				// Should be valid JSON
 				var result map[string]interface{}
 				err = json.Unmarshal(output, &result)
 				Expect(err).NotTo(HaveOccurred())
 
-				// Should have jobs array
 				jobs, ok := result["jobs"].([]interface{})
 				Expect(ok).To(BeTrue())
 				Expect(jobs).NotTo(BeEmpty())
 
-				// First job should have expected fields
 				firstJob := jobs[0].(map[string]interface{})
 				Expect(firstJob).To(HaveKey("lineNumber"))
 				Expect(firstJob).To(HaveKey("expression"))
@@ -117,12 +111,10 @@ var _ = Describe("List Command", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
 
-				// Should contain environment variables
 				Expect(output).To(ContainSubstring("SHELL"))
 				Expect(output).To(ContainSubstring("PATH"))
 				Expect(output).To(ContainSubstring("MAILTO"))
 
-				// Should contain entry type indicators
 				Expect(output).To(ContainSubstring("ENV"))
 				Expect(output).To(ContainSubstring("JOB"))
 			})
@@ -144,7 +136,6 @@ var _ = Describe("List Command", func() {
 				Expect(ok).To(BeTrue())
 				Expect(entries).NotTo(BeEmpty())
 
-				// Should have different entry types
 				hasEnvVar := false
 				hasJob := false
 				for _, entry := range entries {
@@ -211,7 +202,6 @@ var _ = Describe("List Command", func() {
 				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred())
 
-				// Should succeed (shows what it can parse)
 				Eventually(session).Should(gexec.Exit(0))
 			})
 		})
@@ -246,9 +236,48 @@ var _ = Describe("List Command", func() {
 				Eventually(session).Should(gexec.Exit(0))
 				output := string(session.Out.Contents())
 
-				// Should contain aliases
 				Expect(output).To(ContainSubstring("@monthly"))
 				Expect(output).To(ContainSubstring("@hourly"))
+			})
+		})
+	})
+
+	Describe("Descriptor schedules", func() {
+		Context("when listing a crontab with @reboot and @every", func() {
+			It("should list both without panicking or dropping either", func() {
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+				command := exec.Command(pathToCLI, "list", "--file", testFile)
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := string(session.Out.Contents())
+				Expect(output).To(ContainSubstring("@reboot"))
+				Expect(output).To(ContainSubstring("At system startup"))
+				Expect(output).To(ContainSubstring("@every 5m"))
+				Expect(output).To(ContainSubstring("Every 5 minutes"))
+			})
+
+			It("should include both in JSON output", func() {
+				testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+				command := exec.Command(pathToCLI, "list", "--file", testFile, "--json")
+				session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred())
+
+				Eventually(session).Should(gexec.Exit(0))
+				output := session.Out.Contents()
+
+				var result map[string]interface{}
+				err = json.Unmarshal(output, &result)
+				Expect(err).NotTo(HaveOccurred())
+
+				jobs := result["jobs"].([]interface{})
+				var expressions []string
+				for _, job := range jobs {
+					expressions = append(expressions, job.(map[string]interface{})["expression"].(string))
+				}
+				Expect(expressions).To(ContainElement("@reboot"))
+				Expect(expressions).To(ContainElement("@every 5m"))
 			})
 		})
 	})
@@ -262,7 +291,6 @@ var _ = Describe("List Command", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(session).Should(gexec.Exit(0))
-				// Should not error on day name parsing
 			})
 		})
 	})

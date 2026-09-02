@@ -8,6 +8,7 @@ import (
 	"github.com/hzerrad/cronkit/internal/crontab"
 	"github.com/hzerrad/cronkit/internal/cronx"
 	"github.com/hzerrad/cronkit/internal/human"
+	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -21,10 +22,9 @@ const (
 
 type ListCommand struct {
 	*cobra.Command
-	file  string
-	all   bool
-	json  bool
-	stdin bool
+	inputFlags
+	all  bool
+	json bool
 }
 
 func newListCommand() *ListCommand {
@@ -43,10 +43,9 @@ Examples:
 		RunE: lc.runList,
 	}
 
-	lc.Flags().StringVarP(&lc.file, "file", "f", "", "Path to crontab file (defaults to user's crontab if not specified)")
+	lc.register(lc.Command, true)
 	lc.Flags().BoolVarP(&lc.all, "all", "a", false, "Show all entries including comments and environment variables")
 	lc.Flags().BoolVarP(&lc.json, "json", "j", false, "Output in JSON format")
-	lc.Flags().BoolVar(&lc.stdin, "stdin", false, "Read crontab from standard input (automatic if stdin is not a terminal)")
 
 	return lc
 }
@@ -55,65 +54,39 @@ func init() {
 	rootCmd.AddCommand(newListCommand().Command)
 }
 
-func (lc *ListCommand) runList(_ *cobra.Command, args []string) error {
-	reader := crontab.NewReader()
-
-	var jobs []*crontab.Job
-	var entries []*crontab.Entry
-	var err error
-
-	// Priority: --file > --stdin > user crontab
-	if lc.file != "" {
-		if lc.all {
-			entries, err = reader.ParseFile(lc.file)
-		} else {
-			jobs, err = reader.ReadFile(lc.file)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read crontab file %s: %w", lc.file, err)
-		}
-	} else if lc.stdin {
-		// Read from stdin
-		if lc.all {
-			entries, err = reader.ParseStdin()
-		} else {
-			jobs, err = reader.ReadStdin()
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read crontab from stdin: %w", err)
-		}
-	} else {
-		// Check if stdin is available (not a terminal)
-		if isStdinAvailable() {
-			// Read from stdin automatically
-			if lc.all {
-				entries, err = reader.ParseStdin()
-			} else {
-				jobs, err = reader.ReadStdin()
-			}
-			if err != nil {
-				return fmt.Errorf("failed to read crontab from stdin: %w", err)
-			}
-		} else {
-			// Fall back to user's crontab
-			jobs, err = reader.ReadUser()
-			if err != nil {
-				return fmt.Errorf("failed to read user crontab: %w", err)
-			}
-		}
+func (lc *ListCommand) runList(_ *cobra.Command, _ []string) error {
+	// --all shows comments and env vars, which exist only in a crontab; refuse the combo with --inventory.
+	if lc.all && lc.inventory != "" {
+		return fmt.Errorf("--all cannot be used with --inventory: comments and environment variables exist only in a crontab")
 	}
 
-	if err != nil {
-		return fmt.Errorf("failed to read crontab: %w", err)
-	}
+	source := lc.classify()
 
-	// Handle --all mode
-	if lc.all && entries != nil {
+	// --all only has raw entries for a file or stdin read; against the user's crontab it's a normal listing.
+	if lc.all && (source == sourceFile || source == sourceStdin) {
+		entries, err := lc.readAllEntries(source)
+		if err != nil {
+			return err
+		}
 		return lc.outputAllEntries(entries)
 	}
 
+	items, err := resolveItems(&lc.inputFlags)
+	if err != nil {
+		switch source {
+		case sourceFile:
+			return fmt.Errorf("failed to read crontab file %s: %w", lc.file, err)
+		case sourceStdin:
+			return fmt.Errorf("failed to read crontab from stdin: %w", err)
+		case sourceInventory:
+			return fmt.Errorf("failed to read inventory: %w", err)
+		default:
+			return fmt.Errorf("failed to read user crontab: %w", err)
+		}
+	}
+
 	// Handle empty job list
-	if len(jobs) == 0 {
+	if len(items) == 0 {
 		if lc.json {
 			return lc.outputJSON(map[string]interface{}{"jobs": []interface{}{}})
 		}
@@ -123,34 +96,60 @@ func (lc *ListCommand) runList(_ *cobra.Command, args []string) error {
 
 	// Output results
 	if lc.json {
-		return lc.outputJobsJSON(jobs)
+		return lc.outputItemsJSON(items)
 	}
 
-	return lc.outputJobsTable(jobs)
+	return lc.outputItemsTable(items)
 }
 
-func (lc *ListCommand) outputJobsJSON(jobs []*crontab.Job) error {
+// readAllEntries reads the raw entries --all needs for a file or stdin source; ReadUser has no equivalent.
+func (lc *ListCommand) readAllEntries(source inputSource) ([]*crontab.Entry, error) {
+	reader := crontab.NewReader()
+
+	if source == sourceFile {
+		entries, err := reader.ParseFile(lc.file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read crontab file %s: %w", lc.file, err)
+		}
+		return entries, nil
+	}
+
+	entries, err := reader.ParseStdin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read crontab from stdin: %w", err)
+	}
+	return entries, nil
+}
+
+func (lc *ListCommand) outputItemsJSON(items []inventory.Item) error {
 	type jobOutput struct {
 		LineNumber  int    `json:"lineNumber"`
+		File        string `json:"file,omitempty"`
 		Expression  string `json:"expression"`
 		Command     string `json:"command"`
 		Comment     string `json:"comment,omitempty"`
 		Description string `json:"description,omitempty"`
 	}
 
-	output := make([]jobOutput, 0, len(jobs))
+	// File is shown only once it disambiguates, keeping single-source output unchanged from before.
+	multiFile := inputSpansFiles(items)
+
+	output := make([]jobOutput, 0, len(items))
 	parser := cronx.NewParserWithLocale(GetLocale())
 
-	for _, job := range jobs {
+	for _, item := range items {
 		jo := jobOutput{
-			LineNumber: job.LineNumber,
-			Expression: job.Expression,
-			Command:    job.Command,
-			Comment:    job.Comment,
+			LineNumber: item.Locator.Line,
+			Expression: item.Expression,
+			Command:    item.Command,
+			Comment:    item.Comment,
+		}
+		if multiFile {
+			jo.File = item.Locator.File
 		}
 
 		// Try to parse and humanize the expression
-		schedule, err := parser.Parse(job.Expression)
+		schedule, err := parser.Parse(item.Expression)
 		if err == nil {
 			humanizer := human.NewHumanizer()
 			jo.Description = humanizer.Humanize(schedule)
@@ -216,17 +215,27 @@ func (lc *ListCommand) outputAllEntries(entries []*crontab.Entry) error {
 	return nil
 }
 
-func (lc *ListCommand) outputJobsTable(jobs []*crontab.Job) error {
+// listFileColumnWidth is how many runes the FILE column gets before truncateFieldLeft elides its head.
+const listFileColumnWidth = 24
+
+func (lc *ListCommand) outputItemsTable(items []inventory.Item) error {
 	parser := cronx.NewParserWithLocale(GetLocale())
 	humanizer := human.NewHumanizer()
 
-	// Print header
-	lc.Println("LINE  EXPRESSION        DESCRIPTION                          COMMAND")
-	lc.Println("────  ────────────────  ───────────────────────────────────  ────────────────────────")
+	// FILE is shown only once the input spans more than one file, where a bare LINE number is ambiguous.
+	multiFile := inputSpansFiles(items)
 
-	for _, job := range jobs {
+	if multiFile {
+		lc.Println("FILE                      LINE  EXPRESSION        DESCRIPTION                          COMMAND")
+		lc.Println("────────────────────────  ────  ────────────────  ───────────────────────────────────  ────────────────────────")
+	} else {
+		lc.Println("LINE  EXPRESSION        DESCRIPTION                          COMMAND")
+		lc.Println("────  ────────────────  ───────────────────────────────────  ────────────────────────")
+	}
+
+	for _, item := range items {
 		description := ""
-		schedule, err := parser.Parse(job.Expression)
+		schedule, err := parser.Parse(item.Expression)
 		if err == nil {
 			description = humanizer.Humanize(schedule)
 		} else {
@@ -239,12 +248,17 @@ func (lc *ListCommand) outputJobsTable(jobs []*crontab.Job) error {
 		}
 
 		// Truncate long commands
-		command := job.Command
+		command := item.Command
 		if len(command) > maxCommandLength {
 			command = command[:maxCommandDisplay] + "..."
 		}
 
-		lc.Printf("%-4d  %-16s  %-36s  %s\n", job.LineNumber, job.Expression, description, command)
+		if multiFile {
+			file := truncateFieldLeft(item.Locator.File, listFileColumnWidth)
+			lc.Printf("%-*s  %-4d  %-16s  %-36s  %s\n", listFileColumnWidth, file, item.Locator.Line, item.Expression, description, command)
+		} else {
+			lc.Printf("%-4d  %-16s  %-36s  %s\n", item.Locator.Line, item.Expression, description, command)
+		}
 	}
 
 	return nil
@@ -273,7 +287,7 @@ func (lc *ListCommand) outputJSON(data interface{}) error {
 	return encoder.Encode(data)
 }
 
-// isStdinAvailable checks if stdin is available (not a terminal)
-func isStdinAvailable() bool {
+// isStdinAvailable reports whether stdin is available (not a terminal); a var so tests can override it.
+var isStdinAvailable = func() bool {
 	return !term.IsTerminal(int(os.Stdin.Fd()))
 }

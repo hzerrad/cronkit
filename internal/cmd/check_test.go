@@ -6,9 +6,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hzerrad/cronkit/internal/check"
+	"github.com/hzerrad/cronkit/internal/inventory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -360,7 +362,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) { exitCode = code }
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "warning")
 		assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
@@ -384,7 +386,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "All valid")
 		// Should not show job count when 0
@@ -418,7 +420,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "Line 5")
 		assert.Contains(t, buf.String(), "ERROR")
@@ -449,7 +451,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "ERROR")
 		assert.Contains(t, buf.String(), "Failed to read")
@@ -484,7 +486,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		// Info issues are only shown when verbose
 		assert.Contains(t, buf.String(), "INFO")
@@ -509,7 +511,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "All valid")
 		// Should not show job count when 0
@@ -708,7 +710,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		// Should have severity group headers
@@ -743,7 +745,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		// Should have line group headers
@@ -779,7 +781,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		// Should have expression group headers
@@ -811,7 +813,7 @@ func TestCheckCommand(t *testing.T) {
 		osExit = func(code int) {}
 		defer func() { osExit = oldExit }()
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		// Should not have group headers
@@ -888,7 +890,7 @@ func TestCheckCommand_OutputJSON_Error(t *testing.T) {
 	osExit = func(code int) {}
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result, check.SeverityError)
+	err := cc.outputJSON(result, check.SeverityError, false)
 	// Should return error from JSON encoding
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to encode JSON")
@@ -943,7 +945,7 @@ func TestCheckCommand_OutputJSON_ExitCode2(t *testing.T) {
 	osExit = func(code int) { exitCode = code }
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result, check.SeverityError)
+	err := cc.outputJSON(result, check.SeverityError, false)
 	require.NoError(t, err)
 	// Warnings should not cause exit code unless --fail-on is set
 	assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
@@ -978,7 +980,7 @@ func TestCheckCommand_OutputJSON_WithWarningsButNotVerbose(t *testing.T) {
 	osExit = func(code int) { exitCode = code }
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result, check.SeverityError)
+	err := cc.outputJSON(result, check.SeverityError, false)
 	require.NoError(t, err)
 	// Warnings should not cause exit code unless --fail-on is set
 	assert.Equal(t, 0, exitCode, "Warnings should not cause exit with --fail-on error")
@@ -1009,7 +1011,7 @@ func TestCheckCommand_OutputJSON_ValidWithNoIssues(t *testing.T) {
 	osExit = func(code int) {}
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result, check.SeverityError)
+	err := cc.outputJSON(result, check.SeverityError, false)
 	require.NoError(t, err)
 
 	var output map[string]interface{}
@@ -1049,7 +1051,7 @@ func TestCheckCommand_OutputJSON_InvalidResult(t *testing.T) {
 	osExit = func(code int) { exitCode = code }
 	defer func() { osExit = oldExit }()
 
-	err := cc.outputJSON(result, check.SeverityError)
+	err := cc.outputJSON(result, check.SeverityError, false)
 	require.NoError(t, err)
 
 	// Should exit with code 1 for invalid result
@@ -1200,7 +1202,7 @@ func TestCheckCommand_PrintIssueWithHint(t *testing.T) {
 		cc.verbose = true
 		cc.groupBy = "none"
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		assert.Contains(t, output, "Invalid cron expression")
@@ -1237,7 +1239,7 @@ func TestCheckCommand_PrintIssueWithHint(t *testing.T) {
 		cc.verbose = true
 		cc.groupBy = "none"
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		assert.Contains(t, output, "Invalid cron expression")
@@ -1275,7 +1277,7 @@ func TestCheckCommand_PrintIssues(t *testing.T) {
 		cc.verbose = true
 		cc.groupBy = "none" // This triggers printIssuesFlat
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		assert.Contains(t, output, "error")
@@ -1310,7 +1312,7 @@ func TestCheckCommand_PrintIssues(t *testing.T) {
 		cc.verbose = true
 		cc.groupBy = "none"
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		assert.Contains(t, output, "Test message")
@@ -1345,7 +1347,7 @@ func TestCheckCommand_PrintIssues(t *testing.T) {
 		cc.verbose = true
 		cc.groupBy = "none"
 
-		err := cc.outputText(result, check.SeverityError)
+		err := cc.outputText(result, check.SeverityError, false)
 		require.NoError(t, err)
 		output := buf.String()
 		assert.Contains(t, output, "Test message")
@@ -1641,6 +1643,35 @@ func TestCheckCommand_GroupBy(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("check with group-by line does not merge findings from different files", func(t *testing.T) {
+		// Pins that GroupByLine keys on (file, line), not the bare line number.
+		inv := inventory.New("", []inventory.Item{
+			{Expression: "60 0 * * *", Command: "worker-a", State: inventory.StateActive, Locator: inventory.Locator{File: "ci.yml", Line: 6}},
+			{Expression: "60 0 * * *", Command: "worker-b", State: inventory.StateActive, Locator: inventory.Locator{File: "cronjob.yaml", Line: 6}},
+		})
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		require.NoError(t, inv.Encode(f))
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.SetArgs([]string{"--inventory", f.Name(), "--group-by", "line"})
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err = cc.Execute()
+		require.NoError(t, err)
+		output := buf.String()
+		assert.Contains(t, output, "ci.yml:6", "each file's finding must keep its own heading")
+		assert.Contains(t, output, "cronjob.yaml:6", "each file's finding must keep its own heading")
+		assert.Equal(t, 2, strings.Count(output, "issue(s))"), "same-line findings from different files must render as two separate groups")
+	})
+
 	t.Run("check with warnings in compact format (not verbose)", func(t *testing.T) {
 		cc := newCheckCommand()
 		buf := new(bytes.Buffer)
@@ -1689,7 +1720,7 @@ func TestCheckCommand_GroupBy(t *testing.T) {
 			},
 		}
 
-		cc.printWarningsCompact(warnings)
+		cc.printWarningsCompact(warnings, false)
 		output := buf.String()
 
 		// Should have all three warnings
@@ -1719,6 +1750,39 @@ func TestCheckCommand_GroupBy(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("check with group-by job renders groups in a deterministic order", func(t *testing.T) {
+		// Runs outputText repeatedly to catch nondeterministic map-order regressions.
+		result := check.ValidationResult{
+			Valid: false,
+			Issues: []check.Issue{
+				{Severity: check.SeverityError, Code: check.CodeParseError, Expression: "0 0 * * *", Message: "Error A"},
+				{Severity: check.SeverityError, Code: check.CodeParseError, Expression: "0 12 * * *", Message: "Error B"},
+				{Severity: check.SeverityError, Code: check.CodeParseError, Expression: "0 6 * * *", Message: "Error C"},
+				{Severity: check.SeverityError, Code: check.CodeParseError, Expression: "", Message: "Error D"},
+			},
+		}
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		cc := newCheckCommand()
+		cc.groupBy = "job"
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		require.NoError(t, cc.outputText(result, check.SeverityError, false))
+		first := buf.String()
+
+		for i := 0; i < 20; i++ {
+			cc := newCheckCommand()
+			cc.groupBy = "job"
+			buf := new(bytes.Buffer)
+			cc.SetOut(buf)
+			require.NoError(t, cc.outputText(result, check.SeverityError, false))
+			assert.Equal(t, first, buf.String(), "group-by job output must not vary between runs")
+		}
+	})
+
 	t.Run("check with invalid group-by", func(t *testing.T) {
 		cc := newCheckCommand()
 		buf := new(bytes.Buffer)
@@ -1732,5 +1796,255 @@ func TestCheckCommand_GroupBy(t *testing.T) {
 		err := cc.Execute()
 		require.NoError(t, err)
 		// Should default to no grouping
+	})
+}
+
+func TestCheckCommand_Inventory(t *testing.T) {
+	t.Run("validates items read from an inventory file", func(t *testing.T) {
+		inv := inventory.New("", []inventory.Item{
+			{Expression: "0 0 * * *", Command: "gcr.io/proj/worker", State: inventory.StateActive},
+		})
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		require.NoError(t, inv.Encode(f))
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.SetArgs([]string{"--inventory", f.Name()})
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err = cc.Execute()
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "All valid")
+	})
+
+	t.Run("a container image is never judged by shell hygiene rules", func(t *testing.T) {
+		inv := inventory.New("", []inventory.Item{
+			{Expression: "0 0 * * *", Command: "worker", Shell: false, State: inventory.StateActive},
+		})
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		require.NoError(t, inv.Encode(f))
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.SetArgs([]string{"--inventory", f.Name(), "--enable-hygiene-checks", "--verbose"})
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err = cc.Execute()
+		require.NoError(t, err)
+		assert.NotContains(t, buf.String(), "absolute path",
+			"a non-shell command like a container image must never trip CRON-008")
+	})
+
+	t.Run("a malformed inventory fails the command", func(t *testing.T) {
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		_, err = f.WriteString("not json")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.SetErr(buf)
+		cc.SetArgs([]string{"--inventory", f.Name()})
+
+		err = cc.Execute()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read inventory")
+	})
+
+	t.Run("--inventory - reads from stdin", func(t *testing.T) {
+		inv := inventory.New("", []inventory.Item{
+			{Expression: "0 0 * * *", Command: "worker", State: inventory.StateActive},
+		})
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		require.NoError(t, inv.Encode(w))
+		require.NoError(t, w.Close())
+		oldStdin := os.Stdin
+		os.Stdin = r
+		defer func() { os.Stdin = oldStdin }()
+
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.SetArgs([]string{"--inventory", "-"})
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err = cc.Execute()
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "All valid")
+	})
+
+	t.Run("a three-file inventory shows locators even when only one file has findings", func(t *testing.T) {
+		// Pins that showLocator is derived from the input, not the issue set.
+		inv := inventory.New("", []inventory.Item{
+			{Expression: "0 0 * * *", Command: "worker-a", State: inventory.StateActive, Locator: inventory.Locator{File: "site-a/crontab", Line: 1}},
+			{Expression: "0 0 * * *", Command: "worker-b", State: inventory.StateActive, Locator: inventory.Locator{File: "site-b/crontab", Line: 1}},
+			{Expression: "60 0 * * *", Command: "worker-c", State: inventory.StateActive, Locator: inventory.Locator{File: "site-c/crontab", Line: 1}},
+		})
+		f, err := os.CreateTemp("", "cronkit-inventory-*.json")
+		require.NoError(t, err)
+		require.NoError(t, inv.Encode(f))
+		require.NoError(t, f.Close())
+		defer func() { _ = os.Remove(f.Name()) }()
+
+		cc := newCheckCommand()
+		buf := new(bytes.Buffer)
+		cc.SetOut(buf)
+		cc.SetArgs([]string{"--inventory", f.Name()})
+
+		oldExit := osExit
+		osExit = func(code int) {}
+		defer func() { osExit = oldExit }()
+
+		err = cc.Execute()
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "site-c/crontab:1:",
+			"the sole file with a finding must still be named once the input spans multiple files")
+	})
+}
+
+// TestCheckCommand_LocatorRendering pins down when a locator is worth showing: only when it disambiguates.
+func TestCheckCommand_LocatorRendering(t *testing.T) {
+	oldExit := osExit
+	osExit = func(code int) {}
+	defer func() { osExit = oldExit }()
+
+	t.Run("a single file's issues render exactly as before locators existed", func(t *testing.T) {
+		result := check.ValidationResult{
+			Valid: false,
+			Issues: []check.Issue{
+				{
+					Severity:   check.SeverityError,
+					Code:       check.CodeParseError,
+					LineNumber: 6,
+					Locator:    inventory.Locator{File: "crontab", Line: 6},
+					Expression: "60 0 * * *",
+					Message:    "Invalid cron expression: bad",
+				},
+			},
+		}
+
+		cc := newCheckCommand()
+		textBuf := new(bytes.Buffer)
+		cc.SetOut(textBuf)
+		require.NoError(t, cc.outputText(result, check.SeverityError, false))
+		assert.Contains(t, textBuf.String(), "Line 6:")
+		assert.NotContains(t, textBuf.String(), "crontab:6",
+			"a single-source run must not repeat a file the user already named on the command line")
+
+		cc = newCheckCommand()
+		jsonBuf := new(bytes.Buffer)
+		cc.SetOut(jsonBuf)
+		require.NoError(t, cc.outputJSON(result, check.SeverityError, false))
+		var decoded map[string]interface{}
+		require.NoError(t, json.Unmarshal(jsonBuf.Bytes(), &decoded))
+		issues := decoded["issues"].([]interface{})
+		require.Len(t, issues, 1)
+		issue := issues[0].(map[string]interface{})
+		assert.NotContains(t, issue, "locator",
+			"single-file JSON output must stay byte-identical to before Issue carried a locator")
+	})
+
+	t.Run("a multi-file inventory scan names the file", func(t *testing.T) {
+		result := check.ValidationResult{
+			Valid: false,
+			Issues: []check.Issue{
+				{
+					Severity:   check.SeverityError,
+					Code:       check.CodeParseError,
+					LineNumber: 2,
+					Locator:    inventory.Locator{File: "site-a/crontab", Line: 2},
+					Expression: "60 0 * * *",
+					Message:    "Invalid cron expression: bad a",
+				},
+				{
+					Severity:   check.SeverityError,
+					Code:       check.CodeParseError,
+					LineNumber: 6,
+					Locator:    inventory.Locator{File: "site-b/k8s.yaml", Line: 6, Path: "spec.schedule"},
+					Expression: "60 0 * * *",
+					Message:    "Invalid cron expression: bad b",
+				},
+			},
+		}
+
+		cc := newCheckCommand()
+		textBuf := new(bytes.Buffer)
+		cc.SetOut(textBuf)
+		require.NoError(t, cc.outputText(result, check.SeverityError, true))
+		output := textBuf.String()
+		assert.Contains(t, output, "site-a/crontab:2:")
+		assert.Contains(t, output, "site-b/k8s.yaml:6 (spec.schedule):")
+
+		cc = newCheckCommand()
+		jsonBuf := new(bytes.Buffer)
+		cc.SetOut(jsonBuf)
+		require.NoError(t, cc.outputJSON(result, check.SeverityError, true))
+		var decoded map[string]interface{}
+		require.NoError(t, json.Unmarshal(jsonBuf.Bytes(), &decoded))
+		issues := decoded["issues"].([]interface{})
+		require.Len(t, issues, 2)
+		first := issues[0].(map[string]interface{})
+		locator := first["locator"].(map[string]interface{})
+		assert.Equal(t, "site-a/crontab", locator["file"])
+		assert.Equal(t, float64(2), locator["line"])
+		second := issues[1].(map[string]interface{})
+		locator = second["locator"].(map[string]interface{})
+		assert.Equal(t, "site-b/k8s.yaml", locator["file"])
+		assert.Equal(t, "spec.schedule", locator["path"])
+	})
+}
+
+// TestCheckIssueLabelsDisambiguateSharedLines covers two findings on one line, told apart by path.
+func TestCheckIssueLabelsDisambiguateSharedLines(t *testing.T) {
+	issues := []check.Issue{
+		{
+			Severity:   check.SeverityError,
+			LineNumber: 3,
+			Locator:    inventory.Locator{File: "wf.yaml", Line: 3, Path: "spec.schedules[0]"},
+			Message:    "Error 1",
+		},
+		{
+			Severity:   check.SeverityError,
+			LineNumber: 3,
+			Locator:    inventory.Locator{File: "wf.yaml", Line: 3, Path: "spec.schedules[1]"},
+			Message:    "Error 2",
+		},
+	}
+
+	t.Run("the line prefix names the path when one is set", func(t *testing.T) {
+		assert.Equal(t, "Line 3 (spec.schedules[0]): ", issueLinePrefix(issues[0], false))
+		assert.Equal(t, "Line 3 (spec.schedules[1]): ", issueLinePrefix(issues[1], false))
+	})
+
+	t.Run("grouped output gives the two findings distinguishable headers", func(t *testing.T) {
+		cc := newCheckCommand()
+		var buf bytes.Buffer
+		cc.SetOut(&buf)
+		cc.printIssuesGrouped(issues, GroupByLine, false)
+
+		out := buf.String()
+		assert.Contains(t, out, "Line 3 (spec.schedules[0])")
+		assert.Contains(t, out, "Line 3 (spec.schedules[1])")
 	})
 }

@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-// GenerateHistogram generates a text histogram from hour data
+// GenerateHistogram renders hourData -- the HourHistogram computed by
+// calculateHourHistogram -- as a text bar chart of a typical day in UTC.
 func GenerateHistogram(hourData []int, width int) string {
 	if len(hourData) != HoursInDay {
 		return ""
@@ -24,7 +25,7 @@ func GenerateHistogram(hourData []int, width int) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Hour Distribution:\n")
+	sb.WriteString("Hour Distribution (typical day, UTC):\n")
 	sb.WriteString(strings.Repeat("=", width+20) + "\n")
 
 	for hour := 0; hour < HoursInDay; hour++ {

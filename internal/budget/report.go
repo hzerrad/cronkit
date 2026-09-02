@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/hzerrad/cronkit/internal/inventory"
 )
 
 // Renderer interface for different output formats
@@ -65,6 +67,19 @@ func (r *TextRenderer) Render(w io.Writer, report *BudgetReport) error {
 						len(budgetResult.Violations)-maxShow)
 				}
 			}
+
+			// Always shown, not just --verbose: explains a FAILED budget with zero Violations.
+			if len(budgetResult.Unresolved) > 0 {
+				_, _ = fmt.Fprintf(w, "  Unresolved: %d item(s) could not be scheduled and were counted conservatively\n",
+					len(budgetResult.Unresolved))
+				for _, u := range budgetResult.Unresolved {
+					if where := u.Locator.String(); where != "" {
+						_, _ = fmt.Fprintf(w, "    - %s: %s (%s)\n", where, u.Expression, u.Reason)
+					} else {
+						_, _ = fmt.Fprintf(w, "    - %s (%s)\n", u.Expression, u.Reason)
+					}
+				}
+			}
 			_, _ = fmt.Fprintf(w, "\n")
 		}
 	}
@@ -84,6 +99,12 @@ type JSONRenderer struct{}
 
 // Render renders the budget report in JSON format
 func (r *JSONRenderer) Render(w io.Writer, report *BudgetReport) error {
+	type UnresolvedJSON struct {
+		Expression string            `json:"expression"`
+		Locator    inventory.Locator `json:"locator"`
+		Reason     string            `json:"reason"`
+	}
+
 	type BudgetResultJSON struct {
 		Name          string      `json:"name"`
 		MaxConcurrent int         `json:"maxConcurrent"`
@@ -91,6 +112,8 @@ func (r *JSONRenderer) Render(w io.Writer, report *BudgetReport) error {
 		MaxFound      int         `json:"maxFound"`
 		Passed        bool        `json:"passed"`
 		Violations    []Violation `json:"violations"`
+		// Unresolved lists items that widened MaxFound conservatively; see UnresolvedItem.
+		Unresolved []UnresolvedJSON `json:"unresolved"`
 	}
 
 	type ViolationJSON struct {
@@ -120,6 +143,11 @@ func (r *JSONRenderer) Render(w io.Writer, report *BudgetReport) error {
 
 	// Convert budgets
 	for _, budgetResult := range report.Budgets {
+		unresolved := make([]UnresolvedJSON, 0, len(budgetResult.Unresolved))
+		for _, u := range budgetResult.Unresolved {
+			unresolved = append(unresolved, UnresolvedJSON(u))
+		}
+
 		budgetJSON := BudgetResultJSON{
 			Name:          budgetResult.Budget.Name,
 			MaxConcurrent: budgetResult.Budget.MaxConcurrent,
@@ -127,6 +155,7 @@ func (r *JSONRenderer) Render(w io.Writer, report *BudgetReport) error {
 			MaxFound:      budgetResult.MaxFound,
 			Passed:        budgetResult.Passed,
 			Violations:    budgetResult.Violations,
+			Unresolved:    unresolved,
 		}
 		result.Budgets = append(result.Budgets, budgetJSON)
 	}

@@ -114,11 +114,17 @@ func TestAxisTicks(t *testing.T) {
 
 func TestPadLabel(t *testing.T) {
 	t.Run("should pad short labels", func(t *testing.T) {
-		assert.Equal(t, "backup.sh ", padLabel("backup.sh", 10, '…'))
+		assert.Equal(t, "backup.sh ", padLabel("backup.sh", 10, '…', false))
 	})
 	t.Run("should truncate long labels with ellipsis", func(t *testing.T) {
-		assert.Equal(t, "At 12:00 …", padLabel("At 12:00 every day", 10, '…'))
-		assert.Equal(t, 10, len([]rune(padLabel("At 12:00 every day", 10, '…'))))
+		assert.Equal(t, "At 12:00 …", padLabel("At 12:00 every day", 10, '…', false))
+		assert.Equal(t, 10, len([]rune(padLabel("At 12:00 every day", 10, '…', false))))
+	})
+	t.Run("should truncate a path-like label from the left", func(t *testing.T) {
+		got := padLabel("testdata/sources/services/api/cronjob.yaml", 17, '…', true)
+		assert.Equal(t, 17, len([]rune(got)))
+		assert.True(t, strings.HasPrefix(got, "..."))
+		assert.True(t, strings.HasSuffix(got, "cronjob.yaml"), got)
 	})
 }
 
@@ -351,4 +357,150 @@ func runeIndex(s string, target rune) int {
 		}
 	}
 	return -1
+}
+
+func TestDistinctFileCount(t *testing.T) {
+	t.Run("should count zero for jobs with no file", func(t *testing.T) {
+		assert.Equal(t, 0, distinctFileCount([]jobEntry{{file: ""}, {file: ""}}))
+	})
+	t.Run("should count one shared file once", func(t *testing.T) {
+		assert.Equal(t, 1, distinctFileCount([]jobEntry{{file: "a/crontab"}, {file: "a/crontab"}}))
+	})
+	t.Run("should count distinct files", func(t *testing.T) {
+		assert.Equal(t, 2, distinctFileCount([]jobEntry{{file: "a/crontab"}, {file: "b/crontab"}}))
+	})
+}
+
+func TestLaneGutter(t *testing.T) {
+	t.Run("should fall back to laneExpr when not multi-file and not aggregated", func(t *testing.T) {
+		j := jobEntry{expression: "0 2 * * *", label: "backup.sh"}
+		assert.Equal(t, "0 2 * * *", laneGutter(j, false))
+	})
+	t.Run("should show file:line once the chart spans multiple files", func(t *testing.T) {
+		j := jobEntry{expression: "0 2 * * *", label: "backup.sh", file: "site-a/crontab", line: 3}
+		assert.Equal(t, "site-a/crontab:3", laneGutter(j, true))
+	})
+	t.Run("should show the bare file when there is no line", func(t *testing.T) {
+		j := jobEntry{expression: "0 2 * * *", label: "backup.sh", file: "site-a/crontab"}
+		assert.Equal(t, "site-a/crontab", laneGutter(j, true))
+	})
+	t.Run("should still show the expression when multi-file but this lane has no file", func(t *testing.T) {
+		j := jobEntry{expression: "0 2 * * *", label: "backup.sh"}
+		assert.Equal(t, "0 2 * * *", laneGutter(j, true))
+	})
+	t.Run("should show the job count for an aggregate lane regardless of file state", func(t *testing.T) {
+		j := jobEntry{expression: "0 2 * * *", label: "site-a/crontab", file: "site-a/crontab", count: 12}
+		assert.Equal(t, "12 jobs", laneGutter(j, true))
+		assert.Equal(t, "12 jobs", laneGutter(j, false))
+	})
+	t.Run("should singularize a one-job aggregate", func(t *testing.T) {
+		j := jobEntry{count: 1}
+		assert.Equal(t, "1 job", laneGutter(j, true))
+	})
+}
+
+func TestGutterIsPath(t *testing.T) {
+	t.Run("false for an ordinary expression lane", func(t *testing.T) {
+		assert.False(t, gutterIsPath(jobEntry{expression: "0 2 * * *"}, false))
+	})
+	t.Run("true once multi-file and this lane has a file", func(t *testing.T) {
+		assert.True(t, gutterIsPath(jobEntry{file: "site-a/crontab"}, true))
+	})
+	t.Run("false when multi-file but this lane has no file", func(t *testing.T) {
+		assert.False(t, gutterIsPath(jobEntry{}, true))
+	})
+	t.Run("false for an aggregate lane even with a file", func(t *testing.T) {
+		assert.False(t, gutterIsPath(jobEntry{file: "site-a/crontab", count: 5}, true))
+	})
+}
+
+func TestTruncPathLeft(t *testing.T) {
+	t.Run("returns s unchanged when it already fits", func(t *testing.T) {
+		assert.Equal(t, "crontab:3", truncPathLeft("crontab:3", 17))
+	})
+	t.Run("keeps the tail and prefixes ASCII dots, not a unicode ellipsis", func(t *testing.T) {
+		got := truncPathLeft("services/api/deploy/backup.yaml:3", 17)
+		assert.True(t, strings.HasPrefix(got, "..."), got)
+		assert.True(t, strings.HasSuffix(got, "backup.yaml:3"), got)
+		assert.LessOrEqual(t, len([]rune(got)), 17)
+		assert.NotContains(t, got, "…")
+	})
+	t.Run("keeps two long paths sharing a prefix distinguishable", func(t *testing.T) {
+		a := truncPathLeft("services/api/deploy/backup.yaml:3", 17)
+		b := truncPathLeft("services/api/deploy/restore.yaml:3", 17)
+		assert.NotEqual(t, a, b)
+	})
+	t.Run("trims a leading separator so the cut doesn't double up", func(t *testing.T) {
+		// len(r) - (w-3) lands exactly on a "/" here; without the trim the
+		// result would read "..." + "/restore.yaml:9", a doubled marker.
+		got := truncPathLeft("a/very/long/path/to/restore.yaml:9", 18)
+		assert.Equal(t, "...restore.yaml:9", got)
+		assert.False(t, strings.HasPrefix(got, "...//"), got)
+	})
+	t.Run("falls back to a bare tail when the budget is too small for the marker", func(t *testing.T) {
+		got := truncPathLeft("backup.yaml:3", 3)
+		assert.Equal(t, ":3", got[len(got)-2:])
+		assert.Equal(t, 3, len([]rune(got)))
+	})
+}
+
+func TestWindowLineForeignZones(t *testing.T) {
+	t.Run("should say nothing extra when no foreign zones were declared", func(t *testing.T) {
+		tl := laneFixture()
+		assert.NotContains(t, tl.windowLine(uniGlyphs), "converted from")
+	})
+	t.Run("should name the declared zones converted onto the axis", func(t *testing.T) {
+		tl := laneFixture()
+		tl.SetForeignZones([]string{"Asia/Tokyo", "Europe/London"})
+		line := tl.windowLine(uniGlyphs)
+		assert.Contains(t, line, "converted from Asia/Tokyo, Europe/London")
+	})
+}
+
+func TestFooterLineNotes(t *testing.T) {
+	t.Run("should stay unchanged with nothing set", func(t *testing.T) {
+		out := laneFixture().Render(RenderOptions{})
+		assert.NotContains(t, out, "excluded")
+		assert.NotContains(t, out, "collapsed")
+		assert.NotContains(t, out, "hidden")
+	})
+	t.Run("should report a collapse", func(t *testing.T) {
+		tl := laneFixture()
+		tl.SetCollapsed(42, 3)
+		out := tl.Render(RenderOptions{})
+		assert.Contains(t, out, "42 jobs collapsed into 3 file lanes (--expand to show all)")
+	})
+	t.Run("should report a single collapsed file lane in the singular", func(t *testing.T) {
+		tl := laneFixture()
+		tl.SetCollapsed(2, 1)
+		out := tl.Render(RenderOptions{})
+		assert.Contains(t, out, "2 jobs collapsed into 1 file lane (--expand to show all)")
+	})
+	t.Run("should report hidden lanes from --top", func(t *testing.T) {
+		tl := laneFixture()
+		tl.SetHiddenLanes(5, 10)
+		out := tl.Render(RenderOptions{})
+		assert.Contains(t, out, "5 lanes hidden (--top 10)")
+	})
+	t.Run("should report excluded non-active items", func(t *testing.T) {
+		tl := laneFixture()
+		tl.SetExcluded(1, 2, 3)
+		out := tl.Render(RenderOptions{})
+		assert.Contains(t, out, "1 suspended job, 2 unresolved jobs, 3 invalid jobs excluded")
+	})
+	t.Run("should omit zero categories from the excluded note", func(t *testing.T) {
+		tl := laneFixture()
+		tl.SetExcluded(1, 0, 0)
+		out := tl.Render(RenderOptions{})
+		assert.Contains(t, out, "1 suspended job excluded")
+		assert.NotContains(t, out, "unresolved")
+		assert.NotContains(t, out, "invalid")
+	})
+	t.Run("should report excluded items even when the window has no runs", func(t *testing.T) {
+		tl := NewTimeline(DayView, time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC), 80)
+		tl.SetExcluded(1, 1, 0)
+		out := tl.Render(RenderOptions{})
+		assert.Contains(t, out, "no runs in this window")
+		assert.Contains(t, out, "1 suspended job, 1 unresolved job excluded")
+	})
 }

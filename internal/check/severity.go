@@ -83,9 +83,7 @@ func (s Severity) IsInfo() bool {
 	return s == SeverityInfo
 }
 
-// ParseFailOnLevel parses a fail-on level string and returns the corresponding Severity.
-// Valid values: "error", "warn", "info" (case-insensitive).
-// Returns an error if the string is invalid.
+// ParseFailOnLevel parses a case-insensitive fail-on level ("error", "warn", "info") into a Severity.
 func ParseFailOnLevel(level string) (Severity, error) {
 	normalized := ""
 	switch strings.ToLower(level) {

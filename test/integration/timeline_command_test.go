@@ -43,6 +43,59 @@ var _ = Describe("Timeline Command", func() {
 		})
 	})
 
+	Context("when running 'cronkit timeline' with descriptor schedules", func() {
+		It("should render @every 1h without panicking", func() {
+			command := exec.Command(pathToCLI, "timeline", "@every 1h")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
+		})
+
+		It("should report no runs in this window for @reboot without panicking", func() {
+			command := exec.Command(pathToCLI, "timeline", "@reboot")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			Expect(session.Out).To(gbytes.Say("no runs in this window"))
+		})
+
+		It("should render a crontab file mixing @reboot and @every without panicking", func() {
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+			command := exec.Command(pathToCLI, "timeline", "--file", testFile)
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+			output := string(session.Out.Contents())
+			Expect(output).To(ContainSubstring("@reboot"))
+			Expect(output).To(ContainSubstring("@every 5m"))
+		})
+
+		It("should include @every in JSON, and must not panic on @reboot", func() {
+			// RenderJSON omits @reboot from the jobs array; this only checks that building it does not panic.
+			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "descriptors.cron")
+			command := exec.Command(pathToCLI, "timeline", "--file", testFile, "--json")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+
+			var result map[string]interface{}
+			err = json.Unmarshal(session.Out.Contents(), &result)
+			Expect(err).NotTo(HaveOccurred())
+
+			jobs := result["jobs"].([]interface{})
+			var expressions []string
+			for _, job := range jobs {
+				expressions = append(expressions, job.(map[string]interface{})["expression"].(string))
+			}
+			Expect(expressions).To(ContainElement("@every 5m"))
+		})
+	})
+
 	Context("when running 'cronkit timeline' with --json flag", func() {
 		It("should output valid JSON", func() {
 			command := exec.Command(pathToCLI, "timeline", "*/15 * * * *", "--json")
@@ -163,8 +216,7 @@ var _ = Describe("Timeline Command", func() {
 
 	Context("when running 'cronkit timeline' with --show-overlaps flag", func() {
 		It("should show overlap summary in text output", func() {
-			// A single expression never collides with itself, so use a crontab
-			// file with several jobs that genuinely overlap.
+			// A single expression never collides with itself, so use a crontab with jobs that genuinely overlap.
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "timeline", "--file", testFile, "--show-overlaps")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -176,8 +228,7 @@ var _ = Describe("Timeline Command", func() {
 		})
 
 		It("should not show overlap summary without flag", func() {
-			// Same overlapping fixture, but the detail section should stay
-			// hidden until --show-overlaps is passed.
+			// Same overlapping fixture, but the detail section should stay hidden until --show-overlaps is passed.
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "timeline", "--file", testFile)
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -238,7 +289,6 @@ var _ = Describe("Timeline Command", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session).Should(gexec.Exit(0))
-			// Should still render successfully with minimum width enforcement
 			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 		})
 	})
@@ -357,11 +407,9 @@ var _ = Describe("Timeline Command", func() {
 
 			Eventually(session).Should(gexec.Exit(0))
 
-			// Check file was created
 			_, err = os.Stat(exportFile)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Check file content
 			content, err := os.ReadFile(exportFile)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(content)).To(MatchRegexp(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
@@ -375,11 +423,9 @@ var _ = Describe("Timeline Command", func() {
 
 			Eventually(session).Should(gexec.Exit(0))
 
-			// Check file was created
 			_, err = os.Stat(jsonFile)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Check file content is valid JSON
 			content, err := os.ReadFile(jsonFile)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -396,17 +442,14 @@ var _ = Describe("Timeline Command", func() {
 
 			Eventually(session).Should(gexec.Exit(0))
 
-			// Should have output in stdout
 			Expect(session.Out).To(gbytes.Say(`\d{4}-\d{2}-\d{2}  \d{2}:\d{2} → \d{2}:\d{2}`))
 
-			// And file should exist
 			_, err = os.Stat(exportFile)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should export with show-overlaps flag", func() {
-			// A single expression never collides with itself, so export the
-			// overlapping sample crontab instead.
+			// A single expression never collides with itself, so export the overlapping sample crontab instead.
 			testFile := filepath.Join("..", "..", "testdata", "crontab", "valid", "sample.cron")
 			command := exec.Command(pathToCLI, "timeline", "--file", testFile, "--export", exportFile, "--show-overlaps")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -414,7 +457,6 @@ var _ = Describe("Timeline Command", func() {
 
 			Eventually(session).Should(gexec.Exit(0))
 
-			// Check file content includes overlap summary
 			content, err := os.ReadFile(exportFile)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(content)).To(ContainSubstring("overlaps:"))
@@ -462,7 +504,6 @@ var _ = Describe("Timeline Command", func() {
 
 			Eventually(session).Should(gexec.Exit(0))
 
-			// Check file was created
 			_, err = os.Stat(exportFile)
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -511,12 +552,7 @@ var _ = Describe("Timeline Command", func() {
 
 	Context("when the window has no runs", func() {
 		It("should say so and exit 0", func() {
-			// 2026-08-03 is a Monday; a Sunday-02:00 job has no run that day.
-			// Pin --timezone UTC: without it the day-view window is anchored
-			// to the host's local calendar day, so on a UTC-negative host
-			// (e.g. America/New_York) the converted instant lands on
-			// 2026-08-02 (Sunday) and the job does run once, failing this
-			// assertion.
+			// --timezone UTC is pinned so the day-view window isn't anchored to the host's local calendar day.
 			command := exec.Command(pathToCLI, "timeline", "0 2 * * 0", "--from", "2026-08-03T00:00:00Z", "--timezone", "UTC")
 			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
