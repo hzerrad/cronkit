@@ -254,7 +254,7 @@ func TestWalker_ExtractionFailureIsAProblemNotAnAbort(t *testing.T) {
 			assert.Error(t, p.Err)
 		}
 	}
-	assert.Equal(t, 2, brokenProblems, "both k8s and argo match broken.yaml by path and both must report the decode failure")
+	assert.Equal(t, 1, brokenProblems, "k8s and argo share one decode of broken.yaml, so they share its failure")
 
 	// The walk did not abort: items from files sorted both before and
 	// after broken.yaml are still present.
@@ -493,4 +493,18 @@ func TestResolveScope_UnresolvableRelativePathErrors(t *testing.T) {
 
 	_, err := resolveScope("relative")
 	assert.Error(t, err)
+}
+
+// TestWalker_ADecodeFailureIsReportedOnce covers a malformed yaml every profile recognises: the
+// sources share one decode, so they must not each report the shared failure.
+func TestWalker_ADecodeFailureIsReportedOnce(t *testing.T) {
+	dir := t.TempDir()
+	mkdirAll(t, filepath.Join(dir, ".git"))
+	writeFile(t, filepath.Join(dir, "broken.yaml"), "kind: [unclosed\n")
+
+	_, problems, err := New(defaultRegistry(t), Options{}).Walk([]string{dir})
+	require.NoError(t, err)
+
+	require.Len(t, problems, 1, "one bad file is one problem, however many sources tried to read it")
+	assert.Equal(t, "broken.yaml", problems[0].Path)
 }

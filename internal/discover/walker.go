@@ -103,9 +103,16 @@ func (w *Walker) Walk(roots []string) (*inventory.Inventory, []Problem, error) {
 
 			// One Unit and Cache per candidate lets multiple matching sources share a single decode.
 			unit := source.Unit{Path: c.Path, Info: c.Info, Cache: source.NewDocumentCache()}
+			// Sources sharing that decode also share its failure, so an identical error is
+			// reported once. A source failing differently still gets its own problem.
+			seenErrs := make(map[string]bool)
 			for _, s := range registry.MatchAll(unit) {
 				extracted, err := s.Extract(unit, fsys)
 				if err != nil {
+					if seenErrs[err.Error()] {
+						continue
+					}
+					seenErrs[err.Error()] = true
 					problems = append(problems, Problem{
 						Path: c.Path,
 						Err:  fmt.Errorf("discover: %s: %w", s.ID(), err),
