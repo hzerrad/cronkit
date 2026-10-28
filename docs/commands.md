@@ -402,6 +402,7 @@ cronkit check --file jobs.cron --json     # JSON output
 - `CRON-010` - Percent character usage (warning, cron newline semantics)
 - `CRON-011` - Quoting/escaping issue (warning)
 - `CRON-012` - Overlap detected (warning, multiple jobs running simultaneously)
+- `CRON-013` - Day-of-month a short month lacks (warning, e.g. `0 0 31 * *` runs seven times a year, not twelve)
 
 Each diagnostic includes a **hint** with actionable suggestions for fixing the issue.
 

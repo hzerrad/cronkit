@@ -706,3 +706,45 @@ func TestNamedJobs_SummarisesBeyondTheCap(t *testing.T) {
 		assert.Equal(t, "a, b, c, d, e, and 2 more", namedJobs(ids))
 	})
 }
+
+// TestValidator_ShortMonthDayOfMonth covers a schedule pinned to a day not every month has, which
+// silently skips those months: "0 0 31 * *" runs seven times a year, not twelve.
+func TestValidator_ShortMonthDayOfMonth(t *testing.T) {
+	validator := NewValidator("en")
+
+	issueFor := func(t *testing.T, expression string) *Issue {
+		t.Helper()
+		for _, issue := range validator.ValidateExpression(expression).Issues {
+			if issue.Code == CodeShortMonthDay {
+				return &issue
+			}
+		}
+		return nil
+	}
+
+	t.Run("should flag a day no short month has", func(t *testing.T) {
+		for _, expression := range []string{"0 0 31 * *", "0 1 1/15 * *", "0 0 */10 * *", "0 0 15,30 * *"} {
+			t.Run(expression, func(t *testing.T) {
+				issue := issueFor(t, expression)
+				require.NotNil(t, issue, "a day beyond 28 must be reported")
+				assert.Equal(t, SeverityWarn, issue.Severity)
+				assert.NotEmpty(t, issue.Hint)
+			})
+		}
+	})
+
+	t.Run("should stay quiet when every month has the day", func(t *testing.T) {
+		for _, expression := range []string{"0 0 * * *", "0 0 28 * *", "0 0 1,15 * *", "0 0 1-28 * *", "@daily"} {
+			t.Run(expression, func(t *testing.T) {
+				assert.Nil(t, issueFor(t, expression), "days 1-28 exist in every month")
+			})
+		}
+	})
+
+	t.Run("should name the days it found", func(t *testing.T) {
+		issue := issueFor(t, "0 0 30,31 * *")
+		require.NotNil(t, issue)
+		assert.Contains(t, issue.Message, "30")
+		assert.Contains(t, issue.Message, "31")
+	})
+}

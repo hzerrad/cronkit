@@ -906,3 +906,36 @@ func TestHumanize_Reboot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "At system startup", human.NewHumanizer().Humanize(s))
 }
+
+// TestHumanizer_ShortMonthDaysAreQualified keeps the description honest: a schedule on day 29, 30
+// or 31 does not run in every month, so it must not read as though it does.
+func TestHumanizer_ShortMonthDaysAreQualified(t *testing.T) {
+	h := human.NewHumanizer()
+	parser := cronx.NewParser()
+
+	describe := func(t *testing.T, expression string) string {
+		t.Helper()
+		schedule, err := parser.Parse(expression)
+		require.NoError(t, err)
+		return h.Humanize(schedule)
+	}
+
+	t.Run("should qualify a single short-month day", func(t *testing.T) {
+		assert.Equal(t, "At midnight on day 31 of every month that has one", describe(t, "0 0 31 * *"))
+	})
+
+	t.Run("should name only the days a short month lacks, since the rest still run", func(t *testing.T) {
+		assert.Equal(t, "At 01:00 on days 1, 16, and 31 of every month (31 only in months that have it)",
+			describe(t, "0 1 1/15 * *"))
+		// February runs on the 15th, so the note must not disclaim the whole month.
+		assert.Equal(t, "At midnight on days 15 and 30 of every month (30 only in months that have it)",
+			describe(t, "0 0 15,30 * *"))
+		assert.Equal(t, "At midnight on days 30 and 31 of every month (30 and 31 only in months that have them)",
+			describe(t, "0 0 30,31 * *"))
+	})
+
+	t.Run("should leave a day every month has alone", func(t *testing.T) {
+		assert.Equal(t, "At midnight on day 28 of every month", describe(t, "0 0 28 * *"))
+		assert.Equal(t, "At midnight on days 1, 15, and 28 of every month", describe(t, "0 0 1,15,28 * *"))
+	})
+}

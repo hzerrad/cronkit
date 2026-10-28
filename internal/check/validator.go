@@ -2,6 +2,8 @@ package check
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,6 +123,19 @@ func (v *Validator) ValidateExpression(expression string) ValidationResult {
 		})
 	}
 
+	if schedule.Kind == cronx.KindFields {
+		if days := detectShortMonthDays(schedule); len(days) > 0 {
+			result.Issues = append(result.Issues, Issue{
+				Severity:   GetCodeSeverity(CodeShortMonthDay),
+				Code:       CodeShortMonthDay,
+				LineNumber: 0,
+				Expression: expression,
+				Message:    shortMonthDayMessage(days),
+				Hint:       GetCodeHint(CodeShortMonthDay),
+			})
+		}
+	}
+
 	// Check for empty schedule
 	if detectEmptySchedule(expression, schedule.Kind, v.scheduler) {
 		result.Valid = false
@@ -213,6 +228,20 @@ func (v *Validator) ValidateItems(items []inventory.Item) ValidationResult {
 				Message:    "Both day-of-month and day-of-week specified (runs if either condition is met)",
 				Hint:       GetCodeHint(CodeDOMDOWConflict),
 			})
+		}
+
+		if schedule.Kind == cronx.KindFields {
+			if days := detectShortMonthDays(schedule); len(days) > 0 {
+				result.Issues = append(result.Issues, Issue{
+					Severity:   GetCodeSeverity(CodeShortMonthDay),
+					Code:       CodeShortMonthDay,
+					LineNumber: item.Locator.Line,
+					Locator:    item.Locator,
+					Expression: item.Expression,
+					Message:    shortMonthDayMessage(days),
+					Hint:       GetCodeHint(CodeShortMonthDay),
+				})
+			}
 		}
 
 		// Check for empty schedule
@@ -363,6 +392,47 @@ func (v *Validator) validateFrequency(schedule *cronx.Schedule, expression strin
 func detectDOMDOWConflict(schedule *cronx.Schedule) bool {
 	// Both DOM and DOW are specified (not wildcards)
 	return !schedule.DayOfMonth.IsEvery() && !schedule.DayOfWeek.IsEvery()
+}
+
+// shortMonthDays are the days-of-month some month lacks, with how many of the twelve lack each.
+var shortMonthDays = map[int]int{29: 1, 30: 1, 31: 5}
+
+// detectShortMonthDays returns the days the schedule pins to that not every month has, ascending.
+// Call only for schedule.Kind == cronx.KindFields.
+func detectShortMonthDays(schedule *cronx.Schedule) []int {
+	if schedule.DayOfMonth.IsEvery() {
+		return nil
+	}
+
+	var found []int
+	for day := range shortMonthDays {
+		for _, v := range schedule.DayOfMonth.ListValues() {
+			if v == day {
+				found = append(found, day)
+				break
+			}
+		}
+	}
+	sort.Ints(found)
+	return found
+}
+
+// shortMonthDayMessage reports which days were found and the worst-case number of months skipped.
+func shortMonthDayMessage(days []int) string {
+	labels := make([]string, len(days))
+	skipped := 0
+	for i, day := range days {
+		labels[i] = strconv.Itoa(day)
+		if shortMonthDays[day] > skipped {
+			skipped = shortMonthDays[day]
+		}
+	}
+
+	subject := fmt.Sprintf("Day-of-month %s does not occur in every month", labels[0])
+	if len(labels) > 1 {
+		subject = fmt.Sprintf("Days-of-month %s do not occur in every month", strings.Join(labels, ", "))
+	}
+	return fmt.Sprintf("%s (skipped in %d of 12)", subject, skipped)
 }
 
 // detectEmptySchedule checks if a schedule never runs; KindReboot is exempt (Next reports zero times).

@@ -234,16 +234,40 @@ func (h *humanizer) formatDayOfMonth(dom cronx.Field) string {
 		if dom.Value() == 1 {
 			return "on the first day of every month"
 		}
+		if dom.Value() > 28 {
+			return fmt.Sprintf("on day %d of every month that has one", dom.Value())
+		}
 		return fmt.Sprintf("on day %d of every month", dom.Value())
 
 	case cronx.KindRange:
-		return fmt.Sprintf("on days %d-%d of every month",
-			dom.RangeStart(), dom.RangeEnd())
+		return fmt.Sprintf("on days %d-%d of every month%s",
+			dom.RangeStart(), dom.RangeEnd(), shortMonthNote(dom))
 
 	case cronx.KindStep:
 		return fmt.Sprintf("on every %d%s day of the month", dom.Step(), ordinalSuffix(dom.Step()))
 
 	default:
-		return fmt.Sprintf("on days %s of every month", formatList(formatInts(dom.ListValues())))
+		return fmt.Sprintf("on days %s of every month%s",
+			formatList(formatInts(dom.ListValues())), shortMonthNote(dom))
 	}
+}
+
+// shortMonthNote names the days a short month lacks, since only those are skipped -- the rest of
+// the schedule still runs, so the note cannot disclaim the whole month.
+func shortMonthNote(dom cronx.Field) string {
+	var short []int
+	for _, day := range dom.ListValues() {
+		if day > 28 {
+			short = append(short, day)
+		}
+	}
+	if len(short) == 0 {
+		return ""
+	}
+
+	pronoun := "it"
+	if len(short) > 1 {
+		pronoun = "them"
+	}
+	return fmt.Sprintf(" (%s only in months that have %s)", formatList(formatInts(short)), pronoun)
 }

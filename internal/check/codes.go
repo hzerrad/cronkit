@@ -26,12 +26,14 @@ const (
 	CodeQuotingIssue = "CRON-011"
 	// CodeOverlapDetected indicates multiple jobs running at the same time
 	CodeOverlapDetected = "CRON-012"
+	// CodeShortMonthDay indicates a day-of-month that not every month has
+	CodeShortMonthDay = "CRON-013"
 )
 
 // GetCodeSeverity returns the severity level for a given diagnostic code
 func GetCodeSeverity(code string) Severity {
 	switch code {
-	case CodeDOMDOWConflict, CodeRedundantPattern, CodeExcessiveRuns, CodePercentCharacter, CodeQuotingIssue, CodeOverlapDetected:
+	case CodeDOMDOWConflict, CodeRedundantPattern, CodeExcessiveRuns, CodePercentCharacter, CodeQuotingIssue, CodeOverlapDetected, CodeShortMonthDay:
 		return SeverityWarn
 	case CodeMissingAbsolutePath, CodeMissingRedirection:
 		return SeverityInfo
@@ -69,6 +71,8 @@ func GetCodeHint(code string) string {
 		return "Check that all quotes are properly closed and escaped. Use single quotes for literal strings, double quotes for variable expansion."
 	case CodeOverlapDetected:
 		return "Multiple jobs are scheduled to run at the same time. This may cause resource contention. Consider adjusting schedules to distribute load."
+	case CodeShortMonthDay:
+		return "A month too short for this day is skipped entirely, so the job does not run monthly. Use a day between 1 and 28 to run in every month."
 	default:
 		return ""
 	}
